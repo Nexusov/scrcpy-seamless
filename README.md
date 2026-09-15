@@ -6,7 +6,7 @@ settings, and automatic USB-to-Wi-Fi fallback in USB + Wi-Fi mode.
 Mirror and control your Android phone over USB, Wi-Fi, or both without terminal commands or manual
 configuration files. Root access and Android app installation are not required.
 
-scrcpy Seamless is an independent project and is not an official Genymobile release.
+scrcpy Seamless is an independent project and is not an official [Genymobile](https://github.com/Genymobile/scrcpy) release.
 
 ## Features
 
