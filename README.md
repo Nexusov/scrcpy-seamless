@@ -1,6 +1,6 @@
 # scrcpy Seamless
 
-**scrcpy Seamless** is a portable Windows x64 fork of [scrcpy 4.0](https://github.com/Genymobile/scrcpy/releases/tag/v4.0) with guided phone setup, graphical
+**scrcpy Seamless** is a portable Windows x64 GUI fork of [scrcpy 4.0](https://github.com/Genymobile/scrcpy/releases/tag/v4.0) with guided phone setup, graphical
 settings, and automatic USB-to-Wi-Fi fallback in USB + Wi-Fi mode.
 
 Mirror and control your Android phone over USB, Wi-Fi, or both without terminal commands or manual
