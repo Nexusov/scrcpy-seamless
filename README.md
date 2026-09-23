@@ -24,7 +24,7 @@ scrcpy Seamless is an independent project and is not an official [Genymobile](ht
 
 ## Quick start
 
-1. Open the [latest release](https://github.com/Nexusov/scrcpy/releases/latest) and download `scrcpy-seamless-win64.zip`. The dependency source archive and GitHub's
+1. Open the [latest release](https://github.com/Nexusov/scrcpy-seamless/releases/latest) and download `scrcpy-seamless-win64.zip`. The dependency source archive and GitHub's
    **Source code** downloads are not required to run the application.
 2. Extract the ZIP into an empty, writable folder. Do not run the application from inside the
    archive and do not extract a new version over an older package.
@@ -291,12 +291,12 @@ Release archives do not contain personal phone settings, mirroring preferences, 
 
 ## Development and building
 
-Start with [CONTRIBUTING.md](https://github.com/Nexusov/scrcpy/blob/main/CONTRIBUTING.md) for the test command and contribution workflow.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the test command and contribution workflow.
 
-See the [architecture](docs/ARCHITECTURE.md), [build guide](docs/BUILD.md), [packaging provenance](docs/PACKAGING.md), and [native implementation notes](docs/CHANGES.md).
+See the [documentation index](docs/README.md), [architecture](docs/ARCHITECTURE.md), [build guide](docs/BUILD.md), [packaging provenance](docs/PACKAGING.md), and [native implementation notes](docs/CHANGES.md).
 
 The repository contains source code and launch scripts. Ready-to-run binaries are distributed
-through [Releases](https://github.com/Nexusov/scrcpy/releases).
+through [Releases](https://github.com/Nexusov/scrcpy-seamless/releases).
 
 ## License and third-party software
 
@@ -308,7 +308,7 @@ See [LICENSE](LICENSE) for the Apache-2.0 license and [THIRD_PARTY.md](THIRD_PAR
 licensing information. Upstream copyright notices and licensing are preserved.
 
 This software uses FFmpeg libraries under LGPL-2.1-or-later. Download the matching `scrcpy-seamless-dependency-sources.zip` from
-the [same release](https://github.com/Nexusov/scrcpy/releases) as the portable package.
+the [same release](https://github.com/Nexusov/scrcpy-seamless/releases) as the portable package.
 
 Third-party license notices are included in `app/licenses/` in the portable package and in `licenses/` in
 the source repository.

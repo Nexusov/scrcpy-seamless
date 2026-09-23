@@ -8,7 +8,7 @@ and rebuilding the modified client.
 Install a C11-capable GCC toolchain, binutils (`ar`, `windres`), pkg-config, Meson,
 Ninja, and the SDL3 and FFmpeg development headers and libraries. The validated
 build used GCC from w64devkit 2.9.1, Meson 1.12.0, Ninja 1.13.2, SDL 3.4.8, and
-FFmpeg 8.1. Build tools are installed separately and are not tracked in Git.
+FFmpeg 8.1.1. Build tools are installed separately and are not tracked in Git.
 
 An MSYS2 MinGW64 environment can also provide the required tools through
 `mingw-w64-x86_64-gcc`, `mingw-w64-x86_64-pkg-config`,
