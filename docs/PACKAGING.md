@@ -28,6 +28,9 @@ third-party notices/source archives.
 
 `scripts/publish.ps1 -CommitMessage "Describe the change"` stages changed public
 project paths and refuses unknown or private files, including force-staged device
-settings. A clean checkout is required before pushing `main`; only a successful
-branch push is followed by a lease-protected update of the existing release tag.
-ZIP assets remain a separate manual upload to the same release.
+settings. It rejects a release tag that already exists locally or remotely
+before staging, then requires a clean checkout after committing. A new tag and
+`main` are pushed together with a non-forced atomic push; if the remote rejects
+either ref, neither remote ref advances. A failed push may leave a local commit
+and tag for manual review. ZIP assets remain a separate manual upload to the
+same release.

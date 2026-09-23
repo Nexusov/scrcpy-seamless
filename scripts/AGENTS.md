@@ -16,9 +16,9 @@ Build/release code is security- and provenance-sensitive. Read:
 Never push, merge, create/push a release tag, publish a GitHub Release, or
 force-push without explicit user authorization.
 
-The current 1.x publisher is known to move an existing release tag. Seamless
-2.0 must remove that behavior. Do not use the mutable-tag workflow for a new
-2.0 release.
+The 1.x publisher rejects existing release tags and pushes a new tag with
+`main` atomically. Keep publication tests on disposable local remotes; do not
+use this legacy publisher as the official 2.0 release pipeline.
 
 Published tags are immutable.
 

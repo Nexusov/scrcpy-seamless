@@ -70,6 +70,7 @@ disconnection. Do not change the imported baseline hashes just to bypass a faile
 packaging check. Dependency changes also require updated notices and source archives.
 
 Maintainers should follow [PACKAGING.md](docs/PACKAGING.md) for provenance and the
-publication workflow. The publisher pushes `main` and then moves the existing
-release tag with a lease; uploading the portable ZIP and matching checksum remains
-a separate step. Test changes and the exact package before publishing.
+publication workflow. The legacy publisher rejects an existing release tag and
+atomically pushes `main` with a new tag; uploading the portable ZIP and matching
+checksum remains a separate step. Test changes and the exact package before
+publishing.
