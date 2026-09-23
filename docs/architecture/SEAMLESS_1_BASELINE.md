@@ -318,3 +318,7 @@ off Wi-Fi left screen and audio unavailable. Current native retry retains the
 Wi-Fi serial and disables USB selection (`src/scrcpy/app/src/scrcpy.c`), so this
 observation is consistent with missing automatic Wi-Fi-to-USB failback; it does
 not establish a defect in fresh USB startup.
+
+The owner subsequently launched DEV afresh with Wi-Fi off and USB connected;
+video and audio worked. This is a separate successful USB startup observation,
+not evidence of automatic failback in the earlier Wi-Fi session.

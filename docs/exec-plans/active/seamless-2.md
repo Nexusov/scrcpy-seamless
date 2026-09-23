@@ -126,6 +126,16 @@ No speculative production scaffolding is authorized by this list.
   disabling Wi-Fi with USB reattached is consistent with the current lack of
   automatic Wi-Fi-to-USB failback, not evidence of fresh USB failure.
   Post-failover PC control and repeated measured cycles remain open.
+- 2026-09-24: a separate fresh DEV startup with Wi-Fi disabled and USB attached
+  produced video and audio. This confirms USB startup in that run while leaving
+  automatic Wi-Fi-to-USB failback unimplemented and unverified.
+- 2026-09-24: added an opt-in, local observer for the existing DEV package. It
+  samples exact-package process/window state, sanitized native event categories,
+  Wi-Fi adapter availability and ADB endpoint counts without changing product
+  sources or the verified artifact. Collection time is not native emission time;
+  full hardware transition traces still require a controlled owner run. The
+  current source suite passed 25/25 including the observer fixture; the
+  original DEV artifact remains verified against its 24/24 source-suite result.
 
 ## Handoff gate
 

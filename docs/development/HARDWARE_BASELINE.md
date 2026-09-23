@@ -40,6 +40,7 @@ This is manual visual/interaction evidence, not a synchronized transport trace.
 | No obvious window replacement or failure | Owner observed visually; subsequent endpoint samples also matched PID/HWND |
 | Audio is audible with USB and Wi-Fi, after USB removal, after Wi-Fi restoration, and after USB reattachment | Owner observed; occasional perceived volume jumps after USB removal; recovery timing and stable quality were not measured |
 | After Wi-Fi was disabled with USB reattached following Wi-Fi failover, screen and audio were unavailable | Owner observed; consistent with the current lack of automatic Wi-Fi-to-USB failback, not proof of a fresh USB connection failure |
+| A fresh DEV launch with Wi-Fi disabled and USB connected provided video and audio | Owner observed in a separate USB-only startup; confirms the USB startup path worked in this run, not automatic failback in the earlier session |
 
 The package contains `app/scrcpy.exe`; `scripts/package.ps1` copies it there and
 `launcher/launch-runtime.ps1` starts that exact executable. A read-only Windows
@@ -89,9 +90,10 @@ establish a cause. For a repeatable audio check, use combined USB + Wi-Fi mode
 with Seamless reconnect enabled, ordinary audio playback enabled, and no
 recording or positive time limit (legacy reconnect restrictions). Disable
 neither audio nor audio playback. On a supported phone, play a local test file
-with speech or repeated tones. First confirm sound reaches the PC speakers/headphones during USB
-mirroring. Keep Wi-Fi available, unplug USB while playback continues, wait for
-Wi-Fi video recovery, and confirm sound resumes through the PC. Record whether
+with speech or repeated tones. First confirm sound reaches the PC
+speakers/headphones during USB mirroring. Keep Wi-Fi available, unplug USB
+while playback continues, wait for Wi-Fi video recovery, and confirm sound
+resumes through the PC. Record whether
 the sound stopped, how long recovery took, and whether manual action was needed.
 Check PC control separately after failover. A moving video frame does not prove
 audio recovery. If audio was unavailable before unplugging, mark recovery NOT
@@ -99,8 +101,43 @@ APPLICABLE for that run and record why; some Android versions and apps restrict
 audio capture. With both USB and Wi-Fi unavailable, absent audio is expected.
 After fallback to Wi-Fi, reattaching USB does not automatically move the current
 native session back to USB: retry retains the Wi-Fi serial and does not reselect
-USB in `src/scrcpy/app/src/scrcpy.c`. To characterize fresh USB startup, launch
-a separate USB-only session while Wi-Fi is off and record that result separately.
+USB in `src/scrcpy/app/src/scrcpy.c`. The owner subsequently performed a fresh
+USB-only launch with Wi-Fi off and observed video and audio. This confirms that
+USB startup worked in that separate run; Wi-Fi-to-USB failback remains absent.
+
+## Local DEV observation without changing the build
+
+The repository-only `scripts/observe-dev.ps1` observes the named package's
+native process, its existing log files and local Wi-Fi adapter status. Optional
+`-IncludeAdb` polls `adb devices` through the package-local client every three
+seconds. That command can start the approved shared ADB server if it is not
+already running; it does not pair, connect or change device configuration.
+Run the observer in a separate PowerShell terminal before a
+controlled transition; it stops after the requested duration:
+
+```powershell
+Set-Location -LiteralPath 'D:\My Projects\scrcpy-seamless'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\observe-dev.ps1 -PackageDirectory '.\dist\dev\scrcpy-seamless-win64-dev-gea193f2' -DurationSeconds 180 -IncludeAdb
+```
+
+Perform the desired DEV actions while it runs. Its final line gives the local
+`work/phase0/observations/.../trace.jsonl` path. That directory is ignored by
+Git. The JSONL contains the native executable SHA-256, UTC collection times,
+exact-package PID/window handle,
+resource counts, categorized native events and, when selected, aggregate ADB
+endpoint counts.
+It omits raw native messages, device identifiers, IP addresses, pairing codes,
+keys, screen and audio content. The original package logs are not sanitized;
+inspect them privately and share only reviewed diagnostic traces.
+
+The observer skips prior log content by default. `-IncludeExistingLogs` reads
+it as historical content, but cannot recover actual emission times. Even live
+native-event timestamps are when the collector reads a line: the launcher
+buffers file output and stdout/stderr are separate. ADB counts show endpoint
+availability, not which transport the native session uses; a
+`selected_transport` event is recorded only when that native message reaches a
+log file. Wi-Fi adapter counts can include virtual adapters. Continue recording
+manual video, sound and control outcomes separately.
 
 ## Capture method
 
