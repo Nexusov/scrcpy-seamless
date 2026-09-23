@@ -126,3 +126,12 @@ video, audio, and control. Use disposable settings for reset tests.
 Native ownership and the fork-specific files are documented in [CHANGES.md](CHANGES.md).
 Build and release checks are documented in [BUILD.md](BUILD.md) and
 [PACKAGING.md](PACKAGING.md).
+
+## Seamless 2.0 planning
+
+Phase 0 records the [1.x behavior and ownership baseline](architecture/SEAMLESS_1_BASELINE.md),
+the accepted [2.0 target](architecture/SEAMLESS_2_TARGET.md),
+[open risks](architecture/SEAMLESS_2_RISK_REGISTER.md), and the ordered
+[execution plan](exec-plans/active/seamless-2.md). The target is not implemented by
+this documentation. Pending real-device evidence follows the
+[hardware baseline procedure](development/HARDWARE_BASELINE.md).
