@@ -55,6 +55,22 @@ try {
     Assert-Publish ((Invoke-TestGit @('ls-remote', '--refs', 'origin', 'refs/heads/main')) -eq $initialRemoteMain) 'Remote main changed despite private settings.'
     $null = Invoke-TestGit @('reset', 'HEAD', '--', 'src/scrcpy-settings.json')
     Remove-Item -LiteralPath (Join-Path $checkout 'src/scrcpy-settings.json')
+    # Phase 1 regression: a clean checkout can still contain unpublished private history.
+    $initialHead = Invoke-TestGit @('rev-parse', 'HEAD')
+    Set-Content (Join-Path $checkout 'src/scrcpy-settings.json') '{"private":"committed fixture"}'
+    $null = Invoke-TestGit @('add', '-f', 'src/scrcpy-settings.json')
+    $null = Invoke-TestGit @('commit', '-m', 'Unpublished private fixture')
+    $privacyResult = Invoke-TestPublish
+    Assert-Publish ($privacyResult.ExitCode -ne 0) 'Unpublished private commit was pushed.'
+    Assert-Publish ((Invoke-TestGit @('ls-remote', '--refs', 'origin', 'refs/heads/main')) -eq $initialRemoteMain) 'Remote main changed despite private outgoing history.'
+    Remove-Item -LiteralPath (Join-Path $checkout 'src/scrcpy-settings.json')
+    $null = Invoke-TestGit @('add', '-u')
+    $null = Invoke-TestGit @('commit', '-m', 'Remove private fixture')
+    $privacyResult = Invoke-TestPublish
+    Assert-Publish ($privacyResult.ExitCode -ne 0) 'Private file in an earlier outgoing commit was pushed.'
+    Assert-Publish ((Invoke-TestGit @('ls-remote', '--refs', 'origin', 'refs/heads/main')) -eq $initialRemoteMain) 'Remote main changed despite private outgoing history.'
+    $null = Invoke-TestGit @('reset', '--hard', $initialHead)
+    foreach ($directory in @('src', 'licenses', '.github')) { $null = New-Item -ItemType Directory -Path (Join-Path $checkout $directory) -Force }
     $null = Invoke-TestGit @('tag', 'v1.0.0')
     $null = Invoke-TestGit @('push', 'origin', 'v1.0.0')
     foreach ($path in @('src/client.c', 'licenses/test.txt', '.github/ci.yml', 'CONTRIBUTING.md')) { Set-Content (Join-Path $checkout $path) 'public change' }

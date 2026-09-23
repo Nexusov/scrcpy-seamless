@@ -42,6 +42,22 @@ try {
     if ($localTag -contains $releaseTag -or $remoteTag.Count) {
         throw "Release tag $releaseTag already exists. Choose a new release version; published tags are immutable."
     }
+    # Phase 1: inspect every outgoing commit, not only the current index and worktree.
+    $remoteMain = @(Invoke-ProjectGit -Arguments @('ls-remote', '--refs', 'origin', 'refs/heads/main'))
+
+    if ($remoteMain.Count -ne 1) {
+        throw 'Expected exactly one remote main reference before publication.'
+    }
+    $remoteMainCommit = ($remoteMain[0] -split '\s+')[0]
+    Invoke-ProjectGit -Arguments @('cat-file', '-e', ($remoteMainCommit + '^{commit}'))
+    Invoke-ProjectGit -Arguments @('merge-base', '--is-ancestor', $remoteMainCommit, 'HEAD')
+    $outgoingPaths = @(Invoke-ProjectGit -Arguments @('-c', 'core.quotepath=false', 'log', '--format=', '--name-only', ($remoteMainCommit + '..HEAD')) | Where-Object { $_ }) | Sort-Object -Unique
+
+    foreach ($path in $outgoingPaths) {
+        if (-not (Test-PublicSourcePath -Path $path)) {
+            throw "Unaccounted or private path in outgoing commits: $path. No tag was created."
+        }
+    }
     $changedPaths = @(
         Invoke-ProjectGit -Arguments @('-c', 'core.quotepath=false', 'diff', '--name-only')
         Invoke-ProjectGit -Arguments @('-c', 'core.quotepath=false', 'diff', '--cached', '--name-only')
