@@ -322,3 +322,14 @@ not establish a defect in fresh USB startup.
 The owner subsequently launched DEV afresh with Wi-Fi off and USB connected;
 video and audio worked. This is a separate successful USB startup observation,
 not evidence of automatic failback in the earlier Wi-Fi session.
+
+A subsequent three-minute source-tree observer run sampled one already-running
+DEV native process 103 times. PID, HWND and responsiveness remained stable.
+The native log contained USB selection followed by two TCP/IP selections and
+two video-resume messages, but its lines reached the collector in five batches.
+Because the process started 22 minutes before collection and output is buffered,
+the trace establishes event order but not exact event times or that every native
+event occurred during the three-minute capture. Its ADB counts indicate endpoint
+availability changes, not native transport choice or audio outcome.
+No contemporaneous owner action/outcome markers were captured, so the manual
+sequence cannot be aligned retrospectively to this trace.

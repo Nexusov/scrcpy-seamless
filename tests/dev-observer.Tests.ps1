@@ -43,12 +43,17 @@ try {
 
     # A live append and a fresh launcher header must both be detected.
     $liveOutput = Join-Path $directory 'live'
-    $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $observerPath + '" -PackageDirectory "' + $directory + '" -OutputDirectory "' + $liveOutput + '" -DurationSeconds 3 -PollMilliseconds 250'
+    $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $observerPath + '" -PackageDirectory "' + $directory + '" -OutputDirectory "' + $liveOutput + '" -DurationSeconds 6 -PollMilliseconds 250'
     $liveProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WindowStyle Hidden -PassThru
     $liveTracePath = Join-Path $liveOutput 'trace.jsonl'
-    $deadline = [DateTime]::UtcNow.AddSeconds(3)
+    $deadline = [DateTime]::UtcNow.AddSeconds(7)
 
-    while (-not (Test-Path -LiteralPath $liveTracePath)) {
+    while ($true) {
+        $liveText = Get-Content -LiteralPath $liveTracePath -Raw -ErrorAction SilentlyContinue
+
+        if ($liveText -and $liveText.Contains('capture_start')) {
+            break
+        }
 
         if ([DateTime]::UtcNow -ge $deadline) {
             throw 'Live observer did not create a trace.'
@@ -57,13 +62,40 @@ try {
         Start-Sleep -Milliseconds 50
     }
 
-    Start-Sleep -Milliseconds 500
     Add-Content -LiteralPath (Join-Path $appDirectory 'last-run.log') -Value 'DEBUG: Server disconnected'
-    Start-Sleep -Milliseconds 500
+
+    while ($true) {
+        $liveText = Get-Content -LiteralPath $liveTracePath -Raw
+
+        if ($liveText -and $liveText.Contains('server_disconnected')) {
+            break
+        }
+
+        if ([DateTime]::UtcNow -ge $deadline) {
+            throw 'Live observer did not ingest the appended log line.'
+        }
+
+        Start-Sleep -Milliseconds 50
+    }
+
     @('scrcpy Seamless DEV | Started: new fixture run', 'INFO: Stream resumed in the existing window') |
         Set-Content -LiteralPath (Join-Path $appDirectory 'last-run.log')
 
-    if (-not $liveProcess.WaitForExit(7000) -or $liveProcess.ExitCode -ne 0) {
+    while ($true) {
+        $liveText = Get-Content -LiteralPath $liveTracePath -Raw
+
+        if ($liveText -and $liveText.Contains('video_resumed')) {
+            break
+        }
+
+        if ([DateTime]::UtcNow -ge $deadline) {
+            throw 'Live observer did not ingest the recreated log.'
+        }
+
+        Start-Sleep -Milliseconds 50
+    }
+
+    if (-not $liveProcess.WaitForExit(8000) -or $liveProcess.ExitCode -ne 0) {
         throw 'Live observer did not finish successfully.'
     }
 
@@ -72,7 +104,10 @@ try {
     foreach ($expectedEvent in @('server_disconnected', 'log_reset', 'video_resumed')) {
 
         if ($liveTrace -notmatch $expectedEvent) {
-            throw "Live observer missed $expectedEvent."
+            $observedEvents = @(Get-Content -LiteralPath $liveTracePath | ForEach-Object { $_ | ConvertFrom-Json } |
+                Where-Object { $_.kind -in @('native_event', 'log_reset') } |
+                ForEach-Object { if ($_.event) { $_.event } else { $_.kind } })
+            throw "Live observer missed $expectedEvent. Events: $($observedEvents -join ', ')."
         }
     }
 

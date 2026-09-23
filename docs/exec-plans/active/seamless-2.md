@@ -136,6 +136,18 @@ No speculative production scaffolding is authorized by this list.
   full hardware transition traces still require a controlled owner run. The
   current source suite passed 25/25 including the observer fixture; the
   original DEV artifact remains verified against its 24/24 source-suite result.
+- 2026-09-24: the owner ran the local observer for three minutes. All 103
+  exact-package process samples retained one PID/HWND and reported responsive.
+  ADB availability changed across network-like and USB/other categories;
+  native-log order included USB selection, two TCP/IP selections and two
+  stream resumes. Native output arrived in five buffered batches, and the
+  process predated collection by 22 minutes; event times and video/audio/control
+  outcomes for this capture are not established. The owner could not reliably
+  reconstruct the action timeline afterward. Optional predefined keyboard
+  markers were added to the source-tree observer for future live annotation;
+  they were checked in an interactive console with a synthetic package. Keep
+  full hardware acceptance open pending owner-observed outcomes and
+  synchronized evidence.
 
 ## Handoff gate
 

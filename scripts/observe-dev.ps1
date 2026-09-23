@@ -4,7 +4,8 @@ param(
     [ValidateRange(1, 3600)][int]$DurationSeconds = 300,
     [ValidateRange(250, 10000)][int]$PollMilliseconds = 1000,
     [switch]$IncludeAdb,
-    [switch]$IncludeExistingLogs
+    [switch]$IncludeExistingLogs,
+    [switch]$InteractiveMarkers
 )
 
 $ErrorActionPreference = 'Stop'
@@ -289,6 +290,21 @@ function Get-WifiAvailabilityObservation {
     return @{ kind = 'wifi_availability'; adapterCount = $adapters.Count; upCount = $upCount }
 }
 
+# Record predefined owner observations without accepting private free-form input.
+function Read-InteractiveMarkers {
+    while ([Console]::KeyAvailable) {
+        $key = [Console]::ReadKey($true).KeyChar.ToString().ToLowerInvariant()
+
+        if (-not $script:markerActions.ContainsKey($key)) {
+            continue
+        }
+
+        $action = $script:markerActions[$key]
+        Write-DevObservation @{ kind = 'owner_marker'; action = $action }
+        Write-Host "Marker: $action"
+    }
+}
+
 $packageRoot = (Resolve-Path -LiteralPath $PackageDirectory).ProviderPath
 $appDirectory = Join-Path $packageRoot 'app'
 $nativeExecutable = Join-Path $appDirectory 'scrcpy.exe'
@@ -300,6 +316,14 @@ if (-not (Test-Path -LiteralPath $nativeExecutable -PathType Leaf)) {
 
 if ($IncludeAdb -and -not (Test-Path -LiteralPath $adbExecutable -PathType Leaf)) {
     throw 'Package-local ADB executable was not found.'
+}
+
+if ($InteractiveMarkers) {
+    try {
+        $null = [Console]::KeyAvailable
+    } catch [InvalidOperationException] {
+        throw '-InteractiveMarkers requires an interactive PowerShell console.'
+    }
 }
 
 if (-not $OutputDirectory) {
@@ -323,6 +347,28 @@ $script:observationWriter = New-Object IO.StreamWriter($tracePath, $false, (New-
 $script:observationWriter.AutoFlush = $true
 $stopwatch = [Diagnostics.Stopwatch]::StartNew()
 $nextAdbMilliseconds = 0
+$script:markerActions = @{
+    '1' = 'usb_removed'
+    '2' = 'usb_attached'
+    '3' = 'phone_wifi_off'
+    '4' = 'phone_wifi_on'
+    '5' = 'video_lost'
+    '6' = 'video_restored'
+    '7' = 'audio_lost'
+    '8' = 'audio_restored'
+    '9' = 'control_failed'
+    '0' = 'control_works'
+    'g' = 'audio_glitch'
+}
+
+if ($InteractiveMarkers) {
+    Write-Host 'Press 1/2: USB removed/attached; 3/4: phone Wi-Fi off/on.'
+    Write-Host 'Press 5/6: video lost/restored; 7/8: audio lost/restored.'
+    Write-Host 'Press 9/0: control failed/works; g: audible glitch.'
+    Write-Host 'Keep this terminal focused when pressing a marker key.'
+}
+
+Write-Host "Diagnostic trace: $tracePath"
 
 try {
     Write-DevObservation @{
@@ -332,6 +378,7 @@ try {
         pollMilliseconds = $PollMilliseconds
         includeExistingLogs = [bool]$IncludeExistingLogs
         adbPolling = [bool]$IncludeAdb
+        interactiveMarkers = [bool]$InteractiveMarkers
     }
 
     while ($stopwatch.Elapsed.TotalSeconds -lt $DurationSeconds) {
@@ -363,6 +410,10 @@ try {
             $nextAdbMilliseconds = $stopwatch.ElapsedMilliseconds + 3000
         }
 
+        if ($InteractiveMarkers) {
+            Read-InteractiveMarkers
+        }
+
         Start-Sleep -Milliseconds $PollMilliseconds
     }
 
@@ -371,4 +422,4 @@ try {
     $script:observationWriter.Dispose()
 }
 
-Write-Output "Diagnostic trace: $tracePath"
+Write-Output "Capture completed: $tracePath"

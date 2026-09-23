@@ -117,7 +117,7 @@ controlled transition; it stops after the requested duration:
 
 ```powershell
 Set-Location -LiteralPath 'D:\My Projects\scrcpy-seamless'
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\observe-dev.ps1 -PackageDirectory '.\dist\dev\scrcpy-seamless-win64-dev-gea193f2' -DurationSeconds 180 -IncludeAdb
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\observe-dev.ps1 -PackageDirectory '.\dist\dev\scrcpy-seamless-win64-dev-gea193f2' -DurationSeconds 180 -IncludeAdb -InteractiveMarkers
 ```
 
 Perform the desired DEV actions while it runs. Its final line gives the local
@@ -138,6 +138,35 @@ availability, not which transport the native session uses; a
 `selected_transport` event is recorded only when that native message reaches a
 log file. Wi-Fi adapter counts can include virtual adapters. Continue recording
 manual video, sound and control outcomes separately.
+
+With `-InteractiveMarkers`, focus the observer terminal and press one key
+immediately after each action or observation: `1`/`2` for USB removed/attached,
+`3`/`4` for phone Wi-Fi off/on, `5`/`6` for video lost/restored, `7`/`8` for
+audio lost/restored, `9`/`0` for control failed/working, and `g` for an audible
+glitch. These predefined labels contain no free-form device or media data.
+They record when the collector processes the key, not the exact physical
+transition instant. This mode requires an interactive console; omit the flag
+for unattended capture.
+
+### First collected DEV trace (2026-09-24)
+
+The owner captured a completed 180-second run with the exact DEV executable
+hash verified against the package. Its native process was already 22 minutes
+old when collection began. All 103 process samples reported the same PID
+`38868`, HWND `2494172` and responding state. ADB availability samples changed
+from one `usbOrOther` plus one `networkLike` endpoint to network-only, then
+both, then USB/other-only, and finally both again; one intermediate sample
+reported an offline endpoint. These categories are availability hints, not
+proof of the active transport or exact physical action.
+
+The trace contains, in native-log order, one selected USB transport followed
+by two selected TCP/IP transports, two stream-resume events, 69 reconnect
+messages and 62 audio-buffer sample-skip messages. The native output arrived
+in five large batches, so its collection times do not establish when those
+events happened. The initial USB selection may predate collection entirely.
+No owner action times or video/audio/control outcomes were recorded for this
+particular trace, and their order cannot be reconstructed reliably from memory.
+Do not infer audible recovery or the cause of volume jumps from it alone.
 
 ## Capture method
 
