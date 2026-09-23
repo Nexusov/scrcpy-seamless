@@ -21,6 +21,15 @@ isolated instance locks. They require no phone, downloaded runtime, or GitHub
 credentials. Publication tests push only to disposable local repositories.
 GitHub Actions runs the same command on Windows for pull requests and `main`.
 
+For documentation changes, also run the local link and anchor check:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
+```
+
+The CI documentation step runs the same command. It does not check external
+websites or validate future package/spec metadata.
+
 ## Find the right module
 
 | Area | Location |

@@ -57,7 +57,15 @@ a repository title.
 
 Use relative links for in-repository navigation where practical.
 
-Run DocsCheck once it exists. Before then, verify new relative links manually.
+Run the initial DocsCheck from the repository root for documentation changes:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
+```
+
+It checks local links and Markdown heading anchors in tracked Markdown files.
+Package/config/spec consistency checks remain future extensions, not current
+DocsCheck coverage.
 
 When documentation paths are moved, update AGENTS references in the same
 change.
