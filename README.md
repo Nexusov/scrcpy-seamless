@@ -291,7 +291,7 @@ Release archives do not contain personal phone settings, mirroring preferences, 
 
 ## Development and building
 
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the test command and contribution workflow.
+Start with [CONTRIBUTING.md](https://github.com/Nexusov/scrcpy-seamless/blob/main/CONTRIBUTING.md) for the test command and contribution workflow.
 
 See the [documentation index](docs/README.md), [architecture](docs/ARCHITECTURE.md), [build guide](docs/BUILD.md), [packaging provenance](docs/PACKAGING.md), and [native implementation notes](docs/CHANGES.md).
 
