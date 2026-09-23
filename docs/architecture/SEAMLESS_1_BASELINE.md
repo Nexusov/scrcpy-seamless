@@ -85,7 +85,7 @@ Android hardware outcome has been observed in this run.
 | Observable 1.x contract | Automated evidence | Remaining boundary |
 | --- | --- | --- |
 | USB, Wi-Fi and combined setup; ambiguity/identity checks; retained pairing | launcher.Tests.ps1, connection.Tests.ps1, pairing-recovery.Tests.ps1, setup-session.Tests.ps1 | Real authorization, mDNS/network/device variation |
-| USB priority at initial connection; Wi-Fi fallback target handoff | connection.Tests.ps1, launch-runtime.Tests.ps1; owner-reported manual visual failover | PID/HWND continuity, audio and repeated hardware recovery remain pending |
+| USB priority at initial connection; Wi-Fi fallback target handoff | connection.Tests.ps1, launch-runtime.Tests.ps1; owner-reported visual failover, matched endpoint PID/HWND and audible return | Intermediate transport trace, audio quality/timing, post-failover control and repeated hardware recovery remain pending |
 | Retry generations reject stale config/results; reset blocks stale restore | launch-session.Tests.ps1, configuration-store.Tests.ps1, reset.Tests.ps1 | Native replacement-session callbacks are not covered by these tests |
 | Atomic snapshots and package-local independent phone/mirroring stores | configuration-store.Tests.ps1, options-store.Tests.ps1, **baseline-contract.Tests.ps1** | v2 schema/migration does not exist yet |
 | Literal option values survive save/load/native argument construction | options-store.Tests.ps1, launch-runtime.Tests.ps1, **baseline-contract.Tests.ps1** | Device capability validity remains native/device authority |
@@ -285,14 +285,36 @@ After the original artifact handoff, the owner reported that DEV Start.vbs opens
 video and PC control work, and both remain functional with Wi-Fi disabled during
 USB operation. The owner visually observed USB-to-Wi-Fi failover with the window
 still visible and mirroring resumed or continuing. No obvious window replacement
-or failure was observed. These observations narrow the hardware gap but do not
+or failure was observed. At this initial report, the observations did not
 prove identical native PID/HWND, post-failover audio/control, repeated-cycle
-stability or every failure stage. Audio recovery was not tested.
+stability or every failure stage. Audio recovery had not yet been tested.
 
 The native executable is `app/scrcpy.exe`: the packager copies that file and the
-launcher starts it by exact path. A current process query found that executable
-and a mirror window, but there is no paired pre/post-failover PID sample. The
-owner's earlier `Get-Process scrcpy` returned no process. That is an inconclusive
-point-in-time observation, not evidence that the process has a different name or
+launcher starts it by exact path. The initial process query found that
+executable and a mirror window, but at that point there was no paired
+pre/post-failover PID sample. The owner's earlier `Get-Process scrcpy` returned
+no process. That is an inconclusive point-in-time observation, not evidence that
+the process has a different name or
 that Seamless failed. The [hardware procedure](../development/HARDWARE_BASELINE.md)
-contains the path-based PID/HWND command for one additional cycle.
+contains the path-based PID/HWND command for future repeatable cycles.
+
+### Extended owner sample (2026-09-24)
+
+The owner captured the DEV native executable at PID `28600`, HWND `594730`,
+title `Phone-Seamless` during USB operation with Wi-Fi disabled. Following the
+reported USB-to-Wi-Fi recovery and additional transport changes, an independent
+read-only query of that exact executable path found the same PID and HWND.
+This confirms identity at those two checkpoints, not every intermediate state
+or repeated-cycle reliability. The owner's attempted after-query failed because
+PowerShell prompts, Markdown fences and displayed output were pasted as code;
+it is not a failed native-process check.
+
+The owner heard audio with USB and Wi-Fi, after USB removal, after Wi-Fi
+restoration and after USB reattachment. Occasional perceived volume jumps
+followed USB removal. Neither timing nor stable audio quality was measured;
+post-failover PC control was not separately reported. With both links absent,
+audio was absent as expected. After Wi-Fi failover and USB reattachment, turning
+off Wi-Fi left screen and audio unavailable. Current native retry retains the
+Wi-Fi serial and disables USB selection (`src/scrcpy/app/src/scrcpy.c`), so this
+observation is consistent with missing automatic Wi-Fi-to-USB failback; it does
+not establish a defect in fresh USB startup.

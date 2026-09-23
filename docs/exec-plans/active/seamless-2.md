@@ -52,8 +52,11 @@ A traceable DEV artifact contains a documented staging-only isolation overlay.
 The owner explicitly approved shared ADB trust/server on 2026-09-23, replacing
 the earlier offline-only constraint. DEV files/settings/shortcuts/mutex remain
 separate. The overlay is not the production baseline. The owner has manually
-observed visual USB-to-Wi-Fi recovery; PID/HWND continuity and post-failover
-audio/control recovery remain pending hardware cases.
+observed visual USB-to-Wi-Fi recovery, matching native PID/HWND at two
+checkpoints, and audible return with occasional volume jumps. Intermediate
+transport state, stable audio quality/timing, post-failover control and
+repeated-cycle recovery remain pending hardware cases. Current 1.x does not
+automatically fail back from Wi-Fi to USB.
 Do not block inventory/documentation work on hardware-only evidence; report the
 coverage boundary and do not claim hardware acceptance.
 
@@ -111,7 +114,18 @@ No speculative production scaffolding is authorized by this list.
   identified from package/source and current process path as `app/scrcpy.exe`.
   No paired PID/HWND samples or audio recovery were reported. An earlier
   `Get-Process scrcpy` no-match is inconclusive, not a failed failover test.
-  The hardware procedure now gives a path-based query for one additional cycle.
+  The hardware procedure then provided a path-based query for a later cycle.
+- 2026-09-24: during USB operation with Wi-Fi disabled, the owner measured DEV
+  `app/scrcpy.exe` PID `28600`, HWND `594730` and title `Phone-Seamless`.
+  Following owner-reported USB-to-Wi-Fi recovery and subsequent transport
+  changes, an independent read-only exact-path query found the same PID/HWND.
+  The owner's attempted after-command pasted PowerShell prompts and Markdown
+  syntax, so its errors are unrelated to native behavior. Audio was audible
+  after USB removal and Wi-Fi restoration, with occasional perceived volume
+  jumps; timing and stable quality were not measured. Screen/audio loss after
+  disabling Wi-Fi with USB reattached is consistent with the current lack of
+  automatic Wi-Fi-to-USB failback, not evidence of fresh USB failure.
+  Post-failover PC control and repeated measured cycles remain open.
 
 ## Handoff gate
 

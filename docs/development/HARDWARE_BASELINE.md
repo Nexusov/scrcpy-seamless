@@ -36,20 +36,30 @@ This is manual visual/interaction evidence, not a synchronized transport trace.
 | --- | --- |
 | Start.vbs launches; mirroring video and PC control work | Owner observed on the DEV build |
 | With Wi-Fi disabled during USB operation, video and PC control continue | Owner observed; no measured resource/lifecycle data |
-| After USB disconnection, visual USB-to-Wi-Fi failover works, the window remains visible, and mirroring resumes or continues | Owner observed; native PID/HWND and post-failover audio/control were not separately measured |
-| No obvious window replacement or failure | Owner observed visually; not proof of the same HWND |
+| After USB disconnection, visual USB-to-Wi-Fi failover works, the window remains visible, and mirroring resumes or continues | Owner observed; post-failover PC control was not separately measured |
+| No obvious window replacement or failure | Owner observed visually; subsequent endpoint samples also matched PID/HWND |
+| Audio is audible with USB and Wi-Fi, after USB removal, after Wi-Fi restoration, and after USB reattachment | Owner observed; occasional perceived volume jumps after USB removal; recovery timing and stable quality were not measured |
+| After Wi-Fi was disabled with USB reattached following Wi-Fi failover, screen and audio were unavailable | Owner observed; consistent with the current lack of automatic Wi-Fi-to-USB failback, not proof of a fresh USB connection failure |
 
 The package contains `app/scrcpy.exe`; `scripts/package.ps1` copies it there and
 `launcher/launch-runtime.ps1` starts that exact executable. A read-only Windows
 process query on 2026-09-24 found an active process at this path named
-`scrcpy.exe`, with a mirror window. The live PID at that instant is not a paired
-before/after measurement. The owner's `Get-Process scrcpy` command returned no
-match earlier. Since the executable really is `scrcpy.exe`, do not attribute
-that result to a wrong process name; the process was not found at that moment.
-This is inconclusive for reconnect continuity, not a failed hardware case.
+`scrcpy.exe`, with a mirror window. The owner captured PID `28600`, HWND
+`594730`, and title `Phone-Seamless` during USB operation with Wi-Fi disabled.
+After the reported recovery and further transport changes, a read-only query
+of the same exact executable path found PID `28600` and HWND `594730` again.
+Thus native PID/HWND matched at two checkpoints of this manual run; intermediate
+states and repeated-cycle reliability were not sampled. The owner's attempted
+second shell command failed because copied PowerShell prompts, continuation
+markers, Markdown fences, and prior output were submitted as commands. The
+independent after-query supplies the second sample. An earlier
+`Get-Process scrcpy` no-match remains inconclusive: the executable name really
+is `scrcpy.exe`, and a no-match at one instant is not a Seamless failure.
 
-For this exact DEV build, run the following command once while USB mirroring is
-active and again after unplugging USB and waiting for Wi-Fi video recovery:
+For future repeatable cycles on this exact DEV build, run only the commands
+inside the following block while USB mirroring is active and again after
+unplugging USB and waiting for Wi-Fi video recovery. Do not paste shell prompts
+(`PS ...>` or `>>`), Markdown fence markers, or displayed results:
 
 ```powershell
 $nativeExecutable = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-win64-dev-gea193f2\app\scrcpy.exe'
@@ -72,18 +82,25 @@ Compare `PID` before and after to confirm native process continuity. Compare
 identity. If the query returns nothing at either point, record the timing and
 do not count it as proof of process replacement.
 
-Audio recovery remains NOT RUN. Use combined USB + Wi-Fi mode with Seamless
-reconnect enabled, ordinary audio playback enabled, and no recording or positive
-time limit (legacy reconnect restrictions). Disable neither audio nor audio
-playback. On a supported phone, play a local test file with speech or repeated
-tones. First confirm sound reaches the PC speakers/headphones during USB
+Audio return was observed, but stable audio quality and recovery timing remain
+unverified. The native log contains repeated audio buffer sample-skip messages;
+without timestamps correlating them to the reported volume jumps, they do not
+establish a cause. For a repeatable audio check, use combined USB + Wi-Fi mode
+with Seamless reconnect enabled, ordinary audio playback enabled, and no
+recording or positive time limit (legacy reconnect restrictions). Disable
+neither audio nor audio playback. On a supported phone, play a local test file
+with speech or repeated tones. First confirm sound reaches the PC speakers/headphones during USB
 mirroring. Keep Wi-Fi available, unplug USB while playback continues, wait for
 Wi-Fi video recovery, and confirm sound resumes through the PC. Record whether
 the sound stopped, how long recovery took, and whether manual action was needed.
 Check PC control separately after failover. A moving video frame does not prove
 audio recovery. If audio was unavailable before unplugging, mark recovery NOT
 APPLICABLE for that run and record why; some Android versions and apps restrict
-audio capture.
+audio capture. With both USB and Wi-Fi unavailable, absent audio is expected.
+After fallback to Wi-Fi, reattaching USB does not automatically move the current
+native session back to USB: retry retains the Wi-Fi serial and does not reselect
+USB in `src/scrcpy/app/src/scrcpy.c`. To characterize fresh USB startup, launch
+a separate USB-only session while Wi-Fi is off and record that result separately.
 
 ## Capture method
 
