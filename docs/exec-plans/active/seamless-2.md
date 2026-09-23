@@ -35,7 +35,7 @@ settings change, or Phase 1 implementation is authorized.
 | P0.2 | Inventory behavior, architecture, package and licenses | Source-anchored baseline and explicit coverage gaps | Complete |
 | P0.3 | Add missing behavioral characterization | Imported production functions; synthetic fixtures; full suites 24/24 PASS | Complete |
 | P0.4 | Document target, risks, hardware procedure and AGENTS impact | Current/target/unverified claims separated; independent agent review | Complete |
-| P0.5 | Validate, commit and package exact final source | Clean native build and 14/14 C tests; shared-ADB candidate UI/discovery PASS; final HEAD ZIP/privacy/provenance checks recorded at handoff | Final artifact handoff gate |
+| P0.5 | Validate, commit and package exact source | Clean native build and 14/14 C tests; exact DEV ZIP/source suites 24/24; checksum/privacy/provenance and UI/discovery recorded in handoff report | Complete |
 
 Changes should form reviewable local Conventional Commits: characterization
 coverage separately from the cohesive baseline/target/risk documentation.
@@ -51,8 +51,9 @@ Do not weaken provenance to manufacture a fully source-built release claim.
 A traceable DEV artifact contains a documented staging-only isolation overlay.
 The owner explicitly approved shared ADB trust/server on 2026-09-23, replacing
 the earlier offline-only constraint. DEV files/settings/shortcuts/mutex remain
-separate. The overlay is not the production baseline. Real USB/Wi-Fi recovery,
-PID/HWND continuity and audio/control recovery remain pending hardware cases.
+separate. The overlay is not the production baseline. The owner has manually
+observed visual USB-to-Wi-Fi recovery; PID/HWND continuity and post-failover
+audio/control recovery remain pending hardware cases.
 Do not block inventory/documentation work on hardware-only evidence; report the
 coverage boundary and do not claim hardware acceptance.
 
@@ -104,6 +105,13 @@ No speculative production scaffolding is authorized by this list.
 - Final handoff records exact committed SHA, archive checksum, final archive
   suite result and smoke evidence in ignored work/phase0/PHASE0-REPORT.md and
   dist/test-results/phase0-final-archive/. Build artifacts are never committed.
+- 2026-09-24: the owner reported DEV Start/video/control success, USB video and
+  control continuity with Wi-Fi disabled, and visual USB-to-Wi-Fi failover with
+  mirroring recovered in a still-visible window. The native executable was
+  identified from package/source and current process path as `app/scrcpy.exe`.
+  No paired PID/HWND samples or audio recovery were reported. An earlier
+  `Get-Process scrcpy` no-match is inconclusive, not a failed failover test.
+  The hardware procedure now gives a path-based query for one additional cycle.
 
 ## Handoff gate
 

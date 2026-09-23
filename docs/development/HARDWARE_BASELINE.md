@@ -1,7 +1,8 @@
 # Manual 1.x hardware baseline
 
-Status: procedure only; **not executed during Phase 0**. Automated coverage and
-current restrictions are in the [baseline](../architecture/SEAMLESS_1_BASELINE.md).
+Status: partially executed with owner-reported observations on 2026-09-24.
+Automated coverage and current restrictions are in the
+[baseline](../architecture/SEAMLESS_1_BASELINE.md).
 This procedure characterizes 1.x and must not silently apply future
 [2.0 semantics](../architecture/SEAMLESS_2_TARGET.md).
 
@@ -23,8 +24,66 @@ This procedure characterizes 1.x and must not silently apply future
 - Keep pairing codes, key material, raw serials, IP addresses and personal screen
   content out of committed evidence. Use local aliases such as device-A.
 
-Until these conditions are satisfied, report cases as NOT RUN, not PASS. A missing
-phone or approved environment does not prevent the Phase 0 source inventory.
+Report only the portions actually observed. A missing phone or approved
+environment does not prevent the Phase 0 source inventory.
+
+## Owner-reported Phase 0 observations
+
+The owner tested the unpacked DEV package based on commit `ea193f21c0b179081909a18d2bda4f404036530e`.
+This is manual visual/interaction evidence, not a synchronized transport trace.
+
+| Observation | Evidence level and limit |
+| --- | --- |
+| Start.vbs launches; mirroring video and PC control work | Owner observed on the DEV build |
+| With Wi-Fi disabled during USB operation, video and PC control continue | Owner observed; no measured resource/lifecycle data |
+| After USB disconnection, visual USB-to-Wi-Fi failover works, the window remains visible, and mirroring resumes or continues | Owner observed; native PID/HWND and post-failover audio/control were not separately measured |
+| No obvious window replacement or failure | Owner observed visually; not proof of the same HWND |
+
+The package contains `app/scrcpy.exe`; `scripts/package.ps1` copies it there and
+`launcher/launch-runtime.ps1` starts that exact executable. A read-only Windows
+process query on 2026-09-24 found an active process at this path named
+`scrcpy.exe`, with a mirror window. The live PID at that instant is not a paired
+before/after measurement. The owner's `Get-Process scrcpy` command returned no
+match earlier. Since the executable really is `scrcpy.exe`, do not attribute
+that result to a wrong process name; the process was not found at that moment.
+This is inconclusive for reconnect continuity, not a failed hardware case.
+
+For this exact DEV build, run the following command once while USB mirroring is
+active and again after unplugging USB and waiting for Wi-Fi video recovery:
+
+```powershell
+$nativeExecutable = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-win64-dev-gea193f2\app\scrcpy.exe'
+Get-CimInstance Win32_Process |
+    Where-Object { $_.ExecutablePath -ieq $nativeExecutable } |
+    ForEach-Object {
+        $windowProcess = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
+        [pscustomobject]@{
+            ProcessName = $_.Name
+            ExecutablePath = $_.ExecutablePath
+            PID = $_.ProcessId
+            MainWindowTitle = $windowProcess.MainWindowTitle
+            MainWindowHandle = $windowProcess.MainWindowHandle
+        }
+    } | Format-List
+```
+
+Compare `PID` before and after to confirm native process continuity. Compare
+`MainWindowHandle` to check window identity as well; the title alone is not an
+identity. If the query returns nothing at either point, record the timing and
+do not count it as proof of process replacement.
+
+Audio recovery remains NOT RUN. Use combined USB + Wi-Fi mode with Seamless
+reconnect enabled, ordinary audio playback enabled, and no recording or positive
+time limit (legacy reconnect restrictions). Disable neither audio nor audio
+playback. On a supported phone, play a local test file with speech or repeated
+tones. First confirm sound reaches the PC speakers/headphones during USB
+mirroring. Keep Wi-Fi available, unplug USB while playback continues, wait for
+Wi-Fi video recovery, and confirm sound resumes through the PC. Record whether
+the sound stopped, how long recovery took, and whether manual action was needed.
+Check PC control separately after failover. A moving video frame does not prove
+audio recovery. If audio was unavailable before unplugging, mark recovery NOT
+APPLICABLE for that run and record why; some Android versions and apps restrict
+audio capture.
 
 ## Capture method
 
