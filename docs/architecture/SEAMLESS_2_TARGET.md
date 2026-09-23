@@ -285,11 +285,13 @@ Phase 11 removes legacy PowerShell/VBS, env/HWND contracts, old catalogue, manua
 package lists and imported native baseline only after parity. Official releases
 then build server/native/Desktop from the exact immutable tagged source with
 checksums, license/source obligations, SBOM and supported attestations. Do not
-claim reproducibility without measurement. Phase 1 fixes mutable-tag tooling;
+claim reproducibility without measurement. Phase 1 corrected the legacy
+publisher's mutable-tag behavior;
 remote settings, push/merge/tag/release always need owner authorization.
 
-DocsCheck will validate links, package paths, config/options/capabilities,
-license paths and generated drift; external-link checks should not make normal
+The initial DocsCheck validates tracked Markdown links and anchors. Later
+extensions will validate package paths, config/options/capabilities, license
+paths and generated drift; external-link checks should not make normal
 PRs depend on third-party uptime. CI already has some safeguards; extend them
 from the [observed baseline](SEAMLESS_1_BASELINE.md), not an imagined empty setup.
 

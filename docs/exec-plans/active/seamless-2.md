@@ -1,8 +1,9 @@
 # Seamless 2.0 execution plan
 
 Status: Phase 0 accepted and merged through PR #1 on 2026-09-24. Phase 1 is
-active on the local `2.0/p01-governance` branch at base
-`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`. Phase 2 has not started.
+complete on the local `2.0/p01-governance` branch at base
+`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`, awaiting owner review.
+Phase 2 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -57,11 +58,20 @@ not.
 
 | ID | Checkpoint | Evidence / exit | Status |
 | --- | --- | --- | --- |
-| P1.1 | Reconcile Phase 0 integration and inventory; review bootstrap AGENTS/development policies | Plan, exact branch base and minimal policy corrections; clean starting tree | In progress |
-| P1.2 | Establish navigable governance knowledge | Documentation indexes, ADR/research structure, third-party reuse rules, competitive audit/matrix scaffolds and repository-setting recommendations; claims marked planned or observed | Pending |
-| P1.3 | Add initial DocsCheck | Deterministic tracked-Markdown local link/anchor checks, focused fixtures, and the applicable local/CI invocation; built-package/config/spec checks remain later extensions | Pending |
-| P1.4 | Repair 1.x publication safety | Demonstrate existing mutable-tag and private-file failures against disposable local remotes/fixtures; then reject existing tags, publish new tags without force, correct privacy filtering and align release docs; positive and negative tests pass | Pending |
-| P1.5 | Validate and close Phase 1 | Full applicable PowerShell suites, DocsCheck, publication fixtures and relevant package/build checks; AGENTS/docs impact, traceable artifact where applicable, logical commits and clean local branch | Pending |
+| P1.1 | Reconcile Phase 0 integration and inventory; review bootstrap AGENTS/development policies | Plan, exact branch base and minimal policy corrections; clean starting tree | Complete |
+| P1.2 | Establish navigable governance knowledge | Documentation indexes, ADR/research structure, third-party reuse rules, competitive audit/matrix scaffolds and repository-setting recommendations; claims marked planned or observed | Complete |
+| P1.3 | Add initial DocsCheck | Deterministic tracked-Markdown local link/anchor checks, focused fixtures, and the applicable local/CI invocation; built-package/config/spec checks remain later extensions | Complete |
+| P1.4 | Repair 1.x publication safety | Demonstrate existing mutable-tag and private-file failures against disposable local remotes/fixtures; then reject existing tags, publish new tags without force, correct privacy filtering and align release docs; positive and negative tests pass | Complete |
+| P1.5 | Validate and close Phase 1 | Full applicable PowerShell suites, DocsCheck, publication fixtures and relevant package/build checks; AGENTS/docs impact, traceable artifact where applicable, logical commits and clean local branch | Complete |
+
+Phase 1 validation on 2026-09-24: the mutable-tag and force-staged-private-file
+regressions failed against the old publisher and passed after correction.
+Independent review also identified outgoing private-history and Windows path-case
+gaps; both received fixtures and fixes. DocsCheck passed 364 links across 59
+tracked Markdown files. The full Windows PowerShell suite passed 26/26 with a
+locally built archive, including layout, provenance and disposable-remote
+publication tests. Phase 1 changed release tooling, tests and documentation;
+the native product source and Phase 0 hardware baseline were not changed.
 
 Prefer separate green commits for the plan/policy, governance structure,
 DocsCheck, and publication fix with its regression tests and documentation.
@@ -226,6 +236,6 @@ No speculative production scaffolding is authorized by this list.
 ## Handoff gate
 
 The owner accepted the Phase 0 report and its hardware/isolation limitations on
-2026-09-24. PR #1 merged Phase 0 into `seamless-2.0`; Phase 1 now follows the
-checkpoints above. Complete and report Phase 1 locally, then stop before any
-Phase 2 work or Phase 1 remote publication.
+2026-09-24. PR #1 merged Phase 0 into `seamless-2.0`; Phase 1 completed locally.
+Report its source/validation evidence and await owner review before Phase 2 or
+any Phase 1 remote publication.
