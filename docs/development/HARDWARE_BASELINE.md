@@ -1,6 +1,7 @@
 # Manual 1.x hardware baseline
 
-Status: partially executed with owner-reported observations on 2026-09-24.
+Status: owner-accepted Phase 0 hardware baseline on 2026-09-24, with the
+documented measurement limits and remaining 2.0 validation risks.
 Automated coverage and current restrictions are in the
 [baseline](../architecture/SEAMLESS_1_BASELINE.md).
 This procedure characterizes 1.x and must not silently apply future
@@ -167,6 +168,9 @@ events happened. The initial USB selection may predate collection entirely.
 No owner action times or video/audio/control outcomes were recorded for this
 particular trace, and their order cannot be reconstructed reliably from memory.
 Do not infer audible recovery or the cause of volume jumps from it alone.
+The owner accepted the combined manual baseline and trace as sufficient for
+Phase 0 closure. The 62 sample-skip messages are observations, not a proven
+audio defect. No further Phase 0 audio investigation is required.
 
 ## Capture method
 

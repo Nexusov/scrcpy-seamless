@@ -26,13 +26,14 @@ confidence. All entries are open. A local containment does not close a risk.
 | R12 High: validation coverage | CI runs PowerShell tests only. C unit tests do not form a reconnect harness. The owner manually observed DEV video/control, fresh USB-only video/audio, visual USB-to-Wi-Fi failover, and audible return with occasional volume jumps. Read-only exact-path samples matched native PID/HWND at two checkpoints. Intermediate transport state, audio quality/timing, post-failover control, repeated cycles and synchronized E2E evidence remain unverified. Loss of screen/audio after Wi-Fi was disabled with USB reattached is consistent with the known lack of automatic Wi-Fi-to-USB failback; fresh USB startup subsequently worked. | Preserve the original artifact's 24-suite/14-test evidence, the current 25-suite observer source run and separately attributed manual observations; the opt-in local observer cannot establish native event times or full acceptance alone. | 2/5/7/12: build CI, UI/IPC/native harnesses and sanitized hardware/fault/soak reports. See hardware procedure. |
 | R13 Medium: documentation/distribution drift | BUILD says FFmpeg 8.1 vs pinned 8.1.1; old repository links remain; recursive package docs contain repository-only links; publisher excludes root AGENTS.md. | Preserve current policies and record discrepancies; locally check new source links. | 1/2: coherent docs/indexes/DocsCheck, publisher allowlist review and explicit package documentation policy. |
 | R14 Medium: reuse/license evidence | Existing notices describe LGPL dependencies and a source companion; companion availability/transitive compliance were not established. Future competitors have not been audited. | No copied competitor code/assets, no public DEV release or compliance attestation. | 1/10/12: exact-source reuse records and licensing decisions; verify notices/source offer and distribution obligations before release. |
+| R15 Medium: lifecycle observability deferred | The legacy DEV trace retained PID/HWND but native messages arrived in buffered batches and could not align transport events with perceived audio outcomes. The 62 sample-skip messages are observations, not a proven audio bug. Building diagnostics only after the 2.0 runtime would leave the new event contract and session identities untestable during migration. | Owner accepted the Phase 0 hardware baseline with this timing limit. Keep the local observer for legacy diagnosis; do not claim it supplies native event times or change production code for the unproven audio symptom. | 6: ordered typed lifecycle events and immediate critical flush. 7: generation/lifetime diagnostics. 8: transport/readiness timings. 12: private JSONL bundles, aggregate metrics, rotation and soak correlation. |
 
 ## Acceptance and review
 
-Phase 0 can finish its inventory and characterization while hardware evidence is
-pending. It cannot certify reconnect reliability, complete isolation of raw ADB
-invocations, full license compliance, or release readiness. The owner reviews
-these limitations before authorizing Phase 1.
+The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
+and trace-timing limits. That acceptance does not close the risks above or
+certify reconnect reliability, complete isolation of raw ADB invocations, full
+license compliance, or release readiness. Phase 1 has not started.
 
 Close a row only with linked implementation, tests and any required hardware or
 release evidence. Reassess severity when the owning Phase discovers new facts.

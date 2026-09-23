@@ -1,7 +1,9 @@
 # Seamless 2.0 execution plan
 
-Status: Phase 0 source freeze complete. Final committed-artifact verification is
-recorded in the local handoff report. Phase 1 is not authorized.
+Status: Phase 0 accepted and closed by the owner on 2026-09-24, with the
+documented hardware and trace-timing limits. Final committed-artifact evidence
+is in the local handoff report. Phase 1 has not started; Git integration and
+remote publication have not been authorized.
 
 ## Authority and scope
 
@@ -11,10 +13,10 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The current task permits environment preparation, baseline verification,
-characterization tests and architecture/risk/planning documentation only.
-No production architecture rewrite, remote push/merge/tag/PR/release, repository
-settings change, or Phase 1 implementation is authorized.
+The Phase 0 closure task permits validation and architecture/risk/planning
+documentation only. No production architecture rewrite, Git integration,
+remote push/merge/tag/PR/release, repository settings change, or Phase 1
+implementation is authorized by this closure.
 
 ## Source baseline
 
@@ -55,10 +57,9 @@ separate. The overlay is not the production baseline. The owner has manually
 observed visual USB-to-Wi-Fi recovery, matching native PID/HWND at two
 checkpoints, and audible return with occasional volume jumps. Intermediate
 transport state, stable audio quality/timing, post-failover control and
-repeated-cycle recovery remain pending hardware cases. Current 1.x does not
-automatically fail back from Wi-Fi to USB.
-Do not block inventory/documentation work on hardware-only evidence; report the
-coverage boundary and do not claim hardware acceptance.
+repeated-cycle recovery were not established. Current 1.x does not
+automatically fail back from Wi-Fi to USB. The owner accepted these limits for
+the Phase 0 hardware baseline; this is not full 2.0 hardware acceptance.
 
 ## Ordered roadmap after Phase 0
 
@@ -73,14 +74,48 @@ and pins them; planning-date observations are not installation instructions.
 | 3 | 2 | Headless Core/Infrastructure: identities, endpoints, plans, config v2/migration, persistence, ADB, activation and native-host boundaries |
 | 4 | 3 | Canonical option spec/schema/generator, metadata/parity and named complex rules |
 | 5 | 3, 4 | Avalonia 1.x workflow parity, localization/accessibility/design system, fake host tests; isolated legacy adapter permitted; alpha eligibility only |
-| 6 | 5 | Bounded versioned stdio IPC, handshake, Stop/Focus/events, EOF/parent-death behavior; no HWND lifecycle authority |
-| 7 | 6 | Separate native app/session/presentation/input/dispatcher lifetimes; generation safety and deterministic reconnect harness |
-| 8 | 7 | ConnectionManager, resolver, retry/failure policy, hysteresis, degradation, recording/headless/deadline semantics; next alpha eligibility |
+| 6 | 5 | Bounded versioned stdio IPC, handshake, Stop/Focus/events, EOF/parent-death behavior; structured ordered lifecycle events; no HWND lifecycle authority |
+| 7 | 6 | Separate native app/session/presentation/input/dispatcher lifetimes; generation-aware lifecycle diagnostics and deterministic reconnect harness |
+| 8 | 7 | ConnectionManager, resolver, retry/failure policy, hysteresis, degradation, recording/headless/deadline semantics; timed transport decisions and readiness; next alpha eligibility |
 | 9 | 8 | Recheck latest stable upstream; selective documented ports with attribution and tests |
 | 10 | 9 | Evidence-based competitive completion with licensing decisions; no generic Android-management expansion |
 | 11 | 10 | Remove legacy production paths/adapters/imported native baseline only after parity; beta eligibility |
-| 12 | 11 | Fuzz/sanitizers/fault/soak/performance/UI/accessibility/hardware/security/package hardening; RC eligibility |
+| 12 | 11 | Fuzz/sanitizers/fault/soak/performance/UI/accessibility/hardware/security/package hardening; diagnostic bundle, metrics, privacy and rotation validation; RC eligibility |
 | 13 | Accepted 12 RC | Minimal blocker fixes and repeated RC acceptance; exact approved stable source, immutable v2.0.0 only after remote authorization |
+
+## Observability developed with the 2.0 architecture
+
+The source-tree `scripts/observe-dev.ps1` remains a useful Phase 0/legacy
+diagnostic instrument. It is not the 2.0 observability architecture. Build the
+new contract with the owning subsystems rather than adding it wholesale after
+the new runtime is complete:
+
+- **Phase 6 — Desktop/native IPC:** structured lifecycle machine events carry a
+  sequence number, UTC timestamp, monotonic process timestamp, SessionId,
+  ConnectionAttemptId, subsystem, event type and typed reason/error. Define
+  deterministic order in the machine event stream and flush critical lifecycle
+  events immediately. Cross-process correlation must not pretend that UTC
+  timestamps alone establish a total order.
+- **Phase 7 — native lifetime:** logs carry session-generation identity and
+  cover app/session and thread/worker lifecycle, stop/join/destroy boundaries,
+  and rejected stale callbacks.
+- **Phase 8 — ConnectionManager:** record transport candidates, resolution and
+  connection attempts, retry/backoff, failover/failback decisions and capability
+  degradation. Measure TransportLost -> ConnectStart -> ServerReady ->
+  FirstVideoFrame -> FirstAudioPacket -> ControlReady -> StreamResumed with
+  explicit attempt/session correlation and channel-specific outcomes.
+- **Phase 12 — hardening:** export a local diagnostic bundle with structured
+  JSONL logs, resource/performance counters, aggregated audio/video/control
+  metrics, redaction/privacy validation, log-size/rotation policy and soak-test
+  correlation. Audio diagnostics cover packets received/decoded, samples
+  submitted/dropped, underflow/overflow, queue depth where applicable,
+  decoder/sink restarts and first audio packet after reconnect.
+
+Do not log every audio sample or video frame. Aggregate high-frequency counters
+and flush them periodically; critical lifecycle events flush immediately.
+Diagnostic bundles must exclude pairing codes, ADB private keys and other
+secrets. This section specifies later Phase acceptance, not Phase 0
+implementation.
 
 Future 3.0 directions remain plans: runtime language switching, embedded
 mirroring, Linux/macOS, Windows ARM64, automation API, extensions/transports,
@@ -148,9 +183,17 @@ No speculative production scaffolding is authorized by this list.
   they were checked in an interactive console with a synthetic package. Keep
   full hardware acceptance open pending owner-observed outcomes and
   synchronized evidence.
+- 2026-09-24: the owner accepted Phase 0 and its hardware baseline, including
+  the stable DEV process/window observations, visual USB-to-Wi-Fi failover,
+  observed audio return and the limits of buffered native timestamps. The 62
+  audio sample-skip messages remain observations, not a proven audio defect.
+  No further audio investigation or production change is in scope. The owner
+  assigned observability requirements to Phases 6/7/8/12; no new logging
+  architecture was implemented. Git integration awaits separate authorization.
 
 ## Handoff gate
 
-Do not begin Phase 1 until the owner has reviewed this Phase's report and
-explicitly accepted its documented hardware/isolation limitations. Remote
-settings and publication remain separately authorized actions.
+The owner accepted the Phase 0 report and its hardware/isolation limitations on
+2026-09-24. Phase 1 remains unstarted until separately requested. Integrating
+this branch into `seamless-2.0`, remote settings and publication remain
+separately authorized actions.

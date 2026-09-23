@@ -113,7 +113,11 @@ review; do not build a fragile private JSON parser.
 
 Handshake includes product identity, protocolMajor/minor and capabilities.
 Messages carry messageType, requestId where applicable, sessionId and
-connectionAttemptId; a monotonic event sequence may support diagnostics. Major
+connectionAttemptId. Lifecycle machine events also carry a per-process sequence
+number, UTC timestamp, monotonic process timestamp, subsystem, event type and
+typed reason/error. Their ordering is deterministic within the machine stream;
+cross-process correlation uses identities and protocol order rather than UTC
+alone. Critical lifecycle events flush immediately. Major
 mismatch fails explicitly, same-major unknown optional fields are ignored and
 unknown message types have a specified policy. Share golden frames/contract tests
 across C# and C.
@@ -235,10 +239,25 @@ ASan/UBSan, useful warnings, targeted analysis and TSan only with actionable sig
 Never suppress real failures for green CI. Hardware reports remain a separate
 sanitized evidence layer; normal PR CI does not require a phone.
 
-Diagnostics correlate AppInstanceId/SessionId/ConnectionAttemptId and reconstruct
-transport plus video/audio/control transitions. Bundles are local; redact secrets,
-keys and unnecessary raw device/network identifiers. No telemetry or remote web
-content by default. Validate paths as data and constrain generated filenames.
+Observability is built with the new architecture: Phase 6 defines the lifecycle
+event contract, Phase 7 adds session-generation-aware app/session and worker
+start/stop/join/destroy and stale-callback diagnostics, and Phase 8 records
+candidate/resolve/connect/retry/failover/failback/degradation decisions. Correlate
+TransportLost, ConnectStart, ServerReady, FirstVideoFrame, FirstAudioPacket,
+ControlReady and StreamResumed per attempt, including elapsed timings and
+separate video/audio/control readiness.
+
+Phase 12 exports local structured JSONL diagnostic bundles with resource and
+performance counters, aggregate audio/video/control metrics, log-size/rotation
+policy, soak correlation and privacy tests. Audio metrics include packets
+received/decoded, samples submitted/dropped, underflow/overflow, queue depth
+where applicable, decoder/sink restart and the first packet after reconnect.
+Never log every audio sample or video frame: aggregate high-frequency counters
+periodically while flushing critical lifecycle events immediately. Bundles
+exclude pairing codes, ADB private keys and other secrets; redact unnecessary
+raw device/network identifiers. No telemetry or remote web content by default.
+Validate paths as data and constrain generated filenames. The legacy Phase 0
+observer is not a substitute for this contract.
 Add SECURITY.md before public beta. Follow the existing evidence-first debugging
 policy and review AGENTS/docs impact for every change.
 
