@@ -156,9 +156,27 @@ function Test-LocalLink {
         return
     }
 
-    if ((Test-Path -LiteralPath $target -PathType Leaf) -and -not $TrackedPaths.Contains($relativeTarget)) {
-        $Errors.Add("${Source}:${LineNumber}: target is not tracked: $Destination")
-        return
+    if (Test-Path -LiteralPath $target -PathType Leaf) {
+        if (-not $TrackedPaths.Contains($relativeTarget)) {
+            $Errors.Add("${Source}:${LineNumber}: target is not tracked or path case differs: $Destination")
+            return
+        }
+    } else {
+        # Windows resolves directory names case-insensitively; GitHub does not.
+        $directoryPrefix = $relativeTarget.TrimEnd('/') + '/'
+        $trackedChild = $relativeTarget -eq ''
+
+        foreach ($trackedPath in $TrackedPaths) {
+            if ($trackedPath.StartsWith($directoryPrefix, [StringComparison]::Ordinal)) {
+                $trackedChild = $true
+                break
+            }
+        }
+
+        if (-not $trackedChild) {
+            $Errors.Add("${Source}:${LineNumber}: directory is not tracked or path case differs: $Destination")
+            return
+        }
     }
 
     if (-not $anchor -or -not $target.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) {
@@ -180,7 +198,7 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Could not enumerate tracked repository files.'
 }
 
-$trackedPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+$trackedPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
 
 foreach ($trackedFile in $trackedFiles) {
     $null = $trackedPaths.Add(($trackedFile -replace '\\', '/'))

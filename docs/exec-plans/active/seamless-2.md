@@ -59,7 +59,7 @@ not.
 | --- | --- | --- | --- |
 | P1.1 | Reconcile Phase 0 integration and inventory; review bootstrap AGENTS/development policies | Plan, exact branch base and minimal policy corrections; clean starting tree | In progress |
 | P1.2 | Establish navigable governance knowledge | Documentation indexes, ADR/research structure, third-party reuse rules, competitive audit/matrix scaffolds and repository-setting recommendations; claims marked planned or observed | Pending |
-| P1.3 | Add initial DocsCheck | Deterministic local Markdown link/anchor and required-path checks, focused fixtures, and the applicable local/CI invocation | Pending |
+| P1.3 | Add initial DocsCheck | Deterministic tracked-Markdown local link/anchor checks, focused fixtures, and the applicable local/CI invocation; built-package/config/spec checks remain later extensions | Pending |
 | P1.4 | Repair 1.x publication safety | Demonstrate existing mutable-tag and private-file failures against disposable local remotes/fixtures; then reject existing tags, publish new tags without force, correct privacy filtering and align release docs; positive and negative tests pass | Pending |
 | P1.5 | Validate and close Phase 1 | Full applicable PowerShell suites, DocsCheck, publication fixtures and relevant package/build checks; AGENTS/docs impact, traceable artifact where applicable, logical commits and clean local branch | Pending |
 

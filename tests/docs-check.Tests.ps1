@@ -71,7 +71,12 @@ try {
     $result = Invoke-FixtureDocsCheck
     Assert-DocsCheck ($result.ExitCode -ne 0 -and $result.Output.Contains('target is not tracked')) 'Untracked target was accepted.' $result
 
-    Write-Output 'PASS: tracked files, local paths, anchors, references, fenced examples and external URLs.'
+    & git -C $fixtureDirectory checkout -- docs/guide.md
+    Add-Content -LiteralPath $guide -Value "`n[wrong case](../readme.md#intro)"
+    $result = Invoke-FixtureDocsCheck
+    Assert-DocsCheck ($result.ExitCode -ne 0 -and $result.Output.Contains('path case differs')) 'Case-mismatched target was accepted.' $result
+
+    Write-Output 'PASS: tracked files, exact path case, local links, anchors, references, fenced examples and external URLs.'
 } finally {
     if (Test-Path -LiteralPath $temporaryDirectory) {
         $resolvedDirectory = (Resolve-Path -LiteralPath $temporaryDirectory).ProviderPath
