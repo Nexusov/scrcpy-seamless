@@ -1,12 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status: Phases 0, 1 and 2 accepted and merged through PRs #1, #2 and #3.
-Phase 2 merged into `seamless-2.0` as
-`ee373709ecdda8e323d93a856a346772b2c46485`, preserving all 20 Phase 2
-commits. Phase 3 implementation and its focused safety gate are on
-`2.0/p03-core` from that exact base. PR #4 is open for final follow-up and
-hosted validation; Phase 4 starts locally only after its merge is verified.
-Final Phase 0 artifact evidence remains in the local handoff report.
+Status: Phases 0–3 accepted and merged through PRs #1–#4. Phase 3 merged
+into `seamless-2.0` as `3207892ddd37cdd6b20bafc7c770a8470b6cb81f`,
+preserving all 11 Phase 3 commits. Phase 4 runs only on the local
+`2.0/p04-options` branch from that exact merge commit. Final Phase 0 artifact
+evidence remains in the local handoff report.
 
 ## Authority and scope
 
@@ -16,13 +14,13 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The owner accepted Phase 2 and Phase 3 and authorized the final Phase 3
-follow-up on `2.0/p03-core`. After all required PR #4 jobs pass, merge it into
-`seamless-2.0` with a merge commit, verify ancestry and clean up the work
-branch. Then start Phase 4 locally from that exact integration head. Do not
-modify `main`, push Phase 4, create tags/releases, change repository settings,
-force-push, or enter Phase 5. Keep the current launcher and imported runtime
-fallback functional; native lifecycle and product UI belong later.
+The owner accepted Phase 3 and authorized PR #4 merge-commit integration after
+its final hosted checks, followed by local Phase 4 only. PR #4 passed all four
+hosted jobs and was merged; its ancestry and short-lived branch cleanup were
+verified. Do not modify `main`, push Phase 4, create tags/releases, change
+repository settings, force-push, or enter Phase 5. Keep the current launcher
+and imported runtime fallback functional; native lifecycle and product UI
+belong later.
 
 ## Source baseline
 
@@ -142,6 +140,39 @@ Keep each checkpoint reviewable; combine adjacent work only when the invariants
 and their tests form one coherent commit. Do not introduce Phase 4 option
 generation, Phase 5 UI, Phase 6 machine IPC, Phase 7 native lifetime work, or
 Phase 8 reconnect execution into this Phase.
+
+## Phase 4 — canonical option specification
+
+Base: `3207892ddd37cdd6b20bafc7c770a8470b6cb81f` on local
+`2.0/p04-options`. The YAML specification is the one data authority for the
+current native CLI, the existing PowerShell option catalogue and new typed
+Core metadata. Preserve native CLI behavior and 1.x launcher behavior. Keep
+native parsing/semantics, runtime device capabilities and complex validation
+rules in typed code. Commit generated outputs so a native-only source build
+does not need .NET generation first.
+
+| ID | Dependency-ordered checkpoint | Evidence / exit | Status |
+| --- | --- | --- | --- |
+| P4.1 | Inventory native CLI, legacy catalogue and consumers | Account for every long entry and short-only alias, argument mode, help special case, legacy field and current tests; record upstream provenance | In progress: 106 long entries and three short-only aliases identified; legacy catalogue covers the 106 in native order |
+| P4.2 | Define canonical data and schema | `spec/options/options.yaml` with independent spec version, stable IDs, classification, argument/value metadata, resource keys, static capabilities and simple relationships; schema and semantic validation boundaries explicit | Pending |
+| P4.3 | Implement deterministic SpecGen | Maintained permissively licensed pinned YAML parser; `generate` and non-mutating `verify`; stable UTF-8/LF output and strict structural/reference checks | Pending |
+| P4.4 | Generate typed Core option descriptors | Immutable catalogue, typed IDs/enums/resource keys; no YAML dictionaries at runtime | Pending |
+| P4.5 | Generate legacy catalogue | Existing JSON contract/order and 1.x temporary compatibility preserved; generated ownership documented and drift verified | Pending |
+| P4.6 | Generate native static CLI declarations | Commit generated include/table; preserve parser, handlers, argument modes, option order and conditional help text; compiled parity coverage without `cli.c` text parsing | Pending |
+| P4.7 | Add pure Core option selection/value validation | Editable versus managed/action enforcement; semantic diagnostics for unknown stored options without data loss; simple typed checks and named typed complex RuleIds | Pending |
+| P4.8 | Prove parity and determinism | Negative spec fixtures, generate-twice byte identity, verify drift/no mutation, compiled native CLI coverage, legacy/migration fixtures | Pending |
+| P4.9 | Wire verification into docs/build/CI | Generated native/Core/legacy/docs outputs checked; semantic IDs checked without prose regex; clean-checkout generation requires no hidden state | Pending |
+| P4.10 | Document and close Phase 4 locally | AGENTS/docs/risk review, all applicable .NET/native/legacy/docs/package checks, logical green commits, clean branch and owner handoff; no hardware claim unless runtime changes unexpectedly | Pending |
+
+The three short-only aliases must be explicit in the spec even though the
+legacy catalogue intentionally contains only long names. Existing
+`SeamlessCompatible` values are a legacy projection, not a permanent 2.0
+capability verdict. The canonical data must distinguish static build features
+from device/runtime support. Complex recording, camera, codec and transport
+semantics remain named typed rules; YAML must not become an executable rule
+language. The v2 persisted bool/string shape and loss-averse unknown-option
+behavior remain intact. No Phase 5 UI, Phase 6 IPC, Phase 7 lifetime or Phase
+8 reconnect work is included.
 
 ## Validation boundaries
 
