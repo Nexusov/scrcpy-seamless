@@ -24,6 +24,8 @@ function Assert-ServerBuildPins {
     $rootBuild = Get-Content -LiteralPath (Join-Path $SourceDirectory 'build.gradle') -Raw
     $serverBuild = Get-Content -LiteralPath (Join-Path $SourceDirectory 'server\build.gradle') -Raw
     $checkstyleBuild = Get-Content -LiteralPath (Join-Path $SourceDirectory 'config\android-checkstyle.gradle') -Raw
+    $androidApi = ($Toolchain.AndroidPlatform.Package -split 'android-', 2)[1]
+    $androidApiPattern = [regex]::Escape($androidApi)
 
     if ($wrapperProperties -notmatch [regex]::Escape("gradle-$($Toolchain.Gradle)-bin.zip")) {
         throw 'Gradle wrapper version differs from the pinned server toolchain.'
@@ -33,7 +35,8 @@ function Assert-ServerBuildPins {
         throw 'Android Gradle plugin version differs from the pinned server toolchain.'
     }
 
-    if ($serverBuild -notmatch 'compileSdk\s*=\s*36\b' -or $serverBuild -notmatch 'targetSdkVersion\s+36\b') {
+    if ($serverBuild -notmatch "compileSdk\s*=\s*$androidApiPattern\b" -or
+        $serverBuild -notmatch "targetSdkVersion\s+$androidApiPattern\b") {
         throw 'Server Android API level differs from the pinned server toolchain.'
     }
 

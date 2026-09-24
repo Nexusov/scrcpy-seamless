@@ -13,6 +13,8 @@ if (-not $ToolDirectory) {
 }
 
 $toolchain = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'server-toolchain.json') -Raw | ConvertFrom-Json
+$platformDirectoryName = ($toolchain.AndroidPlatform.Package -split ';', 2)[1]
+$buildToolsDirectoryName = ($toolchain.AndroidBuildTools.Package -split ';', 2)[1]
 $toolDirectoryPath = [IO.Path]::GetFullPath($ToolDirectory)
 $downloadDirectory = Join-Path $toolDirectoryPath 'downloads'
 $javaDirectory = Join-Path (Join-Path $toolDirectoryPath 'jdk') $toolchain.Jdk.ExtractedDirectory
@@ -165,9 +167,9 @@ try {
         }
     }
 
-    $androidJar = Join-Path $sdkDirectory 'platforms\android-36\android.jar'
-    $platformProperties = Join-Path $sdkDirectory 'platforms\android-36\source.properties'
-    $buildToolsProperties = Join-Path $sdkDirectory 'build-tools\36.0.0\source.properties'
+    $androidJar = Join-Path $sdkDirectory "platforms\$platformDirectoryName\android.jar"
+    $platformProperties = Join-Path $sdkDirectory "platforms\$platformDirectoryName\source.properties"
+    $buildToolsProperties = Join-Path $sdkDirectory "build-tools\$buildToolsDirectoryName\source.properties"
     $platformToolsProperties = Join-Path $sdkDirectory 'platform-tools\source.properties'
     $sdkPackagesPresent = (Test-Path -LiteralPath $androidJar -PathType Leaf) -and
         (Test-Path -LiteralPath $buildToolsProperties -PathType Leaf) -and
