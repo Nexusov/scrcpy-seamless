@@ -26,6 +26,12 @@ replaces it:
   persistence.
 - `options-store.ps1` owns current mirroring settings persistence/encoding.
 
+`option-catalog.json` is a generated 1.x compatibility projection of
+`spec/options/options.yaml`. Do not edit the JSON by hand; run SpecGen
+`generate` and `verify` as documented in `docs/development/options.md`, then
+run the PowerShell option suites. Keep the existing launcher behavior and
+catalogue shape until the approved legacy-removal Phase.
+
 Do not add new business logic to views.
 
 ## Migration rule
