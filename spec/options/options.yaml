@@ -1,4 +1,6 @@
 # Canonical static options for the current Seamless scrcpy 4.0-derived CLI.
+# nativeNumericId preserves pre-generator C dispatch values within one binary;
+# stable persistence and future IPC identity is the string id, never that number.
 specVersion: 1
 upstream:
   repository: "https://github.com/Genymobile/scrcpy"

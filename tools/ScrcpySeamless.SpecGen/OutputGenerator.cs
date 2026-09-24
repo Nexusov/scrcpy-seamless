@@ -25,7 +25,7 @@ internal static class OutputGenerator
             ["spec/options/options.schema.json"] = RenderSchema(),
             ["src/scrcpy/app/src/cli_options.generated.inc"] = RenderNative(specification),
             ["src/desktop/ScrcpySeamless.Core/Options/GeneratedOptionCatalog.g.cs"] = RenderCore(specification),
-            ["src/desktop/ScrcpySeamless.Core/Options/GeneratedOptionResources.en.json"] = RenderEnglishResources(specification),
+            ["src/desktop/ScrcpySeamless.Desktop/Resources/Options/GeneratedOptionResources.en.json"] = RenderEnglishResources(specification),
             ["launcher/option-catalog.json"] = RenderLegacy(specification),
             ["docs/reference/options.md"] = RenderReference(specification),
         };
@@ -110,6 +110,7 @@ internal static class OutputGenerator
         {
             $"// DO NOT EDIT - generated from {Source} by SpecGen v{specification.SpecVersion}.",
             "// Native parser/behavior remains in cli.c; this file owns static CLI declarations.",
+            "// OPT_* numeric values are private dispatch IDs for this compiled client, never stable serialized OptionIds.",
             "enum {",
         };
         var nativeIds = specification.Options.Where(option => option.NativeNumericId.HasValue)
@@ -203,7 +204,6 @@ internal static class OutputGenerator
             $"// DO NOT EDIT - generated from {Source} by SpecGen v{specification.SpecVersion}.",
             "#nullable enable",
             "using System.Collections.ObjectModel;",
-            "using System.Text.Json;",
             "",
             "namespace ScrcpySeamless.Core.Options;",
             "",
@@ -291,26 +291,6 @@ internal static class OutputGenerator
         lines.Add("    public static bool TryGet(string optionId, out OptionDescriptor descriptor)");
         lines.Add("    {");
         lines.Add("        return ById.TryGetValue(optionId, out descriptor!);");
-        lines.Add("    }");
-        lines.Add("}");
-        lines.Add("");
-        lines.Add("/// <summary>Default English option text addressed by invariant resource keys.</summary>");
-        lines.Add("public static class GeneratedOptionResources");
-        lines.Add("{");
-        lines.Add("    private static readonly Lazy<IReadOnlyDictionary<string, string>> English = new(LoadEnglish);");
-        lines.Add("");
-        lines.Add("    public static bool TryGetEnglish(string resourceKey, out string text)");
-        lines.Add("    {");
-        lines.Add("        return English.Value.TryGetValue(resourceKey, out text!);");
-        lines.Add("    }");
-        lines.Add("");
-        lines.Add("    private static IReadOnlyDictionary<string, string> LoadEnglish()");
-        lines.Add("    {");
-        lines.Add("        using var stream = typeof(GeneratedOptionResources).Assembly.GetManifestResourceStream(");
-        lines.Add("            \"ScrcpySeamless.Core.Options.GeneratedOptionResources.en.json\")");
-        lines.Add("            ?? throw new InvalidDataException(\"Generated English option resources are missing.\");");
-        lines.Add("        return JsonSerializer.Deserialize<Dictionary<string, string>>(stream)");
-        lines.Add("            ?? throw new InvalidDataException(\"Generated English option resources are invalid.\");");
         lines.Add("    }");
         lines.Add("}");
         return string.Join('\n', lines) + "\n";

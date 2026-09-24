@@ -1,7 +1,6 @@
 // DO NOT EDIT - generated from spec/options/options.yaml by SpecGen v1.
 #nullable enable
 using System.Collections.ObjectModel;
-using System.Text.Json;
 
 namespace ScrcpySeamless.Core.Options;
 
@@ -1920,25 +1919,5 @@ public static class GeneratedOptionCatalog
     public static bool TryGet(string optionId, out OptionDescriptor descriptor)
     {
         return ById.TryGetValue(optionId, out descriptor!);
-    }
-}
-
-/// <summary>Default English option text addressed by invariant resource keys.</summary>
-public static class GeneratedOptionResources
-{
-    private static readonly Lazy<IReadOnlyDictionary<string, string>> English = new(LoadEnglish);
-
-    public static bool TryGetEnglish(string resourceKey, out string text)
-    {
-        return English.Value.TryGetValue(resourceKey, out text!);
-    }
-
-    private static IReadOnlyDictionary<string, string> LoadEnglish()
-    {
-        using var stream = typeof(GeneratedOptionResources).Assembly.GetManifestResourceStream(
-            "ScrcpySeamless.Core.Options.GeneratedOptionResources.en.json")
-            ?? throw new InvalidDataException("Generated English option resources are missing.");
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(stream)
-            ?? throw new InvalidDataException("Generated English option resources are invalid.");
     }
 }

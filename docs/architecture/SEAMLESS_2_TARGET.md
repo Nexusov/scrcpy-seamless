@@ -195,7 +195,8 @@ Target reconnect semantics intentionally improve 1.x restrictions:
 
 ## Options and Android protocol
 
-Phase 4 owns `spec/options/options.yaml`, schema and SpecGen. Canonical basic
+Phase 4 owns canonical option data in `spec/options/options.yaml`, its SpecGen
+typed interpretation/validator and the generated schema artifact. Canonical basic
 metadata includes names/aliases, type/shape/default, enum/range, category/help ID,
 CLI form, availability, requires/conflicts, deprecation and UI hints. Generate or
 parity-check C#/native/UI/docs metadata with CI drift detection. Generated output
@@ -203,6 +204,9 @@ identifies its source. Complex compatibility stays typed code with named RuleIds
 YAML must not become a programming language. Native remains the final authority
 for actual device capabilities. The [option development guide](../development/options.md)
 records the Phase 4 ownership, generation and legacy-compatibility boundary.
+Core owns stable semantic string IDs and locale-independent resource keys;
+Desktop owns localized option text. Native generated enum numbers only dispatch
+inside one compiled client and must not become Phase 6 IPC or persisted IDs.
 
 Audit client/server channels, ownership, message IDs, byte order, lengths, error
 behavior and negotiation under `spec/device-protocol`. Add C-to-Java and

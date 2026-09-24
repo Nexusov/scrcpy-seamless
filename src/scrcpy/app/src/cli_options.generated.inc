@@ -1,5 +1,6 @@
 // DO NOT EDIT - generated from spec/options/options.yaml by SpecGen v1.
 // Native parser/behavior remains in cli.c; this file owns static CLI declarations.
+// OPT_* numeric values are private dispatch IDs for this compiled client, never stable serialized OptionIds.
 enum {
     OPT_WINDOW_TITLE = 1000,
     OPT_PUSH_TARGET = 1001,

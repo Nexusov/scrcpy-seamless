@@ -14,9 +14,11 @@ before changing v2 persistence, migration, ADB, activation or native-host APIs.
 
 Phase 4 option descriptors under Core are generated from
 `spec/options/options.yaml`. Change the spec and run SpecGen; do not hand-edit
-generated descriptors. Keep conditional option validators as named typed Core
-rules, and preserve unknown v2 option values while reporting them as
-unsupported for execution.
+generated descriptors. Core owns stable option IDs and resource keys but must
+not embed or load localized strings. Generated English option text belongs to
+`ScrcpySeamless.Desktop/Resources/Options/` for future presentation use. Keep
+conditional option validators as named typed Core rules, and preserve unknown
+v2 option values while reporting them as unsupported for execution.
 
 Keep direct NuGet versions in `Directory.Packages.props`, the exact SDK in
 `global.json`, and transitive dependency graphs in project lock files. Use
