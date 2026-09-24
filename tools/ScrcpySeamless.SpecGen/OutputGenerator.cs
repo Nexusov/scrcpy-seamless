@@ -20,7 +20,7 @@ internal static class OutputGenerator
 
     public static IReadOnlyDictionary<string, string> Generate(OptionSpecification specification)
     {
-        return new SortedDictionary<string, string>(StringComparer.Ordinal)
+        SortedDictionary<string, string> outputs = new(StringComparer.Ordinal)
         {
             ["spec/options/options.schema.json"] = RenderSchema(),
             ["src/scrcpy/app/src/cli_options.generated.inc"] = RenderNative(specification),
@@ -29,6 +29,13 @@ internal static class OutputGenerator
             ["launcher/option-catalog.json"] = RenderLegacy(specification),
             ["docs/reference/options.md"] = RenderReference(specification),
         };
+
+        foreach (string path in outputs.Keys.ToArray())
+        {
+            outputs[path] = outputs[path].Replace("\r\n", "\n", StringComparison.Ordinal);
+        }
+
+        return outputs;
     }
 
     private static string RenderSchema()

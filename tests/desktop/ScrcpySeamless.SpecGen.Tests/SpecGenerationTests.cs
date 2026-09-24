@@ -19,6 +19,7 @@ public sealed class SpecGenerationTests
         foreach (var key in first.Keys)
         {
             Assert.Equal(first[key], second[key]);
+            Assert.DoesNotContain('\r', first[key]);
         }
     }
 
