@@ -6,6 +6,7 @@ Build/release code is security- and provenance-sensitive. Read:
 
 - `/AGENTS.md`
 - `/docs/BUILD.md`
+- `/docs/development/version-sources.md`
 - `/docs/PACKAGING.md`
 - `/docs/development/git-workflow.md`
 - `/docs/development/release-process.md`
@@ -52,6 +53,10 @@ Keep dependency/compiler/build-system upgrades separate from unrelated native
 lifecycle refactors whenever possible. This keeps regressions diagnosable.
 
 Meson/Ninja remains the canonical native build system for 2.0.
+For the Phase 2 Windows native bootstrap, exact inputs and commands live in
+`docs/development/native-build.md` and `scripts/native-toolchain.json`. Keep
+download verification and source fingerprint exclusions aligned with the
+documented build; do not weaken the reviewed runtime hashes.
 
 ## Tests
 

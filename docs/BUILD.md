@@ -1,7 +1,17 @@
 # Building for Windows x64
 
-The portable application does not require a compiler. This guide covers development
-and rebuilding the modified client.
+The portable 1.x application does not require a compiler. This guide covers
+development and rebuilding the modified client. The Phase 2 source-build paths
+are documented separately:
+
+- [Native Windows client bootstrap and tests](development/native-build.md)
+- [Android server source build](development/server-build.md)
+- [.NET 10 / Avalonia Desktop scaffold](development/desktop-build.md)
+- [Version and dependency sources of truth](development/version-sources.md)
+
+These foundations are additive. The current portable launcher still uses the
+reviewed runtime hashes in `release-manifest.json`. A source-built server is
+not substituted into that package merely because its build succeeds.
 
 ## Dependencies
 

@@ -26,6 +26,14 @@ against the manifest even when selecting a freshly built client. The ZIP include
 Changes to dependencies require an intentional manifest review and matching
 third-party notices/source archives.
 
+Phase 2 also provides a source build for the Android server. Its output and
+fingerprint are kept under ignored `work/phase2/server/artifacts/`; the current
+packager still requires the reviewed `scrcpy-server` hash above. To try the
+source-built server in an isolated development runtime, place its artifact at
+`app/scrcpy-server` in that runtime and run the native client there. Do not
+present that runtime as a validated 1.x package or bypass the packager's hash
+gate. See the [server build guide](development/server-build.md).
+
 `scripts/publish.ps1 -CommitMessage "Describe the change"` stages changed public
 project paths and refuses unknown or private files, including force-staged device
 settings. It rejects a release tag that already exists locally or remotely
