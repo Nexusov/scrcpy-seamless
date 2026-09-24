@@ -288,10 +288,13 @@ No speculative production scaffolding is authorized by this list.
   audible output worked initially over USB, but the owner heard speed/skip
   artifacts. After unplugging USB, video and PC control recovered over Wi-Fi
   in the existing window while audible output did not return on either PC or
-  phone. The local observer sampled one responsive native PID and one nonzero
-  HWND, and recorded USB selection, disconnection, a TCP/IP attempt and video
-  resume in order; its buffered log collection does not establish exact event
-  times or an audio root cause. This is a failed changed-client audio smoke,
+  phone. During that first run the observer retained PID `36980` and nonzero
+  HWND `2691502` through the transition, with responsive process samples. A
+  later separate launch used PID `19792` and HWND `5311488`; do not combine
+  the two runs into one lifetime claim. The trace recorded USB selection,
+  disconnection, a TCP/IP attempt and video resume in order; its buffered log
+  collection does not establish exact event times or an audio root cause.
+  This is a failed changed-client audio smoke,
   not proof that the Phase 2 allocation guard caused it. The earlier owner
   instruction to avoid further audio investigation/production changes remains
   in force until the owner clarifies Phase 2 scope. Do not close P2.9 on these
