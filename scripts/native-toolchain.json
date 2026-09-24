@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "hostPython": "3.12.14",
+  "hostPython": "3.13.15",
   "packages": {
     "w64devkit": {
       "version": "2.9.1",

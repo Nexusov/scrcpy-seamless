@@ -12,7 +12,7 @@ all packaged runtime files against [`release-manifest.json`](../../release-manif
 
 | Input | Exact version and origin | Use and licensing |
 | --- | --- | --- |
-| Python | 3.12.14 from an independently installed Python runtime | Runs the bootstrap; PSF license. The script checks the exact version but does not install or hash the interpreter. |
+| Python | 3.13.15 from an independently installed Python runtime | Runs the bootstrap; PSF license. The script checks the exact version but does not install or hash the interpreter. Python 3.12.14, used in the earlier local validation, has no official Windows installer or `setup-python` Windows artifact. |
 | w64devkit | 2.9.1 official release; GCC 16.2.0, binutils 2.47.20260726, pkg-config 0.34.0 | Compiler, linker, assembler and resource tools; upstream GCC/binutils terms and runtime exception apply. |
 | Meson | 1.12.0 wheel from PyPI | Build-system frontend; Apache-2.0. Installed offline from the verified wheel into `work/native/python`. |
 | Ninja | 1.13.2 official release | Build executor; Apache-2.0. |
@@ -30,7 +30,7 @@ See [third-party notices](../../THIRD_PARTY.md) and
 
 ## Bootstrap and build from a clean checkout
 
-Install Python **3.12.14** from the official Python distribution first, or use
+Install Python **3.13.15** from the official Python distribution first, or use
 an existing trusted interpreter of exactly that version. The interpreter is
 the one host prerequisite; the bootstrap refuses any other patch version.
 From the repository root in PowerShell, replace the interpreter path below
