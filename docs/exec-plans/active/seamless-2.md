@@ -96,7 +96,7 @@ keep 1.x development and the reviewed imported package fallback working.
 | P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
 | P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Implemented locally; remote jobs pending authorized publication |
 | P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
-| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks complete; changed-client hardware smoke and final artifact pending |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks and DEV artifact complete; changed-client hardware smoke found missing audio after failover, so closure is pending scope decision |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
@@ -282,6 +282,20 @@ No speculative production scaffolding is authorized by this list.
   repeatable documented workflow, not byte-identical output. The local CI
   workflow passed actionlint v1.7.12; its new hosted jobs cannot be claimed
   green before separate Phase 2 publication authorization.
+- 2026-09-24: the `p02-g7b140f3` local DEV ZIP passed 28/28 PowerShell suites
+  and kept private settings out of the archive. The owner used an extracted
+  copy with the earlier DEV-only phone configuration. Video, PC control and
+  audible output worked initially over USB, but the owner heard speed/skip
+  artifacts. After unplugging USB, video and PC control recovered over Wi-Fi
+  in the existing window while audible output did not return on either PC or
+  phone. The local observer sampled one responsive native PID and one nonzero
+  HWND, and recorded USB selection, disconnection, a TCP/IP attempt and video
+  resume in order; its buffered log collection does not establish exact event
+  times or an audio root cause. This is a failed changed-client audio smoke,
+  not proof that the Phase 2 allocation guard caused it. The earlier owner
+  instruction to avoid further audio investigation/production changes remains
+  in force until the owner clarifies Phase 2 scope. Do not close P2.9 on these
+  results.
 
 ## Handoff gate
 
