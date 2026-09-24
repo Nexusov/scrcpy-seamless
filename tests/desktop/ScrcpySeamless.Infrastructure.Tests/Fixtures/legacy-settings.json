@@ -1,0 +1,9 @@
+{
+  "SchemaVersion": 1,
+  "Reconnect": true,
+  "Options": {
+    "max-fps": "60",
+    "turn-screen-off": true,
+    "no-audio": false
+  }
+}
