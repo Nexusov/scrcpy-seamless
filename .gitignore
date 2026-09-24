@@ -7,6 +7,14 @@
 /finish-cleanup.cmd
 /scripts/finalize-repository.ps1
 
+# Phase 2 source-build outputs; never fingerprint or commit generated files.
+/src/scrcpy/.gradle/
+/src/scrcpy/server/.gradle/
+/src/scrcpy/server/build/
+**/bin/
+**/obj/
+*.binlog
+
 # Device-specific settings and local diagnostics.
 phone.json
 scrcpy-settings.json
