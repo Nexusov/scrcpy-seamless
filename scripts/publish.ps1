@@ -18,13 +18,13 @@ function Invoke-ProjectGit {
 # Admit public project paths while rejecting local settings even when force-staged.
 function Test-PublicSourcePath {
     param([string]$Path)
-    $privatePath = $Path -match '(^|/)(phone\.json|adbkey(\.pub)?|build\.local\.json)$' -or
+    $privatePath = $Path -match '(^|/)(phone\.json|scrcpy-settings\.json|adbkey(\.pub)?|build\.local\.json)$' -or
         $Path -match '\.(log|pid|lnk)$' -or $Path -match '(^|/)(\.env($|\.)|credentials($|\.))'
 
     if ($privatePath) {
         return $false
     }
-    $publicRootFiles = @('README.md', 'LICENSE', 'THIRD_PARTY.md', 'CONTRIBUTING.md', 'release-manifest.json', '.gitignore', '.gitattributes')
+    $publicRootFiles = @('README.md', 'LICENSE', 'THIRD_PARTY.md', 'CONTRIBUTING.md', 'AGENTS.md', 'release-manifest.json', '.gitignore', '.gitattributes')
     return $Path -in $publicRootFiles -or $Path -match '^(launcher|scripts|tests|docs|src|licenses|\.github)/'
 }
 
@@ -33,6 +33,30 @@ try {
 
     if ($branch -ne 'main') {
         throw 'Switch the project to main before publishing.'
+    }
+    # Phase 1: reject a release label before staging or committing any local changes.
+    $tagReference = 'refs/tags/' + $releaseTag
+    $localTag = @(Invoke-ProjectGit -Arguments @('tag', '--list', $releaseTag))
+    $remoteTag = @(Invoke-ProjectGit -Arguments @('ls-remote', '--refs', 'origin', $tagReference))
+
+    if ($localTag -contains $releaseTag -or $remoteTag.Count) {
+        throw "Release tag $releaseTag already exists. Choose a new release version; published tags are immutable."
+    }
+    # Phase 1: inspect every outgoing commit, not only the current index and worktree.
+    $remoteMain = @(Invoke-ProjectGit -Arguments @('ls-remote', '--refs', 'origin', 'refs/heads/main'))
+
+    if ($remoteMain.Count -ne 1) {
+        throw 'Expected exactly one remote main reference before publication.'
+    }
+    $remoteMainCommit = ($remoteMain[0] -split '\s+')[0]
+    Invoke-ProjectGit -Arguments @('cat-file', '-e', ($remoteMainCommit + '^{commit}'))
+    Invoke-ProjectGit -Arguments @('merge-base', '--is-ancestor', $remoteMainCommit, 'HEAD')
+    $outgoingPaths = @(Invoke-ProjectGit -Arguments @('-c', 'core.quotepath=false', 'log', '--format=', '--name-only', ($remoteMainCommit + '..HEAD')) | Where-Object { $_ }) | Sort-Object -Unique
+
+    foreach ($path in $outgoingPaths) {
+        if (-not (Test-PublicSourcePath -Path $path)) {
+            throw "Unaccounted or private path in outgoing commits: $path. No tag was created."
+        }
     }
     $changedPaths = @(
         Invoke-ProjectGit -Arguments @('-c', 'core.quotepath=false', 'diff', '--name-only')
@@ -56,18 +80,10 @@ try {
         throw 'The checkout is not clean after committing. Publication stopped before updating the release tag.'
     }
 
-    Invoke-ProjectGit -Arguments @('push', 'origin', 'main')
-    $tagReference = 'refs/tags/' + $releaseTag
-    $remoteTag = @(Invoke-ProjectGit -Arguments @('ls-remote', '--refs', 'origin', $tagReference))
-    $expectedTag = ''
-
-    if ($remoteTag.Count) {
-        $expectedTag = ($remoteTag[0] -split '\s+')[0]
-    }
-
-    Invoke-ProjectGit -Arguments @('tag', '-f', $releaseTag, 'HEAD')
-    Invoke-ProjectGit -Arguments @('push', ('--force-with-lease=' + $tagReference + ':' + $expectedTag), 'origin', $tagReference)
-    Write-Host "Source code published and $releaseTag updated. Release ZIP assets must be uploaded separately." -ForegroundColor Green
+    # Phase 1: publish the branch and a new tag in one non-forced transaction.
+    Invoke-ProjectGit -Arguments @('tag', $releaseTag, 'HEAD')
+    Invoke-ProjectGit -Arguments @('push', '--atomic', 'origin', 'main', $tagReference)
+    Write-Host "Source code and new tag $releaseTag published. Release ZIP assets must be uploaded separately." -ForegroundColor Green
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1

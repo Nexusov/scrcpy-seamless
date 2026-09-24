@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status: Phase 0 accepted and closed by the owner on 2026-09-24, with the
-documented hardware and trace-timing limits. Final committed-artifact evidence
-is in the local handoff report. Phase 1 has not started; Git integration and
-remote publication have not been authorized.
+Status: Phase 0 accepted and merged through PR #1 on 2026-09-24. Phase 1 is
+complete on the local `2.0/p01-governance` branch at base
+`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`, awaiting owner review.
+Phase 2 has not started.
+Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
 
@@ -13,15 +14,18 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The Phase 0 closure task permits validation and architecture/risk/planning
-documentation only. No production architecture rewrite, Git integration,
-remote push/merge/tag/PR/release, repository settings change, or Phase 1
-implementation is authorized by this closure.
+The Phase 0 closure restrictions applied to that completed task. The owner
+subsequently authorized PR #1 merge and local Phase 1 governance/release-safety
+work. Phase 1 may not push its branch, open/merge its PR, create tags or
+releases, change remote repository settings, force-push, modify `main`, or enter
+Phase 2 without separate authorization. No C# or native architecture rewrite
+belongs to this Phase.
 
 ## Source baseline
 
 - Integration branch: `seamless-2.0`.
-- Local work branch: `2.0/p00-baseline-freeze`.
+- Phase 0 work branch: `2.0/p00-baseline-freeze` (merged, then deleted locally
+  and remotely).
 - Base: `98c613019049ef3e97ae6644f6f14a2cef7ed627`.
 - Stable-line ancestor: `00863b508ffc0c9bf6ea464b6a07591fa998749c`.
 - Initial worktree: clean. Read-only remote fetch completed; no remote state
@@ -42,6 +46,39 @@ implementation is authorized by this closure.
 Changes should form reviewable local Conventional Commits: characterization
 coverage separately from the cohesive baseline/target/risk documentation.
 No automatic integration or remote publication follows completion.
+
+## Phase 1 — governance, knowledge and release safety
+
+Phase 1 starts from merge commit
+`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c` on `seamless-2.0`. Keep
+`2.0/p01-governance` local until the owner separately authorizes publication.
+The existing 1.x publisher is in scope for release-integrity and privacy
+corrections; product launch, native, server and future Desktop architecture are
+not.
+
+| ID | Checkpoint | Evidence / exit | Status |
+| --- | --- | --- | --- |
+| P1.1 | Reconcile Phase 0 integration and inventory; review bootstrap AGENTS/development policies | Plan, exact branch base and minimal policy corrections; clean starting tree | Complete |
+| P1.2 | Establish navigable governance knowledge | Documentation indexes, ADR/research structure, third-party reuse rules, competitive audit/matrix scaffolds and repository-setting recommendations; claims marked planned or observed | Complete |
+| P1.3 | Add initial DocsCheck | Deterministic tracked-Markdown local link/anchor checks, focused fixtures, and the applicable local/CI invocation; built-package/config/spec checks remain later extensions | Complete |
+| P1.4 | Repair 1.x publication safety | Demonstrate existing mutable-tag and private-file failures against disposable local remotes/fixtures; then reject existing tags, publish new tags without force, correct privacy filtering and align release docs; positive and negative tests pass | Complete |
+| P1.5 | Validate and close Phase 1 | Full applicable PowerShell suites, DocsCheck, publication fixtures and relevant package/build checks; AGENTS/docs impact, traceable artifact where applicable, logical commits and clean local branch | Complete |
+
+Phase 1 validation on 2026-09-24: the mutable-tag and force-staged-private-file
+regressions failed against the old publisher and passed after correction.
+Independent review also identified outgoing private-history and Windows path-case
+gaps; both received fixtures and fixes. DocsCheck passed 364 links across 59
+tracked Markdown files. The full Windows PowerShell suite passed 26/26 with a
+locally built archive, including layout, provenance and disposable-remote
+publication tests. Phase 1 changed release tooling, tests and documentation;
+the native product source and Phase 0 hardware baseline were not changed.
+
+Prefer separate green commits for the plan/policy, governance structure,
+DocsCheck, and publication fix with its regression tests and documentation.
+For the release bug, first run the new regression against the old publisher and
+record the expected failure; commit the regression with the fix so the commit
+remains green. Publication tests must use disposable local remotes. Do not
+publish a real tag or release while validating Phase 1.
 
 ## Validation boundaries
 
@@ -190,10 +227,15 @@ No speculative production scaffolding is authorized by this list.
   No further audio investigation or production change is in scope. The owner
   assigned observability requirements to Phases 6/7/8/12; no new logging
   architecture was implemented. Git integration awaits separate authorization.
+- 2026-09-24: PR #1 passed its `test` check and merged with a two-parent merge
+  commit `4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`. Local
+  `seamless-2.0` fast-forwarded to the merge; the merged Phase 0 branch was
+  deleted locally and remotely. The owner authorized Phase 1 on the local
+  `2.0/p01-governance` branch with no Phase 1 push or remote settings change.
 
 ## Handoff gate
 
 The owner accepted the Phase 0 report and its hardware/isolation limitations on
-2026-09-24. Phase 1 remains unstarted until separately requested. Integrating
-this branch into `seamless-2.0`, remote settings and publication remain
-separately authorized actions.
+2026-09-24. PR #1 merged Phase 0 into `seamless-2.0`; Phase 1 completed locally.
+Report its source/validation evidence and await owner review before Phase 2 or
+any Phase 1 remote publication.

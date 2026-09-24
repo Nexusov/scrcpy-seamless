@@ -64,6 +64,11 @@ If stable 2.0.0 needs a fix, publish 2.0.1.
 
 Release tooling must fail rather than reuse an existing published tag.
 
+The corrected 1.x publisher checks local and remote tag existence before
+committing, then requests an atomic, non-forced push of `main` and a new tag.
+If that push fails, inspect the local commit and tag before retrying with a new
+release version; no remote ref should have advanced.
+
 ## Official release source
 
 Official prereleases/releases are built by the release pipeline from the exact

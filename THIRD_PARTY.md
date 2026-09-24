@@ -37,7 +37,7 @@ upstream scrcpy dependency scripts. Embedded zlib version strings identify 1.3.1
 
 This software uses libraries from the FFmpeg project under LGPL-2.1-or-later.
 Download `scrcpy-seamless-dependency-sources.zip` from the
-[same release as the portable package](https://github.com/Nexusov/scrcpy/releases/latest).
+[same release as the portable package](https://github.com/Nexusov/scrcpy-seamless/releases/latest).
 It contains unmodified FFmpeg 8.1.1, dav1d 1.5.3, zlib 1.3.1, and SDL 3.4.8
 source archives, source checksums, upstream dependency build scripts, and the
 configuration reported by the shipped FFmpeg DLL. No local changes were made

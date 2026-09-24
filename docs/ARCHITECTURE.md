@@ -133,5 +133,5 @@ Phase 0 records the [1.x behavior and ownership baseline](architecture/SEAMLESS_
 the accepted [2.0 target](architecture/SEAMLESS_2_TARGET.md),
 [open risks](architecture/SEAMLESS_2_RISK_REGISTER.md), and the ordered
 [execution plan](exec-plans/active/seamless-2.md). The target is not implemented by
-this documentation. Pending real-device evidence follows the
-[hardware baseline procedure](development/HARDWARE_BASELINE.md).
+this documentation. The accepted Phase 0 observations and later hardware
+validation gaps follow the [hardware baseline procedure](development/HARDWARE_BASELINE.md).

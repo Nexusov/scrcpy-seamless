@@ -57,7 +57,7 @@ Click **Save mirroring settings**, then restart mirroring to apply changes. Blan
 
 Settings explains common conflicts before saving. Options managed by the connection wizard or unavailable in this build remain visible with an explanation. Device-specific capabilities are checked by scrcpy when launched.
 
-For detailed setup instructions, connection recovery, troubleshooting, logs, and package layout, see the [repository README](https://github.com/Nexusov/scrcpy#readme).
+For detailed setup instructions, connection recovery, troubleshooting, logs, and package layout, see the [repository README](https://github.com/Nexusov/scrcpy-seamless#readme).
 
 ## Requirements
 
@@ -82,7 +82,7 @@ ADB and the required runtime libraries are included. No installation, compiler, 
 
 Based on [Genymobile scrcpy 4.0](https://github.com/Genymobile/scrcpy/releases/tag/v4.0), licensed under Apache-2.0. scrcpy Seamless is an independent project and is not an official Genymobile release.
 
-Third-party license notices are included in [`licenses/`](https://github.com/Nexusov/scrcpy/tree/main/licenses), with component information in [`THIRD_PARTY.md`](https://github.com/Nexusov/scrcpy/blob/main/THIRD_PARTY.md).
+Third-party license notices are included in [`licenses/`](https://github.com/Nexusov/scrcpy-seamless/tree/main/licenses), with component information in [`THIRD_PARTY.md`](https://github.com/Nexusov/scrcpy-seamless/blob/main/THIRD_PARTY.md).
 
 This software uses FFmpeg 8.1.1 libraries under LGPL-2.1-or-later. The attached `scrcpy-seamless-dependency-sources.zip` contains the corresponding FFmpeg, dav1d, zlib, and SDL source archives, checksums, and build information.
 

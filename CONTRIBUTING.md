@@ -21,6 +21,15 @@ isolated instance locks. They require no phone, downloaded runtime, or GitHub
 credentials. Publication tests push only to disposable local repositories.
 GitHub Actions runs the same command on Windows for pull requests and `main`.
 
+For documentation changes, also run the local link and anchor check:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
+```
+
+The CI documentation step runs the same command. It does not check external
+websites or validate future package/spec metadata.
+
 ## Find the right module
 
 | Area | Location |
@@ -61,6 +70,7 @@ disconnection. Do not change the imported baseline hashes just to bypass a faile
 packaging check. Dependency changes also require updated notices and source archives.
 
 Maintainers should follow [PACKAGING.md](docs/PACKAGING.md) for provenance and the
-publication workflow. The publisher pushes `main` and then moves the existing
-release tag with a lease; uploading the portable ZIP and matching checksum remains
-a separate step. Test changes and the exact package before publishing.
+publication workflow. The legacy publisher rejects an existing release tag and
+atomically pushes `main` with a new tag; uploading the portable ZIP and matching
+checksum remains a separate step. Test changes and the exact package before
+publishing.

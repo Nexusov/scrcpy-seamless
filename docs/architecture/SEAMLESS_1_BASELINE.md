@@ -333,3 +333,14 @@ event occurred during the three-minute capture. Its ADB counts indicate endpoint
 availability changes, not native transport choice or audio outcome.
 No contemporaneous owner action/outcome markers were captured, so the manual
 sequence cannot be aligned retrospectively to this trace.
+
+## Post-freeze Phase 1 note
+
+The CI and publisher gaps listed above describe the Phase 0 source snapshot.
+Phase 1 later added DocsCheck to CI, rejected existing release tags before
+committing, used a non-forced atomic branch/tag push for new releases, blocked
+force-staged and already committed private paths including `scrcpy-settings.json`,
+admitted root `AGENTS.md` as public source,
+corrected the FFmpeg version, and updated the old repository links. See the
+[risk register](SEAMLESS_2_RISK_REGISTER.md) for current status. These changes
+do not revise the original Phase 0 hardware observations.
