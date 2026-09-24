@@ -72,6 +72,13 @@ a preview cannot change the saved result. It never deletes or rewrites either
 v1 file. Existing valid v2 wins on later runs; an invalid v2 file blocks
 migration for explicit recovery. A leftover temporary file has no authority.
 
+During migration commit the lock order is **legacy configuration mutex → v2
+writer mutex**; the v2 lock is released before the legacy lock. Future code
+requiring both must never acquire them in reverse order. Local file reads and
+atomic replacement are part of this short critical section; ADB, network I/O,
+process launch and UI callbacks are not. Contention returns `Busy`, and the v2
+store still checks the expected byte revision before replacement.
+
 The 1.x launcher remains a temporary compatibility path until Phase 11. When
 the new Desktop becomes active, Phase 5 must isolate legacy compatibility so
 simultaneous v1/v2 editing cannot silently diverge. An isolated generated
@@ -92,6 +99,9 @@ the persistent shared ADB daemon is not application-owned. A cancelled call
 propagates cancellation while an internal timeout reports `TimedOut` through
 the gateway. Device and mDNS text is parsed as untrusted input. The pairing
 code is sent through redirected stdin, not a process command-line argument.
+The generic runner inherits its process environment and does not select an
+ADB mDNS backend. A future bundled-ADB compatibility override belongs to an
+explicit runtime/composition policy, after reviewing that toolchain version.
 Pairing codes are transient and absent from saved profiles, result/error
 objects and diagnostics. After a network connection,
 `adb -s <network-endpoint> shell getprop ro.serialno` reports an observed

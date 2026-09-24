@@ -4,8 +4,8 @@ Status: Phases 0, 1 and 2 accepted and merged through PRs #1, #2 and #3.
 Phase 2 merged into `seamless-2.0` as
 `ee373709ecdda8e323d93a856a346772b2c46485`, preserving all 20 Phase 2
 commits. Phase 3 implementation and its focused safety gate are on
-`2.0/p03-core` from that exact base. The owner authorized publishing only this
-branch for PR review after local validation; Phase 4 has not started.
+`2.0/p03-core` from that exact base. PR #4 is open for final follow-up and
+hosted validation; Phase 4 starts locally only after its merge is verified.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,14 +16,13 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The owner accepted Phase 2, authorized its merge-commit integration and branch
-cleanup, and authorized local Phase 3. After the focused acceptance gate, the
-owner additionally authorized pushing only `2.0/p03-core` and opening a PR to
-`seamless-2.0`. Do not merge that PR, modify `main`, push directly to
-`seamless-2.0`, create tags/releases, change repository settings, force-push,
-or enter Phase 4 without separate authorization. Keep the current launcher and
-imported runtime fallback functional; native lifecycle and product UI belong
-later.
+The owner accepted Phase 2 and Phase 3 and authorized the final Phase 3
+follow-up on `2.0/p03-core`. After all required PR #4 jobs pass, merge it into
+`seamless-2.0` with a merge commit, verify ancestry and clean up the work
+branch. Then start Phase 4 locally from that exact integration head. Do not
+modify `main`, push Phase 4, create tags/releases, change repository settings,
+force-push, or enter Phase 5. Keep the current launcher and imported runtime
+fallback functional; native lifecycle and product UI belong later.
 
 ## Source baseline
 
@@ -129,7 +128,7 @@ sanitized fixtures and isolated test data, never the owner's portable install.
 | P3.4 | Define pure legacy migration and v2 revision semantics | Snapshot both independent v1 files, report unknown/unmappable data, validate before commit, deterministic/idempotent migration plan | Complete |
 | P3.5 | Preserve actual sanitized v1 shapes as fixtures | `phone.json`, `scrcpy-settings.json`, absent/optional fields, malformed/unsupported values, repeat/already-v2 and interruption cases | Complete |
 | P3.6 | Resolve application-data paths | Portable `<application>/data/` and installed `%LOCALAPPDATA%\scrcpy-seamless\` are explicit, isolated and testable | Complete |
-| P3.7 | Implement typed atomic configuration persistence | Short revision/CAS critical section, validated atomic replacement, recoverable migration backup and interruption tests; no external I/O while locked | Complete |
+| P3.7 | Implement typed atomic configuration persistence | Short revision/CAS critical section, validated atomic replacement, recoverable migration backup and interruption tests; no unrelated process/network I/O while locked | Complete |
 | P3.8 | Implement owned ADB process boundary | `ProcessStartInfo.ArgumentList`, `UseShellExecute=false`, bounded stdout/stderr, exit status, cancellation/timeout and owned termination | Complete |
 | P3.9 | Parse untrusted ADB responses | Sanitized `devices -l`, `mdns services`, `pair`, `connect` fixtures including daemon noise, multiple/offline/unauthorized and malformed/IPv6 cases | Complete |
 | P3.10 | Add headless discovery and pairing use cases | Injected ADB boundary, manual endpoint input, cancellation, semantic failures and pairing-secret non-persistence/redaction | Complete |
@@ -137,6 +136,7 @@ sanitized fixtures and isolated test data, never the owner's portable install.
 | P3.12 | Establish activation and native-host boundaries | One-control-center/multiple-session semantics, same-user activation boundary and owned native start/stop/lifetime contract; no Phase 6 IPC or product UI | Complete as semantic Core contracts; Windows activation and native adapter remain later integration |
 | P3.13 | Validate and close locally | Locked restore, Release build/tests, legacy suites, DocsCheck/metadata, applicable package/provenance checks, AGENTS/docs review, logical commits and clean tree | Complete locally; validation evidence below |
 | P3.14 | Focused acceptance gate before PR | One-way v2 authority with migration/error tests; drain-safe bounded ADB output; direct-command cancellation preserving shared daemon; precise identity semantics and regressions | Complete locally after targeted regression and full validation; evidence below |
+| P3.15 | Final pre-merge infrastructure follow-up | Generic ADB runner inherits mDNS backend environment; migration lock order documented; later ADB discovery review recorded; local validation and hosted PR checks | Locally complete; hosted CI pending. Local legacy timing caveat below. |
 
 Keep each checkpoint reviewable; combine adjacent work only when the invariants
 and their tests form one coherent commit. Do not introduce Phase 4 option
@@ -407,8 +407,8 @@ server/build inputs); self-contained `win-x64` placeholder Desktop publish;
 existing archive checksum and package test passed. Phase 3 did not change
 `src/scrcpy`, the legacy launcher, reviewed package inputs or canonical 1.x
 runtime behavior. No new hardware claim follows from these headless tests.
-These baseline checks preceded the focused gate; branch-only PR publication
-uses the later authorization above. Phase 4 still requires owner approval.
+These baseline checks preceded the focused gate; the later authorization above
+permits merge-commit integration and then local Phase 4 after final validation.
 
 Focused Phase 3 acceptance gate on 2026-09-24: tests now enforce the one-way
 v1-to-v2 cutover, changed-v1 authority, corrupt-v2 recovery and stale-preview
@@ -424,3 +424,17 @@ Locked restore, zero-warning Release build and all 89/89 .NET tests passed
 (Core 50, Infrastructure 38, Desktop 1); the 1.x archive suite passed 28/28.
 DocsCheck, metadata and diff validation complete this local gate. Phase 3 is
 locally complete for PR review, with no Phase 4 work or new hardware claim.
+
+Final Phase 3 follow-up on 2026-09-24: the generic ADB process runner no longer
+sets `ADB_MDNS_OPENSCREEN`; a regression failed before the removal when an
+inherited value of `0` was changed to `1`, then passed. Migration documents the
+legacy → v2 mutex order, and R03 tracks later ADB backend/discovery review.
+Locked restore, zero-warning Release build, all 90/90 .NET tests (Core 50,
+Infrastructure 39, Desktop 1), DocsCheck and build metadata passed. Three
+local full 1.x suite runs yielded 27/28, 26/28 and 27/28: `options-view` and
+`dev-observer` exceeded existing wall-clock/UI deadlines under load, while
+both passed together under the same test runner when isolated (2/2). The
+launcher, observer and their tests are unchanged by Phase 3; do not weaken
+their timing assertions for this follow-up. Require the clean hosted `test`
+job and other PR checks to pass before integration, and retain the local
+timing limitation in the handoff report.
