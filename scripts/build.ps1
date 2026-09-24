@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
-    [string]$ConfigPath
+    [string]$ConfigPath,
+    [string]$BuildDirectory,
+    [string]$RuntimeDirectory,
+    [switch]$NativeTests
 )
 
 Set-StrictMode -Version Latest
@@ -10,8 +13,21 @@ $repositoryDirectory = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'provenance.ps1')
 $sourceFingerprintBeforeBuild = Get-NativeSourceFingerprint -RepositoryDirectory $repositoryDirectory
 $sourceDirectory = Join-Path $repositoryDirectory 'src\scrcpy'
-$buildDirectory = Join-Path $repositoryDirectory '.build'
 $distributionDirectory = Join-Path $repositoryDirectory 'dist'
+
+if (-not $BuildDirectory) {
+    $BuildDirectory = if ($NativeTests) { 'work/native-tests' } else { '.build' }
+}
+
+if (-not [IO.Path]::IsPathRooted($BuildDirectory)) {
+    $BuildDirectory = Join-Path $repositoryDirectory $BuildDirectory
+}
+
+$buildDirectory = [IO.Path]::GetFullPath($BuildDirectory)
+
+if ($NativeTests -and -not $RuntimeDirectory) {
+    throw 'Native tests require -RuntimeDirectory with the matching runtime DLLs.'
+}
 $configuration = @{
     compiler = 'gcc'
     archiver = 'ar'
@@ -78,6 +94,11 @@ try {
         $env:PATH = $compilerBinDirectory + [IO.Path]::PathSeparator + $env:PATH
     }
 
+    if ($RuntimeDirectory) {
+        $resolvedRuntimeDirectory = (Resolve-Path -LiteralPath $RuntimeDirectory -ErrorAction Stop).ProviderPath
+        $env:PATH = $resolvedRuntimeDirectory + [IO.Path]::PathSeparator + $env:PATH
+    }
+
     $env:CC = ConvertTo-ToolCommand (Resolve-BuildTool $configuration.compiler)
     $env:AR = ConvertTo-ToolCommand (Resolve-BuildTool $configuration.archiver)
     $env:WINDRES = ConvertTo-ToolCommand (Resolve-BuildTool $configuration.windres)
@@ -102,7 +123,7 @@ try {
 
     $setupArguments = @(
         'setup', $buildDirectory, $sourceDirectory,
-        '--buildtype=debugoptimized',
+        $(if ($NativeTests) { '--buildtype=debug' } else { '--buildtype=debugoptimized' }),
         '-Dcompile_server=false', '-Dportable=true', '-Dusb=false'
     )
 
@@ -129,6 +150,21 @@ try {
         throw "Ninja build failed with exit code $LASTEXITCODE."
     }
 
+    if ((Get-NativeSourceFingerprint -RepositoryDirectory $repositoryDirectory) -ne $sourceFingerprintBeforeBuild) {
+        throw 'Native sources changed while compilation was running. Rebuild before packaging.'
+    }
+
+    if ($NativeTests) {
+        & $mesonExecutable 'test' '-C' $buildDirectory '--print-errorlogs'
+
+        if ($LASTEXITCODE) {
+            throw "Native tests failed with exit code $LASTEXITCODE."
+        }
+
+        Write-Host "Native tests passed: $buildDirectory"
+        return
+    }
+
     $compiledExecutable = Join-Path $buildDirectory 'app\scrcpy.exe'
 
     if (!(Test-Path -LiteralPath $compiledExecutable -PathType Leaf)) {
@@ -138,10 +174,6 @@ try {
     New-Item -ItemType Directory -Path $distributionDirectory -Force | Out-Null
     $outputExecutable = Join-Path $distributionDirectory 'scrcpy.exe'
     Copy-Item -LiteralPath $compiledExecutable -Destination $outputExecutable -Force
-
-    if ((Get-NativeSourceFingerprint -RepositoryDirectory $repositoryDirectory) -ne $sourceFingerprintBeforeBuild) {
-        throw 'Native sources changed while compilation was running. Rebuild before packaging.'
-    }
 
     Write-NativeBuildManifest -RepositoryDirectory $repositoryDirectory -ExecutablePath $outputExecutable -SourceFingerprint $sourceFingerprintBeforeBuild
     Write-Host "Built: $outputExecutable"

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "hostPython": "3.12.14",
+  "packages": {
+    "w64devkit": {
+      "version": "2.9.1",
+      "filename": "w64devkit-x64-2.9.1.7z.exe",
+      "url": "https://github.com/skeeto/w64devkit/releases/download/v2.9.1/w64devkit-x64-2.9.1.7z.exe",
+      "sha256": "9208c19755cd4964b7915b9afcf02c66d493a4c870c4b3e83f6c538d9c1237a5",
+      "license": "GCC/binutils licenses and runtime exception; see licenses/"
+    },
+    "meson": {
+      "version": "1.12.0",
+      "filename": "meson-1.12.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/07/68/b0117422eb0a46d9d8d9e328f0c5b5c835179bfc058688bca35c90c89eba/meson-1.12.0-py3-none-any.whl",
+      "sha256": "71f133147fa0fcfe8f4df49fa1045771064947834538409e5d97b3613aac8b4e",
+      "license": "Apache-2.0"
+    },
+    "ninja": {
+      "version": "1.13.2",
+      "filename": "ninja-win.zip",
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip",
+      "sha256": "07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65",
+      "license": "Apache-2.0"
+    },
+    "sdl": {
+      "version": "3.4.8",
+      "filename": "SDL3-devel-3.4.8-mingw.zip",
+      "url": "https://github.com/libsdl-org/SDL/releases/download/release-3.4.8/SDL3-devel-3.4.8-mingw.zip",
+      "sha256": "cae58ec9ed12070a26993d76e5fc30def9398e246fba70163cb5ed32e847b013",
+      "license": "zlib; see licenses/SDL-LICENSE.txt"
+    },
+    "ffmpegSource": {
+      "version": "8.1.1",
+      "filename": "ffmpeg-8.1.1.tar.xz",
+      "url": "https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz",
+      "sha256": "b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3",
+      "license": "LGPL-2.1-or-later for selected shared runtime; see licenses/FFmpeg-LICENSE.md"
+    },
+    "scrcpyRuntime": {
+      "version": "4.0",
+      "filename": "scrcpy-win64-v4.0.zip",
+      "url": "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-win64-v4.0.zip",
+      "sha256": "75dbeb5b00e6f64292f26f70900ae55ca397786bdfb0b9bbeb481a0549047457",
+      "license": "Apache-2.0 client/server; included DLLs retain their own licenses"
+    },
+    "platformTools": {
+      "version": "34.0.5-10900879",
+      "filename": "platform-tools_r34.0.5-windows.zip",
+      "url": "https://dl.google.com/android/repository/platform-tools_r34.0.5-windows.zip",
+      "sha256": "3f8320152704377de150418a3c4c9d07d16d80a6c0d0d8f7289c22c499e33571",
+      "license": "Android Platform Tools; see licenses/Android-Platform-Tools-NOTICE.txt"
+    }
+  }
+}
