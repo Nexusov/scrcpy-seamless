@@ -23,7 +23,7 @@ public readonly record struct ProfileId
     public override string ToString() => Value.ToString("D");
 }
 
-/// <summary>Application identity for a known device, separate from its current ADB serial.</summary>
+/// <summary>Application-assigned device reference, not proof of physical identity.</summary>
 [JsonConverter(typeof(DeviceIdJsonConverter))]
 public readonly record struct DeviceId
 {

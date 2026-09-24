@@ -71,6 +71,22 @@ public sealed class ConnectionPlanTests
         Assert.Empty(plan.FallbackCandidates);
     }
 
+    /// <summary>An application device reference alone cannot invent a reachable transport.</summary>
+    [Fact]
+    public void DeviceIdOnlyProfileRemainsSavedButHasNoConnectionPlan()
+    {
+        DeviceProfile profile = new()
+        {
+            Id = ProfileId.New(),
+            DeviceIdentity = DeviceId.New(),
+        };
+
+        Assert.Empty(profile.Validate("profile"));
+        Assert.False(ConnectionPlan.TryCreate(profile, ConnectionPolicy.Default, out ConnectionPlan? plan, out ValidationIssue? issue));
+        Assert.Null(plan);
+        Assert.Equal(CoreErrorCode.InvalidConfiguration, issue?.Code);
+    }
+
     /// <summary>Disabling fallback never manufactures an alternate candidate.</summary>
     [Fact]
     public void FallbackCanBeDisabled()

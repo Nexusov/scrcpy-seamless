@@ -10,6 +10,7 @@ public sealed record AdbProcessResult(int ExitCode, string StandardOutput, strin
 public sealed class AdbProcessRunner
 {
     private const int MaximumOutputCharacters = 65_536;
+    private static readonly TimeSpan TerminationWaitTimeout = TimeSpan.FromSeconds(10);
     private readonly string executablePath;
 
     public AdbProcessRunner(string executablePath)
@@ -41,14 +42,18 @@ public sealed class AdbProcessRunner
             throw new InvalidOperationException("ADB process did not start.");
         }
 
+        using CancellationTokenSource readerSource = CancellationTokenSource.CreateLinkedTokenSource(timeoutSource.Token);
+        Task<(string Text, bool Truncated)>? outputTask = null;
+        Task<(string Text, bool Truncated)>? errorTask = null;
+
         try
         {
-            Task<(string Text, bool Truncated)> outputTask = ReadBoundedAsync(
+            outputTask = ReadBoundedAsync(
                 process.StandardOutput,
-                timeoutSource.Token);
-            Task<(string Text, bool Truncated)> errorTask = ReadBoundedAsync(
+                readerSource.Token);
+            errorTask = ReadBoundedAsync(
                 process.StandardError,
-                timeoutSource.Token);
+                readerSource.Token);
 
             if (standardInput is not null)
             {
@@ -68,22 +73,51 @@ public sealed class AdbProcessRunner
         }
         finally
         {
-            if (!process.HasExited)
+            try
             {
-                try
+                if (!process.HasExited)
                 {
-                    process.Kill(entireProcessTree: true);
-                }
-                catch (InvalidOperationException) when (process.HasExited)
-                {
-                    // The child exited between the state check and termination.
-                }
-                catch (Win32Exception) when (process.HasExited)
-                {
-                    // The child exited between the state check and termination.
-                }
+                    try
+                    {
+                        // ADB may launch a shared daemon. Terminate only this command process.
+                        process.Kill();
+                    }
+                    catch (InvalidOperationException) when (process.HasExited)
+                    {
+                        // The child exited between the state check and termination.
+                    }
+                    catch (Win32Exception) when (process.HasExited)
+                    {
+                        // The child exited between the state check and termination.
+                    }
 
-                await process.WaitForExitAsync(CancellationToken.None);
+                    using CancellationTokenSource terminationSource = new(TerminationWaitTimeout);
+
+                    try
+                    {
+                        await process.WaitForExitAsync(terminationSource.Token);
+                    }
+                    catch (OperationCanceledException) when (terminationSource.IsCancellationRequested)
+                    {
+                        throw new TimeoutException("ADB process did not exit after termination.");
+                    }
+                }
+            }
+            finally
+            {
+                await readerSource.CancelAsync();
+
+                if (outputTask is not null && errorTask is not null)
+                {
+                    try
+                    {
+                        await Task.WhenAll(outputTask, errorTask).WaitAsync(TerminationWaitTimeout);
+                    }
+                    catch (OperationCanceledException) when (readerSource.IsCancellationRequested)
+                    {
+                        // Both canceled readers have completed before the process streams are disposed.
+                    }
+                }
             }
         }
     }

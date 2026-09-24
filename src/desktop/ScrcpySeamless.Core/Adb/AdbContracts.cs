@@ -25,14 +25,14 @@ public enum AdbFailureKind
     AmbiguousDiscovery,
     PairingRejected,
     ConnectionRejected,
-    DeviceIdentityMismatch,
+    DeviceSerialPropertyMismatch,
 }
 
 public sealed record AdbDevice(string Serial, AdbDeviceState State, string? Model);
 
 public sealed record AdbMdnsService(string InstanceName, AdbServiceKind Kind, NetworkEndpoint Endpoint);
 
-public sealed record AdbPairingOutcome(bool Paired, NetworkEndpoint? ConnectedEndpoint, UsbSerial? ConnectedSerial);
+public sealed record AdbPairingOutcome(bool Paired, NetworkEndpoint? ConnectedEndpoint, string? ObservedDeviceSerialProperty);
 
 public sealed record AdbResult<T>(T? Value, AdbFailureKind Failure)
 {
@@ -56,5 +56,5 @@ public interface IAdbGateway
 
     Task<AdbResult<bool>> ConnectAsync(NetworkEndpoint connectionEndpoint, CancellationToken cancellationToken);
 
-    Task<AdbResult<UsbSerial>> GetConnectedSerialAsync(NetworkEndpoint connectionEndpoint, CancellationToken cancellationToken);
+    Task<AdbResult<string>> GetDeviceSerialPropertyAsync(NetworkEndpoint connectionEndpoint, CancellationToken cancellationToken);
 }

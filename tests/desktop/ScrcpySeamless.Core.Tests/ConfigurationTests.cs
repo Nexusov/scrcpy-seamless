@@ -74,6 +74,20 @@ public sealed class ConfigurationTests
         Assert.Contains(issues, issue => issue.Code == CoreErrorCode.InvalidIdentity && issue.Path == "Profiles[2].Id");
     }
 
+    /// <summary>A transport selector cannot define the identity of a saved profile.</summary>
+    [Fact]
+    public void ProfilesCanShareUsbTransportWithoutSharingProfileIdentity()
+    {
+        UsbSerial sharedTransport = new("SYNTHETIC_SERIAL");
+        DeviceProfile first = new() { Id = ProfileId.New(), UsbIdentity = sharedTransport };
+        DeviceProfile second = new() { Id = ProfileId.New(), UsbIdentity = sharedTransport };
+        ConfigurationV2 configuration = new() { Profiles = [first, second] };
+
+        Assert.Empty(configuration.Validate());
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal(first.UsbIdentity, second.UsbIdentity);
+    }
+
     /// <summary>Unsupported versions and nonlegacy option value shapes are rejected with paths.</summary>
     [Fact]
     public void InvalidSchemaAndOptionValuesAreReported()

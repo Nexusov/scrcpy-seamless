@@ -7,7 +7,7 @@ public sealed class AdbPairingService(IAdbGateway gateway)
         NetworkEndpoint pairingEndpoint,
         string pairingCode,
         NetworkEndpoint? connectionEndpoint,
-        UsbSerial? expectedUsbSerial,
+        string? expectedDeviceSerialProperty,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(pairingCode) || pairingCode.Length != 6
@@ -43,23 +43,23 @@ public sealed class AdbPairingService(IAdbGateway gateway)
                 connection.IsSuccess ? AdbFailureKind.ConnectionRejected : connection.Failure);
         }
 
-        AdbResult<UsbSerial> identity = await gateway.GetConnectedSerialAsync(connectionEndpoint, cancellationToken);
+        AdbResult<string> observedSerial = await gateway.GetDeviceSerialPropertyAsync(connectionEndpoint, cancellationToken);
 
-        if (!identity.IsSuccess)
+        if (!observedSerial.IsSuccess)
         {
             return AdbResult<AdbPairingOutcome>.Partial(
                 new AdbPairingOutcome(true, null, null),
-                identity.Failure);
+                observedSerial.Failure);
         }
 
-        if (expectedUsbSerial is UsbSerial selectedSerial
-            && !string.Equals(selectedSerial.Value, identity.Value.Value, StringComparison.Ordinal))
+        if (expectedDeviceSerialProperty is not null
+            && !string.Equals(expectedDeviceSerialProperty, observedSerial.Value, StringComparison.Ordinal))
         {
             return AdbResult<AdbPairingOutcome>.Partial(
                 new AdbPairingOutcome(true, null, null),
-                AdbFailureKind.DeviceIdentityMismatch);
+                AdbFailureKind.DeviceSerialPropertyMismatch);
         }
 
-        return AdbResult<AdbPairingOutcome>.Success(new AdbPairingOutcome(true, connectionEndpoint, identity.Value));
+        return AdbResult<AdbPairingOutcome>.Success(new AdbPairingOutcome(true, connectionEndpoint, observedSerial.Value));
     }
 }

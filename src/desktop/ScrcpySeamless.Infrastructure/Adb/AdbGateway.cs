@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 
@@ -106,6 +107,10 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
         {
             return AdbResult<bool>.Error(AdbFailureKind.Unavailable);
         }
+        catch (IOException)
+        {
+            return AdbResult<bool>.Error(AdbFailureKind.ProcessFailed);
+        }
     }
 
     public async Task<AdbResult<bool>> ConnectAsync(
@@ -136,7 +141,7 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
         }
     }
 
-    public async Task<AdbResult<UsbSerial>> GetConnectedSerialAsync(
+    public async Task<AdbResult<string>> GetDeviceSerialPropertyAsync(
         NetworkEndpoint connectionEndpoint,
         CancellationToken cancellationToken)
     {
@@ -149,7 +154,7 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
 
             if (process.ExitCode != 0 || AdbResponseParser.HasErrorDiagnostics(process.StandardError))
             {
-                return AdbResult<UsbSerial>.Error(AdbFailureKind.ProcessFailed);
+                return AdbResult<string>.Error(AdbFailureKind.ProcessFailed);
             }
 
             string serial = process.StandardOutput.Trim();
@@ -157,18 +162,18 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
             if (process.OutputTruncated || string.IsNullOrWhiteSpace(serial)
                 || serial.Contains('\n') || serial.Contains('\r') || serial.Any(char.IsControl))
             {
-                return AdbResult<UsbSerial>.Error(AdbFailureKind.MalformedResponse);
+                return AdbResult<string>.Error(AdbFailureKind.MalformedResponse);
             }
 
-            return AdbResult<UsbSerial>.Success(new UsbSerial(serial));
+            return AdbResult<string>.Success(serial);
         }
         catch (TimeoutException)
         {
-            return AdbResult<UsbSerial>.Error(AdbFailureKind.TimedOut);
+            return AdbResult<string>.Error(AdbFailureKind.TimedOut);
         }
         catch (Win32Exception)
         {
-            return AdbResult<UsbSerial>.Error(AdbFailureKind.Unavailable);
+            return AdbResult<string>.Error(AdbFailureKind.Unavailable);
         }
     }
 }
