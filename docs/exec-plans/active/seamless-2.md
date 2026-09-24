@@ -2,9 +2,10 @@
 
 Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
 Phase 2 work is on `2.0/p02-build`, based exactly on Phase 1 merge
-`0c869722ad7a0e802011766c88d788e8ffd08177`. PR #3 is open and its
-initial hosted CI passed. Final Phase 2 acceptance awaits reviewed Gradle
-dependency state and a physical source-built-server smoke; Phase 3 has not started.
+`0c869722ad7a0e802011766c88d788e8ffd08177`. PR #3 is open; hosted CI
+passed after Gradle hardening. The owner completed one successful physical
+source-built-server smoke. Final Phase 2 acceptance and PR merge remain the
+owner's decisions; Phase 3 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -98,11 +99,11 @@ keep 1.x development and the reviewed imported package fallback working.
 | P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Complete |
 | P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Complete |
 | P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
-| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete; four hosted jobs passed on initial PR #3 review |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete; four hosted jobs passed on initial PR #3 review and after Gradle hardening |
 | P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
 | P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Complete locally. Hardware smoke was performed; controlled A/B restored PC audio 3/3 on Phase 0 and 3/3 on Phase 2. The initial intermittent audio failure remains unexplained and is an owner-accepted non-blocking tracked risk, not a proven Phase 2 regression or a fixed bug. |
-| P2.10 | Lock and verify Android Gradle dependencies | Buildscript and project locks, reviewed SHA-256 metadata, strict CI build and negative fixtures; clean-cache confirmation | Implemented locally; PR #3 review and hosted rerun required |
-| P2.11 | Characterize source-built server runtime | Separate labelled DEV-only source-native/source-server copy and exact owner hardware procedure; preserve canonical legacy package | DEV copy prepared locally for owner smoke; physical result pending owner |
+| P2.10 | Lock and verify Android Gradle dependencies | Buildscript and project locks, reviewed SHA-256 metadata, strict CI build and negative fixtures; clean-cache confirmation | Complete; local strict/clean-cache and negative checks passed; hosted Android job passed after push |
+| P2.11 | Characterize source-built server runtime | Separate labelled DEV-only source-native/source-server copy and exact owner hardware procedure; preserve canonical legacy package | Complete for one owner-run USB-to-Wi-Fi smoke; [evidence and limits](../../development/phase2-source-server-smoke.md) |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
@@ -340,12 +341,21 @@ No speculative production scaffolding is authorized by this list.
   `37bef9539d7c9e54098a09ee9b59eb66d5076303` was not
   repeated because `git diff` proves subsequent commits changed only three
   documentation files, no source/build/test inputs. No byte-identical output
-  claim follows; the new hosted CI jobs remain unrun until publication.
+  claim follows; the new hosted CI jobs were still unrun at this checkpoint.
+- 2026-09-24: Gradle buildscript and server lock state plus SHA-256 verification
+  metadata were committed in `d13b6385dd53b93a9aea2accc4f392dbdd7cc06b`.
+  A strict build/check passed from an empty Gradle dependency cache; disposable
+  changed-checksum and changed-version fixtures failed as intended. All four
+  hosted PR #3 jobs passed after push, including the Android strict build and
+  negative safeguards. The owner then completed the
+  [source-built-server DEV smoke](../../development/phase2-source-server-smoke.md):
+  one USB-to-Wi-Fi recovery retained native PID/HWND and restored video,
+  control and PC audio. No canonical release binary was substituted.
 
 ## Handoff gate
 
 The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
-PR #3 remains open. The audio watch item remains tracked. Finish the Gradle
-dependency hardening and DEV-only source-server smoke preparation, verify
-hosted CI, then stop for the owner's physical-device result. Do not call
-Phase 2 finally accepted or begin Phase 3 before that result is reviewed.
+PR #3 remains open. Gradle hardening, hosted CI and one owner-run source-server
+DEV smoke have passed. The intermittent audio watch item remains tracked.
+Await the owner's final Phase 2/PR decision; do not merge PR #3 or begin
+Phase 3 without separate authorization.
