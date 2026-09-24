@@ -1,0 +1,38 @@
+{
+  "SchemaVersion": 1,
+  "Jdk": {
+    "Version": "17.0.20.1+1",
+    "ArchiveName": "OpenJDK17U-jdk_x64_windows_hotspot_17.0.20.1_1.zip",
+    "Url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_windows_hotspot_17.0.20.1_1.zip",
+    "Sha256": "e53a79c3c3d86865bd7e787903884331068e71321714ffd44f145785affc7cb0",
+    "ExtractedDirectory": "jdk-17.0.20.1+1"
+  },
+  "AndroidCommandLineTools": {
+    "Build": "15859902",
+    "ArchiveName": "commandlinetools-win-15859902_latest.zip",
+    "Url": "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip",
+    "Sha256": "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a"
+  },
+  "AndroidPlatform": {
+    "Package": "platforms;android-36",
+    "Revision": "2",
+    "ArchiveName": "platform-36_r02.zip",
+    "RepositorySha1": "2c1a80dd4d9f7d0e6dd336ec603d9b5c55a6f576"
+  },
+  "AndroidBuildTools": {
+    "Package": "build-tools;36.0.0",
+    "Revision": "36.0.0",
+    "ArchiveName": "build-tools_r36_windows.zip",
+    "RepositorySha1": "f16ccffd34de8790dede813a6c7d8e2c11a27b50"
+  },
+  "AndroidPlatformTools": {
+    "Package": "platform-tools",
+    "Revision": "37.0.1",
+    "ArchiveName": "platform-tools_r37.0.1-win.zip",
+    "RepositorySha1": "e03e78b1d80b396f1c3358e31251cb31740e1110"
+  },
+  "Gradle": "9.3.1",
+  "AndroidGradlePlugin": "9.1.0",
+  "Junit": "4.13.2",
+  "Checkstyle": "10.12.5"
+}
