@@ -250,6 +250,10 @@ if get_option('buildtype') == 'debug'
             'src/util/tick.c',
             'src/util/log.c',
         ]],
+        ['test_memory', [
+            'tests/test_memory.c',
+            'src/util/memory.c',
+        ]],
         ['test_binary', [
             'tests/test_binary.c',
         ]],

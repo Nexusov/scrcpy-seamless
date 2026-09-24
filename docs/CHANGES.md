@@ -8,6 +8,8 @@ The initial-window size now crosses from the decoder thread to the SDL main
 thread through an owned event payload, adapted from upstream #6911. The native
 demuxer rejects zero-size session metadata, and pending payloads are released
 after event producers stop during normal teardown or Seamless reconnect.
+The audio callback buffer now rejects a sample-count multiplication overflow
+before allocation, following the separate upstream v4.1 correction.
 These changes do not implement the planned 2.0 lifecycle architecture.
 
 Reconnection is enabled by the `SCRCPY_RECONNECT_SERIAL` environment variable,
