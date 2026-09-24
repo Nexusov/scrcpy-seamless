@@ -3,11 +3,14 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "cli.h"
 #include "options.h"
+
+#include "../../../../tests/fixtures/options/native-cli-inventory-baseline.inc"
 
 static void test_flag_version(void) {
     struct scrcpy_cli_args args = {
@@ -49,6 +52,7 @@ static void test_generated_option_table(void) {
     };
 
     assert(sc_cli_option_count() == EXPECTED_OPTIONS);
+    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory));
 
     size_t long_count = 0;
     size_t short_count = 0;
@@ -56,6 +60,16 @@ static void test_generated_option_table(void) {
     for (size_t index = 0; index < sc_cli_option_count(); ++index) {
         struct sc_cli_option_test_info option;
         assert(sc_cli_option_get_test_info(index, &option));
+        const struct sc_cli_option_test_info *baseline =
+            &phase3_cli_inventory[index];
+        assert(!!option.longopt == !!baseline->longopt);
+        if (baseline->longopt) {
+            assert(!strcmp(option.longopt, baseline->longopt));
+        }
+        assert(option.shortopt == baseline->shortopt);
+        assert(option.has_arg == baseline->has_arg);
+        assert(option.optional_arg == baseline->optional_arg);
+        assert(option.documented == baseline->documented);
         assert(option.longopt || option.shortopt);
         assert(option.documented);
         assert(!option.optional_arg || option.has_arg);
@@ -153,6 +167,19 @@ static void test_generated_option_help(void) {
     assert(strstr(help, "--new-display"));
     assert(strstr(help, "--port=port[:port]"));
     assert(strstr(help, "-G"));
+
+    // Frozen rendered --help fingerprint from the unchanged Phase 3 CLI.
+    const uint64_t phase3_help_fnv1a64 = UINT64_C(0x8da481d232d1d42d);
+    const uint64_t fnv_offset_basis = UINT64_C(0xcbf29ce484222325);
+    const uint64_t fnv_prime = UINT64_C(0x100000001b3);
+    uint64_t help_hash = fnv_offset_basis;
+    for (const unsigned char *cursor = (const unsigned char *) help;
+         *cursor; ++cursor) {
+        if (*cursor != '\r') {
+            help_hash = (help_hash ^ *cursor) * fnv_prime;
+        }
+    }
+    assert(help_hash == phase3_help_fnv1a64);
 
     free(help);
     fclose(help_file);

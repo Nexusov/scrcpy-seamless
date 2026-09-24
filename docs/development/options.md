@@ -24,3 +24,9 @@ $sdk = ./scripts/bootstrap-dotnet.ps1
 `generate` writes deterministic tracked outputs; a second run with unchanged inputs must produce identical bytes. `verify` is read-only, validates references and metadata constraints, then fails if any committed generated file differs. It does not depend on machine paths, current culture, timestamps, filesystem order or untracked local artifacts. The Windows Desktop CI job runs it after locked restore; the native job compiles the committed C include. The legacy PowerShell suite tests behavior through the generated catalogue and does not parse `cli.c` text. [DocsCheck](../AGENTS.md) checks repository links; SpecGen checks generated option-reference/resource bytes without parsing human-authored prose.
 
 YamlDotNet 18.1.0 is the pinned YAML parser dependency. It is distributed under the [MIT license](https://github.com/aaubry/YamlDotNet/blob/v18.1.0/LICENSE.txt); its package and license metadata are available at [NuGet](https://www.nuget.org/packages/YamlDotNet/18.1.0).
+
+The frozen [Phase 3 option characterization fixtures](../../tests/fixtures/options/README.md)
+are independent migration evidence. SpecGen does not read them: tests compare
+the 109 accepted CLI entries, their help and compiled declarations, and every
+field of the previous 106-entry legacy catalogue against the generated results.
+Intentional Phase 9 behavior changes require an explicit review of that delta.
