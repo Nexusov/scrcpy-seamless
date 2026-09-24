@@ -30,6 +30,30 @@ public sealed class LegacyMigrationCoordinatorTests
         Assert.True(File.Exists(v2Path));
     }
 
+    /// <summary>Once v2 exists, later legacy edits cannot become canonical implicitly.</summary>
+    [Fact]
+    public async Task ValidV2RemainsAuthoritativeAfterLegacyFilesChange()
+    {
+        using TemporaryDirectory directory = new();
+        string phonePath = Path.Combine(directory.Path, "phone.json");
+        await File.WriteAllTextAsync(phonePath, Fixture("legacy-phone-usb.json"), TestContext.Current.CancellationToken);
+        string v2Path = Path.Combine(directory.Path, "data", "configuration.v2.json");
+        VersionedConfigurationStore store = new(v2Path);
+        LegacyMigrationCoordinator coordinator = new(directory.Path, store);
+        Assert.Equal(LegacyMigrationStatus.Migrated, (await coordinator.MigrateAsync(TestContext.Current.CancellationToken)).Status);
+        ConfigurationReadResult first = await store.ReadAsync(TestContext.Current.CancellationToken);
+        string originalV2 = await File.ReadAllTextAsync(v2Path, TestContext.Current.CancellationToken);
+
+        await File.WriteAllTextAsync(phonePath, Fixture("legacy-phone-address.json"), TestContext.Current.CancellationToken);
+        LegacyMigrationOperation repeated = await coordinator.MigrateAsync(TestContext.Current.CancellationToken);
+        ConfigurationReadResult after = await store.ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(LegacyMigrationStatus.AlreadyV2, repeated.Status);
+        Assert.Equal(first.Revision, after.Revision);
+        Assert.Equal(originalV2, await File.ReadAllTextAsync(v2Path, TestContext.Current.CancellationToken));
+        Assert.Null(Assert.Single(after.Configuration!.Profiles).ConnectionEndpoint);
+    }
+
     /// <summary>Changes between preparation and commit prevent stale data from being saved.</summary>
     [Fact]
     public async Task ChangedLegacyInputRejectsPreparedMigration()

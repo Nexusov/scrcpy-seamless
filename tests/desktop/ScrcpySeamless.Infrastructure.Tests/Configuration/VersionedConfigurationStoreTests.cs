@@ -61,6 +61,10 @@ public sealed class VersionedConfigurationStoreTests
     {
         using TemporaryDirectory directory = new();
         string path = Path.Combine(directory.Path, "configuration.v2.json");
+        await File.WriteAllTextAsync(
+            Path.Combine(directory.Path, "phone.json"),
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "legacy-phone-usb.json")),
+            TestContext.Current.CancellationToken);
         await File.WriteAllTextAsync(path, "{broken", TestContext.Current.CancellationToken);
         VersionedConfigurationStore store = new(path);
 
