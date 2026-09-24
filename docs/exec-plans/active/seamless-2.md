@@ -3,8 +3,9 @@
 Status: Phases 0, 1 and 2 accepted and merged through PRs #1, #2 and #3.
 Phase 2 merged into `seamless-2.0` as
 `ee373709ecdda8e323d93a856a346772b2c46485`, preserving all 20 Phase 2
-commits. Local Phase 3 work is complete on `2.0/p03-core` from that exact
-base; it awaits owner review and has not been pushed. Phase 4 has not started.
+commits. Phase 3 implementation and its focused safety gate are on
+`2.0/p03-core` from that exact base. The owner authorized publishing only this
+branch for PR review after local validation; Phase 4 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,11 +17,13 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [release](../../development/release-process.md) policies remaining canonical.
 
 The owner accepted Phase 2, authorized its merge-commit integration and branch
-cleanup, and authorized **local Phase 3 only**. Do not push `2.0/p03-core`,
-open or merge a Phase 3 PR, modify `main`, push directly to `seamless-2.0`,
-create tags/releases, change repository settings, force-push, or enter Phase 4
-without separate authorization. Keep the current launcher and imported runtime
-fallback functional; native lifecycle and product UI belong later.
+cleanup, and authorized local Phase 3. After the focused acceptance gate, the
+owner additionally authorized pushing only `2.0/p03-core` and opening a PR to
+`seamless-2.0`. Do not merge that PR, modify `main`, push directly to
+`seamless-2.0`, create tags/releases, change repository settings, force-push,
+or enter Phase 4 without separate authorization. Keep the current launcher and
+imported runtime fallback functional; native lifecycle and product UI belong
+later.
 
 ## Source baseline
 
@@ -107,8 +110,8 @@ Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
 practical. Never replace the current launcher or import fallback in Phase 2.
 PR #3 merged with a two-parent merge commit and its work branch was deleted
-locally and remotely after ancestry verification. No Phase 3 remote operation
-is authorized.
+locally and remotely after ancestry verification. Phase 3 publication is now
+limited to its reviewed work branch and PR after the targeted gate passes.
 
 ## Phase 3 — headless C# Core and Infrastructure
 
@@ -133,6 +136,7 @@ sanitized fixtures and isolated test data, never the owner's portable install.
 | P3.11 | Model ConnectionPlan and ConnectionPolicy | Candidate ordering, preferred/fallback transport, capability and retry configuration; no Phase 8 native orchestration | Complete |
 | P3.12 | Establish activation and native-host boundaries | One-control-center/multiple-session semantics, same-user activation boundary and owned native start/stop/lifetime contract; no Phase 6 IPC or product UI | Complete as semantic Core contracts; Windows activation and native adapter remain later integration |
 | P3.13 | Validate and close locally | Locked restore, Release build/tests, legacy suites, DocsCheck/metadata, applicable package/provenance checks, AGENTS/docs review, logical commits and clean tree | Complete locally; validation evidence below |
+| P3.14 | Focused acceptance gate before PR | One-way v2 authority with migration/error tests; drain-safe bounded ADB output; direct-command cancellation preserving shared daemon; precise identity semantics and regressions | Complete locally after targeted regression and full validation; evidence below |
 
 Keep each checkpoint reviewable; combine adjacent work only when the invariants
 and their tests form one coherent commit. Do not introduce Phase 4 option
@@ -403,5 +407,20 @@ server/build inputs); self-contained `win-x64` placeholder Desktop publish;
 existing archive checksum and package test passed. Phase 3 did not change
 `src/scrcpy`, the legacy launcher, reviewed package inputs or canonical 1.x
 runtime behavior. No new hardware claim follows from these headless tests.
-Report the local commits and evidence, then stop for owner review before
-Phase 4 or any Phase 3 remote publication.
+These baseline checks preceded the focused gate; branch-only PR publication
+uses the later authorization above. Phase 4 still requires owner approval.
+
+Focused Phase 3 acceptance gate on 2026-09-24: tests now enforce the one-way
+v1-to-v2 cutover, changed-v1 authority, corrupt-v2 recovery and stale-preview
+rejection. The ADB runner continues draining both pipes after a 65,536-character
+capture cap per stream; synthetic 131,072-character stdout/stderr completes
+with explicit truncation. A failing regression demonstrated that process-tree
+termination killed a synthetic descendant; the runner now kills only the
+invoked command, bounds termination, and awaits both readers before disposal.
+Early stdin closure, cancellation and timeout have focused process tests.
+Network `ro.serialno` is an observed property rather than `UsbSerial`; an
+optional explicit property comparison does not claim physical-device identity.
+Locked restore, zero-warning Release build and all 89/89 .NET tests passed
+(Core 50, Infrastructure 38, Desktop 1); the 1.x archive suite passed 28/28.
+DocsCheck, metadata and diff validation complete this local gate. Phase 3 is
+locally complete for PR review, with no Phase 4 work or new hardware claim.

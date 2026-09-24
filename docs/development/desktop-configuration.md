@@ -17,9 +17,17 @@ and isolated temporary directories, never the owner's portable installation.
 The v2 document has `SchemaVersion: 2`, a list of `Profiles`, and global
 `Mirroring` preferences (`Reconnect` and `Options`). A profile has a stable
 `Id` that does not change when its USB serial, mDNS service, or network address
-changes. USB identity, mDNS identity, pairing endpoint, connection endpoint,
-alias and connection preference are separate fields. IDs serialize as invariant
-GUID strings; endpoints serialize as `host:port`, including bracketed IPv6.
+changes. `ProfileId` identifies a saved profile; optional `DeviceId` is an
+application-assigned reference, not physical-device attestation. It is created
+only when a caller explicitly sets it (for example with `DeviceId.New()`),
+persists in v2 JSON and remains stable while that saved value is retained;
+Phase 3 never derives it from ADB discovery or a hardware property. Two
+profiles may describe the same handset. `UsbSerial` selects a USB ADB
+transport, mDNS identifies an advertised service, and a network endpoint is a
+host/port address that may change or be reused. USB identity, mDNS identity,
+pairing endpoint, connection endpoint, alias and connection preference are
+separate fields. IDs serialize as invariant GUID strings; endpoints serialize
+as `host:port`, including bracketed IPv6.
 Option values remain legacy booleans or strings; Phase 4 will define the
 canonical option catalogue and rules. Unknown option names are preserved as
 data rather than silently discarded.
@@ -34,6 +42,15 @@ The store holds no lock across ADB, network, process launch or callbacks.
 
 ## One-way legacy migration
 
+Configuration authority changes exactly once for the new 2.x architecture:
+before a successful migration, v1 is the migration input; after a successful
+migration, a valid v2 document is its only canonical configuration. The original
+v1 files remain untouched for rollback/reference, but are never automatically
+re-imported or synchronized with v2. A valid existing v2 always wins, including
+when the legacy launcher subsequently edits v1. A corrupt v2 requires an
+explicit recovery decision (`InvalidV2`); it never silently falls back to v1.
+There are no two canonical writers and no bidirectional synchronization.
+
 `LegacyConfigurationMigrator` is pure: it accepts the legacy
 `app/phone.json` and `app/scrcpy-settings.json` contents and returns a v2
 candidate or structured problems. It checks the actual 1.x phone shape,
@@ -41,8 +58,11 @@ including its serial/mDNS restrictions, and reports unknown fields or
 unrepresentable values. A missing phone file does not create a profile;
 missing optional phone mode is inferred by the legacy rule. Settings remain
 independent of device setup. An initial profile ID is derived deterministically
-from the v1 serial; after a v2 document is stored, that ID is saved and no
-longer recomputed from transport data.
+from the v1 serial solely to make initial migration repeatable, not to prove
+physical identity. After a v2 document is stored, that ID is saved and no
+longer recomputed from transport data. A profile containing only `DeviceId` is
+valid saved data but cannot form a `ConnectionPlan` until a USB or network
+candidate is supplied.
 
 `LegacyMigrationCoordinator` first checks for existing v2 authority, snapshots
 both v1 files, computes/validates a proposal, then rechecks both exact byte
@@ -52,10 +72,11 @@ a preview cannot change the saved result. It never deletes or rewrites either
 v1 file. Existing valid v2 wins on later runs; an invalid v2 file blocks
 migration for explicit recovery. A leftover temporary file has no authority.
 
-This is intentionally one-way. If the 1.x launcher changes its intact v1
-files after v2 migration, the new v2 document does not automatically absorb
-those changes. Phase 5 must avoid concurrent editing between old and new
-control centers during cutover or provide an explicit user-mediated import.
+The 1.x launcher remains a temporary compatibility path until Phase 11. When
+the new Desktop becomes active, Phase 5 must isolate legacy compatibility so
+simultaneous v1/v2 editing cannot silently diverge. An isolated generated
+legacy view, unavailable legacy editing in the new flow, or another explicit
+boundary may be considered there; Phase 3 chooses none of these mechanisms.
 The `.bak` file backs up the previous v2 revision on replacement; the original
 v1 files are the separate migration recovery source.
 
@@ -63,12 +84,24 @@ v1 files are the separate migration recovery source.
 
 Core defines semantic ADB results, discovery and pairing use cases. The
 Infrastructure adapter executes ADB directly with `ArgumentList`, no shell,
-owned cancellation/timeout and bounded output. Device and mDNS text is
-parsed as untrusted input. The pairing code is sent through redirected stdin,
-not a process command-line argument. Pairing codes are transient and absent from saved
-profiles, result/error objects and diagnostics. A verified connection can
-compare the connected device serial with the selected USB serial; pairing
-alone does not invent a connection endpoint.
+owned cancellation/timeout and bounded output. Both redirected pipes keep
+draining after their diagnostic capture caps, so additional output cannot
+block the command on a full pipe. Cancellation or timeout terminates only the
+invoked command process, then waits for it with a bounded cleanup deadline;
+the persistent shared ADB daemon is not application-owned. A cancelled call
+propagates cancellation while an internal timeout reports `TimedOut` through
+the gateway. Device and mDNS text is parsed as untrusted input. The pairing
+code is sent through redirected stdin, not a process command-line argument.
+Pairing codes are transient and absent from saved profiles, result/error
+objects and diagnostics. After a network connection,
+`adb -s <network-endpoint> shell getprop ro.serialno` reports an observed
+device property, not a `UsbSerial` or proof that two transports reach the same
+physical device.
+A caller may compare it with an independently observed expected property as a
+consistency check; a USB transport serial is never implicitly accepted as that
+expectation. Pairing alone does not invent a connection endpoint.
+The network endpoint used for pairing and the one used for connection remain
+separate even when advertised by the same handset.
 
 `ConnectionPlan` is an ordered description of preferred/fallback transport,
 capabilities and bounded retry/failback policy. It does not run reconnection;
