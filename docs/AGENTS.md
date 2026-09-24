@@ -64,8 +64,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
 ```
 
 It checks local links and Markdown heading anchors in tracked Markdown files.
-Package/config/spec consistency checks remain future extensions, not current
-DocsCheck coverage.
+The pinned SpecGen `verify` command checks canonical option-spec semantics and
+generated native, Core, legacy, resource and reference-document bytes. It runs
+separately from DocsCheck; package/config consistency is not DocsCheck coverage.
 
 When documentation paths are moved, update AGENTS references in the same
 change.

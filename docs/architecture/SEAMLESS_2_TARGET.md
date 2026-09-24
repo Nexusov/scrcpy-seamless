@@ -201,7 +201,8 @@ CLI form, availability, requires/conflicts, deprecation and UI hints. Generate o
 parity-check C#/native/UI/docs metadata with CI drift detection. Generated output
 identifies its source. Complex compatibility stays typed code with named RuleIds;
 YAML must not become a programming language. Native remains the final authority
-for actual device capabilities.
+for actual device capabilities. The [option development guide](../development/options.md)
+records the Phase 4 ownership, generation and legacy-compatibility boundary.
 
 Audit client/server channels, ownership, message IDs, byte order, lengths, error
 behavior and negotiation under `spec/device-protocol`. Add C-to-Java and

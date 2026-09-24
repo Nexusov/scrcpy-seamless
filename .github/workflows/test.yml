@@ -111,12 +111,14 @@ jobs:
         run: |
           $sdk = ./scripts/bootstrap-dotnet.ps1
           if ((& $sdk --version) -ne '10.0.401') { throw 'Unexpected .NET SDK.' }
-      - name: Restore, build, and test Desktop scaffold
+      - name: Restore, verify options, build, and test Desktop scaffold
         shell: powershell
         run: |
           $sdk = Join-Path $PWD 'work/dotnet-sdk-10.0.401/dotnet.exe'
           $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
           & $sdk restore ./ScrcpySeamless.slnx --locked-mode
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $sdk run --project ./tools/ScrcpySeamless.SpecGen/ScrcpySeamless.SpecGen.csproj --configuration Release --no-restore -- verify
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           & $sdk build ./ScrcpySeamless.slnx --no-restore --configuration Release
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
