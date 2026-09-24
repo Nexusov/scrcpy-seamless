@@ -1,11 +1,11 @@
 # Seamless 2.0 execution plan
 
-Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
-Phase 2 work is on `2.0/p02-build`, based exactly on Phase 1 merge
-`0c869722ad7a0e802011766c88d788e8ffd08177`. PR #3 is open; hosted CI
-passed after Gradle hardening. The owner completed one successful physical
-source-built-server smoke. Final Phase 2 acceptance and PR merge remain the
-owner's decisions; Phase 3 has not started.
+Status: Phases 0, 1 and 2 accepted and merged through PRs #1, #2 and #3.
+Phase 2 merged into `seamless-2.0` as
+`ee373709ecdda8e323d93a856a346772b2c46485`, preserving all 20 Phase 2
+commits. Phase 3 implementation and its focused safety gate are on
+`2.0/p03-core` from that exact base. PR #4 is open for final follow-up and
+hosted validation; Phase 4 starts locally only after its merge is verified.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,13 +16,13 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The owner authorized PR #2 merge and Phase 2 clean-build foundations. The
-`2.0/p02-build` branch and PR #3 were published with permission; subsequent
-Phase 2 commits may be pushed to that branch after local green validation.
-Do not merge PR #3, push `main` or `seamless-2.0` directly, create tags or
-releases, change repository settings, force-push, or enter Phase 3 without
-separate authorization. Keep the current launcher and imported runtime
-fallback functional; native lifecycle and application features belong later.
+The owner accepted Phase 2 and Phase 3 and authorized the final Phase 3
+follow-up on `2.0/p03-core`. After all required PR #4 jobs pass, merge it into
+`seamless-2.0` with a merge commit, verify ancestry and clean up the work
+branch. Then start Phase 4 locally from that exact integration head. Do not
+modify `main`, push Phase 4, create tags/releases, change repository settings,
+force-push, or enter Phase 5. Keep the current launcher and imported runtime
+fallback functional; native lifecycle and product UI belong later.
 
 ## Source baseline
 
@@ -108,8 +108,40 @@ keep 1.x development and the reviewed imported package fallback working.
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
 practical. Never replace the current launcher or import fallback in Phase 2.
-Only normal pushes of new Phase 2 commits to `2.0/p02-build` are authorized.
-Do not merge PR #3 or enter Phase 3.
+PR #3 merged with a two-parent merge commit and its work branch was deleted
+locally and remotely after ancestry verification. Phase 3 publication is now
+limited to its reviewed work branch and PR after the targeted gate passes.
+
+## Phase 3 — headless C# Core and Infrastructure
+
+Base: `ee373709ecdda8e323d93a856a346772b2c46485` on local
+`2.0/p03-core`. The Core project owns domain values and application policy;
+Infrastructure implements only real process, filesystem and platform effects.
+Desktop remains a buildable Avalonia scaffold without product behavior. Use
+sanitized fixtures and isolated test data, never the owner's portable install.
+
+| ID | Dependency-ordered checkpoint | Evidence / exit | Status |
+| --- | --- | --- | --- |
+| P3.1 | Establish value objects and semantic status/error codes | Profile/session/attempt/device/transport identity invariants; no presentation text or platform dependencies; focused headless tests | Complete |
+| P3.2 | Define versioned DeviceProfile/configuration v2 | Stable ProfileId independent of USB/network identity; separate mDNS, pairing, connection, alias, policy and mirroring concepts; typed validation | Complete |
+| P3.3 | Parse host/IPv4/IPv6 endpoints safely | Port range, bracketed IPv6, malformed input, ambiguous colon syntax and invariant formatting covered without naive splitting | Complete |
+| P3.4 | Define pure legacy migration and v2 revision semantics | Snapshot both independent v1 files, report unknown/unmappable data, validate before commit, deterministic/idempotent migration plan | Complete |
+| P3.5 | Preserve actual sanitized v1 shapes as fixtures | `phone.json`, `scrcpy-settings.json`, absent/optional fields, malformed/unsupported values, repeat/already-v2 and interruption cases | Complete |
+| P3.6 | Resolve application-data paths | Portable `<application>/data/` and installed `%LOCALAPPDATA%\scrcpy-seamless\` are explicit, isolated and testable | Complete |
+| P3.7 | Implement typed atomic configuration persistence | Short revision/CAS critical section, validated atomic replacement, recoverable migration backup and interruption tests; no unrelated process/network I/O while locked | Complete |
+| P3.8 | Implement owned ADB process boundary | `ProcessStartInfo.ArgumentList`, `UseShellExecute=false`, bounded stdout/stderr, exit status, cancellation/timeout and owned termination | Complete |
+| P3.9 | Parse untrusted ADB responses | Sanitized `devices -l`, `mdns services`, `pair`, `connect` fixtures including daemon noise, multiple/offline/unauthorized and malformed/IPv6 cases | Complete |
+| P3.10 | Add headless discovery and pairing use cases | Injected ADB boundary, manual endpoint input, cancellation, semantic failures and pairing-secret non-persistence/redaction | Complete |
+| P3.11 | Model ConnectionPlan and ConnectionPolicy | Candidate ordering, preferred/fallback transport, capability and retry configuration; no Phase 8 native orchestration | Complete |
+| P3.12 | Establish activation and native-host boundaries | One-control-center/multiple-session semantics, same-user activation boundary and owned native start/stop/lifetime contract; no Phase 6 IPC or product UI | Complete as semantic Core contracts; Windows activation and native adapter remain later integration |
+| P3.13 | Validate and close locally | Locked restore, Release build/tests, legacy suites, DocsCheck/metadata, applicable package/provenance checks, AGENTS/docs review, logical commits and clean tree | Complete locally; validation evidence below |
+| P3.14 | Focused acceptance gate before PR | One-way v2 authority with migration/error tests; drain-safe bounded ADB output; direct-command cancellation preserving shared daemon; precise identity semantics and regressions | Complete locally after targeted regression and full validation; evidence below |
+| P3.15 | Final pre-merge infrastructure follow-up | Generic ADB runner inherits mDNS backend environment; migration lock order documented; later ADB discovery review recorded; local validation and hosted PR checks | Locally complete; hosted CI pending. Local legacy timing caveat below. |
+
+Keep each checkpoint reviewable; combine adjacent work only when the invariants
+and their tests form one coherent commit. Do not introduce Phase 4 option
+generation, Phase 5 UI, Phase 6 machine IPC, Phase 7 native lifetime work, or
+Phase 8 reconnect execution into this Phase.
 
 ## Validation boundaries
 
@@ -354,8 +386,55 @@ No speculative production scaffolding is authorized by this list.
 
 ## Handoff gate
 
-The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
-PR #3 remains open. Gradle hardening, hosted CI and one owner-run source-server
-DEV smoke have passed. The intermittent audio watch item remains tracked.
-Await the owner's final Phase 2/PR decision; do not merge PR #3 or begin
-Phase 3 without separate authorization.
+The owner accepted Phases 0–2. PR #3 merged at
+`ee373709ecdda8e323d93a856a346772b2c46485`; Phase 2's 20 commits are
+ancestors of `seamless-2.0` and the short-lived branch was deleted. The
+intermittent audio watch item remains tracked and is not Phase 3 audio work.
+Phase 3 is implemented locally as separate Core/domain, application-contract,
+configuration/migration, ADB and documentation commits. The pure v1 migration
+and v2 atomic store are headless APIs, not yet wired into the 1.x launcher or
+the placeholder Avalonia Desktop. A same-user activation channel and concrete
+native-host adapter are deliberately left for the owning Desktop/IPC phases;
+their semantic contracts and tests are in Phase 3. See the
+[configuration boundary](../../development/desktop-configuration.md).
+
+Phase 3 validation on 2026-09-24: .NET 10.0.401 locked restore, Release build
+(zero warnings) and 81/81 solution tests; existing PowerShell archive suite
+28/28; DocsCheck 444 links across 69 tracked Markdown files; build metadata
+check; fresh native Meson test build 16/16; Android offline strict
+`assembleRelease`/`check` successful (75/76 tasks up-to-date, unchanged
+server/build inputs); self-contained `win-x64` placeholder Desktop publish;
+existing archive checksum and package test passed. Phase 3 did not change
+`src/scrcpy`, the legacy launcher, reviewed package inputs or canonical 1.x
+runtime behavior. No new hardware claim follows from these headless tests.
+These baseline checks preceded the focused gate; the later authorization above
+permits merge-commit integration and then local Phase 4 after final validation.
+
+Focused Phase 3 acceptance gate on 2026-09-24: tests now enforce the one-way
+v1-to-v2 cutover, changed-v1 authority, corrupt-v2 recovery and stale-preview
+rejection. The ADB runner continues draining both pipes after a 65,536-character
+capture cap per stream; synthetic 131,072-character stdout/stderr completes
+with explicit truncation. A failing regression demonstrated that process-tree
+termination killed a synthetic descendant; the runner now kills only the
+invoked command, bounds termination, and awaits both readers before disposal.
+Early stdin closure, cancellation and timeout have focused process tests.
+Network `ro.serialno` is an observed property rather than `UsbSerial`; an
+optional explicit property comparison does not claim physical-device identity.
+Locked restore, zero-warning Release build and all 89/89 .NET tests passed
+(Core 50, Infrastructure 38, Desktop 1); the 1.x archive suite passed 28/28.
+DocsCheck, metadata and diff validation complete this local gate. Phase 3 is
+locally complete for PR review, with no Phase 4 work or new hardware claim.
+
+Final Phase 3 follow-up on 2026-09-24: the generic ADB process runner no longer
+sets `ADB_MDNS_OPENSCREEN`; a regression failed before the removal when an
+inherited value of `0` was changed to `1`, then passed. Migration documents the
+legacy → v2 mutex order, and R03 tracks later ADB backend/discovery review.
+Locked restore, zero-warning Release build, all 90/90 .NET tests (Core 50,
+Infrastructure 39, Desktop 1), DocsCheck and build metadata passed. Three
+local full 1.x suite runs yielded 27/28, 26/28 and 27/28: `options-view` and
+`dev-observer` exceeded existing wall-clock/UI deadlines under load, while
+both passed together under the same test runner when isolated (2/2). The
+launcher, observer and their tests are unchanged by Phase 3; do not weaken
+their timing assertions for this follow-up. Require the clean hosted `test`
+job and other PR checks to pass before integration, and retain the local
+timing limitation in the handoff report.

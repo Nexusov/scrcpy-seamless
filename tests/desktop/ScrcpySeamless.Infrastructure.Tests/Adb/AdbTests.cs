@@ -1,0 +1,601 @@
+using System.Diagnostics;
+using ScrcpySeamless.Core;
+using ScrcpySeamless.Core.Adb;
+using ScrcpySeamless.Infrastructure.Adb;
+using Xunit;
+
+namespace ScrcpySeamless.Infrastructure.Tests.Adb;
+
+/** Checks untrusted discovery output and process argument isolation. */
+public sealed class AdbTests
+{
+    [Fact]
+    public void DevicesIncludeDistinctAuthorizationStatesAndNetworkTransports()
+    {
+        const string output = """
+            * daemon started successfully
+            List of devices attached
+            USB_EXAMPLE_1 device product:synthetic model:Test_Phone transport_id:1
+            USB_EXAMPLE_2 unauthorized transport_id:2
+            192.0.2.8:5555 offline transport_id:3
+            [2001:db8::8]:5555 device transport_id:4
+            malformed
+            """;
+
+        AdbParseResult<AdbDevice> parsed = AdbResponseParser.ParseDevices(output);
+
+        Assert.Equal(4, parsed.Items.Count);
+        Assert.Equal(1, parsed.MalformedLineCount);
+        Assert.Equal(AdbDeviceState.Unauthorized, parsed.Items[1].State);
+        Assert.Equal(AdbDeviceState.Offline, parsed.Items[2].State);
+        Assert.Equal("Test Phone", parsed.Items[0].Model);
+        Assert.Equal("[2001:db8::8]:5555", parsed.Items[3].Serial);
+    }
+
+    [Fact]
+    public void MdnsServicesKeepPairingAndConnectionEndpointsSeparate()
+    {
+        const string output = """
+            * daemon not running; starting now at tcp:5037
+            List of discovered mdns services
+            adb-SYNTHETIC-pair._adb-tls-pairing._tcp. _adb-tls-pairing._tcp. 192.0.2.8:37123
+            adb-SYNTHETIC-connect._adb-tls-connect._tcp. _adb-tls-connect._tcp. [2001:db8::8]:37124
+            broken _adb-tls-connect._tcp. 2001:db8::8:37124
+            """;
+
+        AdbParseResult<AdbMdnsService> parsed = AdbResponseParser.ParseMdnsServices(output);
+
+        Assert.Equal(2, parsed.Items.Count);
+        Assert.Equal(1, parsed.MalformedLineCount);
+        Assert.Equal(AdbServiceKind.Pairing, parsed.Items[0].Kind);
+        Assert.Equal(37123, parsed.Items[0].Endpoint.Port);
+        Assert.Equal(AdbServiceKind.Connection, parsed.Items[1].Kind);
+        Assert.Equal(37124, parsed.Items[1].Endpoint.Port);
+    }
+
+    [Fact]
+    public void PairAndConnectRequireSuccessForTheExpectedEndpoint()
+    {
+        NetworkEndpoint endpoint = NetworkEndpoint.Parse("192.0.2.8:5555");
+
+        Assert.True(AdbResponseParser.IsPairingSuccessful(0, "Successfully paired to 192.0.2.8:37123"));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(1, "Successfully paired to 192.0.2.8:37123"));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(0, "Failed: Wrong password"));
+        Assert.True(AdbResponseParser.IsConnectSuccessful(0, "already connected to 192.0.2.8:5555", endpoint));
+        Assert.False(AdbResponseParser.IsConnectSuccessful(0, "connected to 192.0.2.9:5555", endpoint));
+        Assert.False(AdbResponseParser.IsConnectSuccessful(1, "connected to 192.0.2.8:5555", endpoint));
+    }
+
+    /** Error diagnostics remain detectable without treating daemon notices as failures. */
+    [Fact]
+    public void StderrDistinguishesErrorsFromDaemonStartup()
+    {
+        Assert.False(AdbResponseParser.HasErrorDiagnostics("* daemon not running; starting now at tcp:5037"));
+        Assert.True(AdbResponseParser.HasErrorDiagnostics("adb: error: device unauthorized"));
+        Assert.True(AdbResponseParser.HasErrorDiagnostics("error: failed to connect"));
+    }
+
+    [Fact]
+    public void ProcessInvocationKeepsArgumentsSeparateFromShell()
+    {
+        var runner = new AdbProcessRunner(@"C:\synthetic\adb.exe");
+        var startInfo = runner.CreateStartInfo(["pair", "[2001:db8::8]:37123"], redirectStandardInput: true);
+
+        Assert.False(startInfo.UseShellExecute);
+        Assert.True(startInfo.RedirectStandardOutput);
+        Assert.True(startInfo.RedirectStandardError);
+        Assert.True(startInfo.RedirectStandardInput);
+        Assert.Equal(2, startInfo.ArgumentList.Count);
+        Assert.Equal("[2001:db8::8]:37123", startInfo.ArgumentList[1]);
+    }
+
+    /** Generic process execution preserves an inherited mDNS backend choice. */
+    [Fact]
+    public void ProcessInvocationDoesNotOverrideInheritedMdnsBackend()
+    {
+        const string backendVariable = "ADB_MDNS_OPENSCREEN";
+        string? previousBackend = Environment.GetEnvironmentVariable(backendVariable);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(backendVariable, "0");
+            var runner = new AdbProcessRunner(@"C:\synthetic\adb.exe");
+            ProcessStartInfo startInfo = runner.CreateStartInfo(["mdns", "services"]);
+
+            Assert.Equal("0", startInfo.Environment[backendVariable]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(backendVariable, previousBackend);
+        }
+    }
+
+    [Fact]
+    public async Task CancelledInvocationDoesNotStartAChild()
+    {
+        var runner = new AdbProcessRunner(@"C:\synthetic\missing-adb.exe");
+        using CancellationTokenSource cancellationSource = new();
+        await cancellationSource.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunAsync(
+            ["devices", "-l"],
+            TimeSpan.FromSeconds(1),
+            cancellationSource.Token));
+    }
+
+    [Fact]
+    public async Task CancellationTerminatesTheOwnedChildAfterItStarts()
+    {
+        (string directory, string script, string marker) = CreateBlockingChild();
+        using CancellationTokenSource cancellationSource = new();
+        Task<AdbProcessResult>? runTask = null;
+
+        try
+        {
+            var runner = new AdbProcessRunner("powershell.exe");
+            runTask = runner.RunAsync(
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, marker],
+                TimeSpan.FromSeconds(20),
+                cancellationSource.Token);
+            int childPid = await WaitForChildMarkerAsync(marker, runTask);
+            await cancellationSource.CancelAsync();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+            Assert.False(IsProcessAlive(childPid));
+        }
+        finally
+        {
+            await cancellationSource.CancelAsync();
+
+            if (runTask is not null)
+            {
+                try
+                {
+                    await runTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation is the expected cleanup path for the blocking child.
+                }
+            }
+
+            DeleteBlockingChild(directory, script, marker);
+        }
+    }
+
+    [Fact]
+    public async Task TimeoutTerminatesAnOwnedChild()
+    {
+        (string directory, string script, string marker) = CreateBlockingChild();
+
+        try
+        {
+            var runner = new AdbProcessRunner("powershell.exe");
+            await Assert.ThrowsAsync<TimeoutException>(() => runner.RunAsync(
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, marker],
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken));
+
+            if (File.Exists(marker))
+            {
+                int childPid = int.Parse(await File.ReadAllTextAsync(marker, TestContext.Current.CancellationToken));
+                Assert.False(IsProcessAlive(childPid));
+            }
+        }
+        finally
+        {
+            DeleteBlockingChild(directory, script, marker);
+        }
+    }
+
+    /** Cancelling an ADB command must not terminate an independently living descendant. */
+    [Fact]
+    public async Task CancellationTerminatesOnlyTheOwnedCommand()
+    {
+        (string directory, string parentScript, string childScript, string parentMarker, string childMarker) =
+            CreateBlockingDescendant();
+        using CancellationTokenSource cancellationSource = new();
+        string parentEventName = "Local\\scrcpy-seamless-adb-parent-" + Guid.NewGuid().ToString("N");
+        string childEventName = "Local\\scrcpy-seamless-adb-child-" + Guid.NewGuid().ToString("N");
+        using EventWaitHandle parentReady = new(false, EventResetMode.ManualReset, parentEventName);
+        using EventWaitHandle childReady = new(false, EventResetMode.ManualReset, childEventName);
+        Task<AdbProcessResult>? runTask = null;
+        int descendantPid = 0;
+
+        try
+        {
+            var runner = new AdbProcessRunner("powershell.exe");
+            runTask = runner.RunAsync(
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", parentScript,
+                    childScript, parentMarker, childMarker, parentEventName, childEventName],
+                TimeSpan.FromSeconds(20),
+                cancellationSource.Token);
+            Assert.True(parentReady.WaitOne(TimeSpan.FromSeconds(10)));
+            int parentPid = int.Parse(await File.ReadAllTextAsync(parentMarker, TestContext.Current.CancellationToken));
+            Assert.True(childReady.WaitOne(TimeSpan.FromSeconds(10)));
+            descendantPid = int.Parse(await File.ReadAllTextAsync(childMarker, TestContext.Current.CancellationToken));
+            Assert.NotEqual(parentPid, descendantPid);
+
+            await cancellationSource.CancelAsync();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+            Assert.False(IsProcessAlive(parentPid));
+            Assert.True(IsProcessAlive(descendantPid));
+        }
+        finally
+        {
+            await cancellationSource.CancelAsync();
+
+            if (runTask is not null)
+            {
+                try
+                {
+                    await runTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation is the expected cleanup path for the owned command.
+                }
+            }
+
+            await StopDescendantAsync(descendantPid);
+            DeleteBlockingDescendant(directory, parentScript, childScript, parentMarker, childMarker);
+        }
+    }
+
+    /** Large output on both pipes is drained without retaining it without bound. */
+    [Fact]
+    public async Task OversizedOutputAndErrorAreTruncatedWithoutBlockingCompletion()
+    {
+        (string directory, string script) = CreateLargeOutputChild();
+
+        try
+        {
+            var runner = new AdbProcessRunner("powershell.exe");
+            AdbProcessResult result = await runner.RunAsync(
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script],
+                TimeSpan.FromSeconds(20),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.True(result.OutputTruncated);
+            Assert.Equal(65_536, result.StandardOutput.Length);
+            Assert.Equal(65_536, result.StandardError.Length);
+            Assert.All(result.StandardOutput, character => Assert.Equal('O', character));
+            Assert.All(result.StandardError, character => Assert.Equal('E', character));
+        }
+        finally
+        {
+            File.Delete(script);
+            Directory.Delete(directory);
+        }
+    }
+
+    /** A command that closes stdin early still releases its pending output readers. */
+    [Fact]
+    public async Task EarlyStandardInputClosureTerminatesTheCommand()
+    {
+        (string directory, string script, string marker) = CreateClosedInputChild();
+
+        try
+        {
+            var runner = new AdbProcessRunner("powershell.exe");
+            await Assert.ThrowsAnyAsync<IOException>(() => runner.RunAsync(
+                ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, marker],
+                TimeSpan.FromSeconds(15),
+                TestContext.Current.CancellationToken,
+                new string('I', 1_048_576)));
+
+            int processId = int.Parse(await File.ReadAllTextAsync(marker, TestContext.Current.CancellationToken));
+            Assert.False(IsProcessAlive(processId));
+        }
+        finally
+        {
+            DeleteBlockingChild(directory, script, marker);
+        }
+    }
+
+    [Fact]
+    public async Task InvalidPairingCodeNeverInvokesAdb()
+    {
+        var gateway = new FakeAdbGateway();
+        var service = new AdbPairingService(gateway);
+
+        AdbResult<AdbPairingOutcome> result = await service.PairAsync(
+            NetworkEndpoint.Parse("192.0.2.8:37123"),
+            "bad-code",
+            NetworkEndpoint.Parse("192.0.2.8:37124"),
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(AdbFailureKind.InvalidInput, result.Failure);
+        Assert.Equal(0, gateway.PairCount);
+    }
+
+    [Fact]
+    public async Task PairingWithoutConnectionDoesNotInventAConnectionEndpoint()
+    {
+        var gateway = new FakeAdbGateway();
+        var service = new AdbPairingService(gateway);
+
+        AdbResult<AdbPairingOutcome> result = await service.PairAsync(
+            NetworkEndpoint.Parse("192.0.2.8:37123"),
+            "000000",
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.True(result.Value.Paired);
+        Assert.Null(result.Value.ConnectedEndpoint);
+        Assert.Null(result.Value.ObservedDeviceSerialProperty);
+        Assert.Equal(1, gateway.PairCount);
+        Assert.Equal(0, gateway.ConnectCount);
+    }
+
+    [Fact]
+    public async Task PairingRejectsAnExplicitDeviceSerialPropertyMismatch()
+    {
+        var gateway = new FakeAdbGateway();
+        var service = new AdbPairingService(gateway);
+
+        AdbResult<AdbPairingOutcome> result = await service.PairAsync(
+            NetworkEndpoint.Parse("192.0.2.8:37123"),
+            "000000",
+            NetworkEndpoint.Parse("192.0.2.8:37124"),
+            "DIFFERENT_SYNTHETIC_SERIAL",
+            CancellationToken.None);
+
+        Assert.Equal(AdbFailureKind.DeviceSerialPropertyMismatch, result.Failure);
+        Assert.NotNull(result.Value);
+        Assert.True(result.Value.Paired);
+        Assert.Null(result.Value.ConnectedEndpoint);
+        Assert.Equal(1, gateway.PairCount);
+        Assert.Equal(1, gateway.ConnectCount);
+        Assert.DoesNotContain("000000", result.ToString());
+    }
+
+    /// <summary>An observed Android property remains distinct from a USB transport serial.</summary>
+    [Fact]
+    public async Task PairingReportsObservedPropertyWithoutInferringPhysicalIdentity()
+    {
+        var gateway = new FakeAdbGateway();
+        var service = new AdbPairingService(gateway);
+        NetworkEndpoint connectionEndpoint = NetworkEndpoint.Parse("192.0.2.8:37124");
+
+        AdbResult<AdbPairingOutcome> result = await service.PairAsync(
+            NetworkEndpoint.Parse("192.0.2.8:37123"),
+            "000000",
+            connectionEndpoint,
+            null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(connectionEndpoint, result.Value.ConnectedEndpoint);
+        Assert.Equal("SYNTHETIC_SERIAL", result.Value.ObservedDeviceSerialProperty);
+    }
+
+    /// <summary>An explicitly supplied device property can be checked without treating it as transport identity.</summary>
+    [Fact]
+    public async Task PairingAcceptsAMatchingExplicitDeviceSerialProperty()
+    {
+        var gateway = new FakeAdbGateway();
+        var service = new AdbPairingService(gateway);
+        NetworkEndpoint connectionEndpoint = NetworkEndpoint.Parse("192.0.2.8:37124");
+
+        AdbResult<AdbPairingOutcome> result = await service.PairAsync(
+            NetworkEndpoint.Parse("192.0.2.8:37123"),
+            "000000",
+            connectionEndpoint,
+            "SYNTHETIC_SERIAL",
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(connectionEndpoint, result.Value.ConnectedEndpoint);
+        Assert.Equal("SYNTHETIC_SERIAL", result.Value.ObservedDeviceSerialProperty);
+        Assert.Equal(1, gateway.PairCount);
+        Assert.Equal(1, gateway.ConnectCount);
+    }
+
+    [Fact]
+    public void ManualEndpointRejectsAmbiguousIpv6()
+    {
+        AdbResult<NetworkEndpoint> invalid = AdbDiscoveryService.ResolveManualEndpoint("2001:db8::8:5555");
+        AdbResult<NetworkEndpoint> valid = AdbDiscoveryService.ResolveManualEndpoint("[2001:db8::8]:5555");
+
+        Assert.Equal(AdbFailureKind.InvalidInput, invalid.Failure);
+        Assert.True(valid.IsSuccess);
+    }
+
+    private sealed class FakeAdbGateway : IAdbGateway
+    {
+        public int PairCount { get; private set; }
+        public int ConnectCount { get; private set; }
+
+        public Task<AdbResult<IReadOnlyList<AdbDevice>>> GetDevicesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(AdbResult<IReadOnlyList<AdbDevice>>.Success([]));
+
+        public Task<AdbResult<IReadOnlyList<AdbMdnsService>>> GetServicesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(AdbResult<IReadOnlyList<AdbMdnsService>>.Success([]));
+
+        public Task<AdbResult<bool>> PairAsync(
+            NetworkEndpoint pairingEndpoint,
+            string pairingCode,
+            CancellationToken cancellationToken)
+        {
+            PairCount++;
+            return Task.FromResult(AdbResult<bool>.Success(true));
+        }
+
+        public Task<AdbResult<bool>> ConnectAsync(
+            NetworkEndpoint connectionEndpoint,
+            CancellationToken cancellationToken)
+        {
+            ConnectCount++;
+            return Task.FromResult(AdbResult<bool>.Success(true));
+        }
+
+        public Task<AdbResult<string>> GetDeviceSerialPropertyAsync(
+            NetworkEndpoint connectionEndpoint,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(AdbResult<string>.Success("SYNTHETIC_SERIAL"));
+    }
+
+    private static (string Directory, string Script, string Marker) CreateBlockingChild()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "scrcpy-seamless-adb-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string script = Path.Combine(directory, "block.ps1");
+        string marker = Path.Combine(directory, "ready.txt");
+        File.WriteAllText(script, """
+            param([string]$markerPath)
+            [IO.File]::WriteAllText(($markerPath + '.tmp'), $PID.ToString())
+            [IO.File]::Move(($markerPath + '.tmp'), $markerPath)
+            [Threading.ManualResetEventSlim]::new($false).Wait()
+            """);
+        return (directory, script, marker);
+    }
+
+    private static async Task<int> WaitForChildMarkerAsync(string marker, Task<AdbProcessResult> runTask)
+    {
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        TaskCompletionSource markerCreated = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using FileSystemWatcher watcher = new(Path.GetDirectoryName(marker)!, Path.GetFileName(marker));
+        watcher.Created += (_, _) => markerCreated.TrySetResult();
+        watcher.Renamed += (_, _) => markerCreated.TrySetResult();
+        watcher.EnableRaisingEvents = true;
+
+        if (!File.Exists(marker))
+        {
+            Task completed = await Task.WhenAny(markerCreated.Task, runTask).WaitAsync(deadline.Token);
+
+            if (completed == runTask)
+            {
+                AdbProcessResult result = await runTask;
+                throw new InvalidOperationException($"Test child exited early: {result.ExitCode}; {result.StandardError}");
+            }
+        }
+
+        return int.Parse(await File.ReadAllTextAsync(marker, TestContext.Current.CancellationToken));
+    }
+
+    private static bool IsProcessAlive(int processId)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static (string Directory, string ParentScript, string ChildScript, string ParentMarker, string ChildMarker)
+        CreateBlockingDescendant()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "scrcpy-seamless-adb-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string parentScript = Path.Combine(directory, "parent.ps1");
+        string childScript = Path.Combine(directory, "child.ps1");
+        string parentMarker = Path.Combine(directory, "parent-ready.txt");
+        string childMarker = Path.Combine(directory, "child-ready.txt");
+        File.WriteAllText(childScript, """
+            param([string]$markerPath, [string]$readyEventName)
+            [IO.File]::WriteAllText(($markerPath + '.tmp'), $PID.ToString())
+            [IO.File]::Move(($markerPath + '.tmp'), $markerPath)
+            $readyEvent = [Threading.EventWaitHandle]::OpenExisting($readyEventName)
+            $readyEvent.Set() | Out-Null
+            [Threading.ManualResetEventSlim]::new($false).Wait()
+            """);
+        File.WriteAllText(parentScript, """
+            param([string]$childScript, [string]$parentMarker, [string]$childMarker, [string]$parentEventName, [string]$childEventName)
+            $childArguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $childScript + '" "' + $childMarker + '" "' + $childEventName + '"'
+            $child = Start-Process -FilePath 'powershell.exe' -ArgumentList $childArguments -PassThru -WindowStyle Hidden
+            [IO.File]::WriteAllText(($parentMarker + '.tmp'), $PID.ToString())
+            [IO.File]::Move(($parentMarker + '.tmp'), $parentMarker)
+            $readyEvent = [Threading.EventWaitHandle]::OpenExisting($parentEventName)
+            $readyEvent.Set() | Out-Null
+            [Threading.ManualResetEventSlim]::new($false).Wait()
+            """);
+        return (directory, parentScript, childScript, parentMarker, childMarker);
+    }
+
+    private static (string Directory, string Script) CreateLargeOutputChild()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "scrcpy-seamless-adb-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string script = Path.Combine(directory, "large-output.ps1");
+        File.WriteAllText(script, """
+            [Console]::Out.Write(('O' * 131072))
+            [Console]::Error.Write(('E' * 131072))
+            """);
+        return (directory, script);
+    }
+
+    private static (string Directory, string Script, string Marker) CreateClosedInputChild()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "scrcpy-seamless-adb-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string script = Path.Combine(directory, "close-input.ps1");
+        string marker = Path.Combine(directory, "ready.txt");
+        File.WriteAllText(script, """
+            param([string]$markerPath)
+            [IO.File]::WriteAllText(($markerPath + '.tmp'), $PID.ToString())
+            [IO.File]::Move(($markerPath + '.tmp'), $markerPath)
+            [Console]::Out.WriteLine('ready')
+            [Console]::Error.WriteLine('ready')
+            [Environment]::Exit(0)
+            """);
+        return (directory, script, marker);
+    }
+
+    private static async Task StopDescendantAsync(int processId)
+    {
+        if (processId == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            process.Kill();
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            // The synthetic descendant already exited.
+        }
+    }
+
+    private static void DeleteBlockingDescendant(
+        string directory,
+        string parentScript,
+        string childScript,
+        string parentMarker,
+        string childMarker)
+    {
+        File.Delete(parentMarker);
+        File.Delete(parentMarker + ".tmp");
+        File.Delete(childMarker);
+        File.Delete(childMarker + ".tmp");
+        File.Delete(parentScript);
+        File.Delete(childScript);
+        Directory.Delete(directory);
+    }
+
+    private static void DeleteBlockingChild(string directory, string script, string marker)
+    {
+        File.Delete(marker);
+        File.Delete(marker + ".tmp");
+        File.Delete(script);
+        Directory.Delete(directory);
+    }
+}

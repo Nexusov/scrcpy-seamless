@@ -49,10 +49,10 @@ For Seamless 2.0 work, read the active execution plan under
 
 - `launcher/` — current 1.x PowerShell/WinForms application and VBS wrappers.
 - `src/scrcpy/` — current native scrcpy-derived client and Android server tree.
-- `src/desktop/` — Phase 2 .NET/Avalonia build scaffold; product behavior begins
-  in later approved phases.
+- `src/desktop/` — .NET/Avalonia scaffold and Phase 3 headless Core/Infrastructure
+  contracts; product UI and native IPC belong to later approved phases.
 - `scripts/` — tests, build, package, provenance, and publication tooling.
-- `tests/` — current PowerShell regression/integration tests.
+- `tests/` — PowerShell regression/integration and .NET headless tests.
 - `docs/` — architecture, build, packaging, and development knowledge.
 - `licenses/` / `THIRD_PARTY.md` — third-party licensing and provenance.
 - `release-manifest.json` — current 1.x reviewed release/runtime metadata.

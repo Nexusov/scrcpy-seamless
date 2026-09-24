@@ -127,11 +127,14 @@ Native ownership and the fork-specific files are documented in [CHANGES.md](CHAN
 Build and release checks are documented in [BUILD.md](BUILD.md) and
 [PACKAGING.md](PACKAGING.md).
 
-## Seamless 2.0 planning
+## Seamless 2.0 foundation
 
 Phase 0 records the [1.x behavior and ownership baseline](architecture/SEAMLESS_1_BASELINE.md),
 the accepted [2.0 target](architecture/SEAMLESS_2_TARGET.md),
 [open risks](architecture/SEAMLESS_2_RISK_REGISTER.md), and the ordered
-[execution plan](exec-plans/active/seamless-2.md). The target is not implemented by
-this documentation. The accepted Phase 0 observations and later hardware
+[execution plan](exec-plans/active/seamless-2.md). Phase 3 implements headless
+Core configuration, ADB and application contracts; its storage and migration
+semantics are in the [desktop configuration guide](development/desktop-configuration.md).
+The 2.0 product UI, machine IPC and native reconnect architecture remain later
+work. The accepted Phase 0 observations and later hardware
 validation gaps follow the [hardware baseline procedure](development/HARDWARE_BASELINE.md).
