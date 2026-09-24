@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../ScrcpySeamless.Core/ScrcpySeamless.Core.csproj" />
+  </ItemGroup>
+</Project>

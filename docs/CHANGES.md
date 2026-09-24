@@ -1,5 +1,17 @@
 # Changes from scrcpy 4.0
 
+## Selective upstream correctness ports during Phase 2
+
+The client retains its scrcpy 4.0 protocol and imported 1.x server/runtime.
+The [early upstream audit](upstream/PORTS.md) tracks individual v4.1 fixes.
+The initial-window size now crosses from the decoder thread to the SDL main
+thread through an owned event payload, adapted from upstream #6911. The native
+demuxer rejects zero-size session metadata, and pending payloads are released
+after event producers stop during normal teardown or Seamless reconnect.
+The audio callback buffer now rejects a sample-count multiplication overflow
+before allocation, following the separate upstream v4.1 correction.
+These changes do not implement the planned 2.0 lifecycle architecture.
+
 Reconnection is enabled by the `SCRCPY_RECONNECT_SERIAL` environment variable,
 which contains the ADB Wi-Fi device name of a previously paired phone.
 

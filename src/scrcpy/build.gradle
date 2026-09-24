@@ -1,6 +1,10 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
+    // Lock the Android Gradle plugin and its transitive buildscript classpath.
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
 
     repositories {
         google()
@@ -15,6 +19,12 @@ buildscript {
 }
 
 allprojects {
+    // Require reviewed lock state for every resolvable project configuration.
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode = LockMode.STRICT
+    }
+
     repositories {
         google()
         mavenCentral()

@@ -17,6 +17,7 @@ user-facing product; plans and research do not imply implemented behavior.
 - [Hardware baseline and validation procedure](development/HARDWARE_BASELINE.md)
 - [Architecture decision records](adr/README.md)
 - [Research and competitive audit](research/README.md)
+- [Upstream baseline and early port decisions](upstream/BASELINE.md)
 
 ## Development policy
 

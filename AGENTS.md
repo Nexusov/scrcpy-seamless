@@ -49,6 +49,8 @@ For Seamless 2.0 work, read the active execution plan under
 
 - `launcher/` — current 1.x PowerShell/WinForms application and VBS wrappers.
 - `src/scrcpy/` — current native scrcpy-derived client and Android server tree.
+- `src/desktop/` — Phase 2 .NET/Avalonia build scaffold; product behavior begins
+  in later approved phases.
 - `scripts/` — tests, build, package, provenance, and publication tooling.
 - `tests/` — current PowerShell regression/integration tests.
 - `docs/` — architecture, build, packaging, and development knowledge.
@@ -74,6 +76,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test.ps1 -Arch
 ```
 
 Run every additional subsystem-specific check required by nested AGENTS files.
+The current [build guide](docs/BUILD.md) links the Phase 2 native, server and
+Desktop source-build paths and their separate validation commands.
 
 ## Non-negotiable engineering rules
 

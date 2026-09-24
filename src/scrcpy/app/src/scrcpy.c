@@ -1063,6 +1063,7 @@ end:
 
     if (retry_session) {
         // All event producers have joined; no stale session event can follow.
+        sc_screen_discard_pending_open_window_events();
         SDL_FlushEvents(SC_EVENT_NEW_FRAME, SC_EVENT_AOA_OPEN_ERROR);
 
         if (screen_initialized) {

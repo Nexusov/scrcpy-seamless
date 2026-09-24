@@ -1,9 +1,11 @@
 # Seamless 2.0 execution plan
 
-Status: Phase 0 accepted and merged through PR #1 on 2026-09-24. Phase 1 is
-complete on the local `2.0/p01-governance` branch at base
-`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`, awaiting owner review.
-Phase 2 has not started.
+Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
+Phase 2 work is on `2.0/p02-build`, based exactly on Phase 1 merge
+`0c869722ad7a0e802011766c88d788e8ffd08177`. PR #3 is open; hosted CI
+passed after Gradle hardening. The owner completed one successful physical
+source-built-server smoke. Final Phase 2 acceptance and PR merge remain the
+owner's decisions; Phase 3 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -14,12 +16,13 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The Phase 0 closure restrictions applied to that completed task. The owner
-subsequently authorized PR #1 merge and local Phase 1 governance/release-safety
-work. Phase 1 may not push its branch, open/merge its PR, create tags or
-releases, change remote repository settings, force-push, modify `main`, or enter
-Phase 2 without separate authorization. No C# or native architecture rewrite
-belongs to this Phase.
+The owner authorized PR #2 merge and Phase 2 clean-build foundations. The
+`2.0/p02-build` branch and PR #3 were published with permission; subsequent
+Phase 2 commits may be pushed to that branch after local green validation.
+Do not merge PR #3, push `main` or `seamless-2.0` directly, create tags or
+releases, change repository settings, force-push, or enter Phase 3 without
+separate authorization. Keep the current launcher and imported runtime
+fallback functional; native lifecycle and application features belong later.
 
 ## Source baseline
 
@@ -49,9 +52,10 @@ No automatic integration or remote publication follows completion.
 
 ## Phase 1 — governance, knowledge and release safety
 
-Phase 1 starts from merge commit
-`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c` on `seamless-2.0`. Keep
-`2.0/p01-governance` local until the owner separately authorizes publication.
+Phase 1 started from merge commit
+`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c` on `seamless-2.0`. PR #2
+merged as `0c869722ad7a0e802011766c88d788e8ffd08177`; its nine commits
+remain in history and its short-lived work branch was deleted.
 The existing 1.x publisher is in scope for release-integrity and privacy
 corrections; product launch, native, server and future Desktop architecture are
 not.
@@ -79,6 +83,33 @@ For the release bug, first run the new regression against the old publisher and
 record the expected failure; commit the regression with the fix so the commit
 remains green. Publication tests must use disposable local remotes. Do not
 publish a real tag or release while validating Phase 1.
+
+## Phase 2 — clean build foundations
+
+Phase 2 starts at `0c869722ad7a0e802011766c88d788e8ffd08177` on a
+clean local `2.0/p02-build` branch. Phase 0 tool versions are evidence to
+investigate, not permanent pins. Prefer additive scripts and scaffolds that
+keep 1.x development and the reviewed imported package fallback working.
+
+| ID | Checkpoint | Evidence / exit | Status |
+| --- | --- | --- | --- |
+| P2.1 | Inventory and reproduce current build boundaries | Exact native/server commands, local tools, dependency origins/licenses/hashes, hidden state and clean-checkout gaps recorded | Complete |
+| P2.2 | Pin native and Android build inputs | Reviewed versions, source/download URLs, hashes and licenses; local restore/bootstrap instructions without tracked binaries | Complete |
+| P2.3 | Establish source-build paths | Android server and native client build from this tree; tests and package consumption demonstrated without weakening provenance | Complete |
+| P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Complete |
+| P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Complete |
+| P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete; four hosted jobs passed on initial PR #3 review and after Gradle hardening |
+| P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Complete locally. Hardware smoke was performed; controlled A/B restored PC audio 3/3 on Phase 0 and 3/3 on Phase 2. The initial intermittent audio failure remains unexplained and is an owner-accepted non-blocking tracked risk, not a proven Phase 2 regression or a fixed bug. |
+| P2.10 | Lock and verify Android Gradle dependencies | Buildscript and project locks, reviewed SHA-256 metadata, strict CI build and negative fixtures; clean-cache confirmation | Complete; local strict/clean-cache and negative checks passed; hosted Android job passed after push |
+| P2.11 | Characterize source-built server runtime | Separate labelled DEV-only source-native/source-server copy and exact owner hardware procedure; preserve canonical legacy package | Complete for one owner-run USB-to-Wi-Fi smoke; [evidence and limits](../../development/phase2-source-server-smoke.md) |
+
+Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
+upstream audit and any urgent upstream port in separate logical commits where
+practical. Never replace the current launcher or import fallback in Phase 2.
+Only normal pushes of new Phase 2 commits to `2.0/p02-build` are authorized.
+Do not merge PR #3 or enter Phase 3.
 
 ## Validation boundaries
 
@@ -153,6 +184,16 @@ and flush them periodically; critical lifecycle events flush immediately.
 Diagnostic bundles must exclude pairing codes, ADB private keys and other
 secrets. This section specifies later Phase acceptance, not Phase 0
 implementation.
+
+The non-blocking [audio recovery watch item](../../development/phase2-audio-ab.md)
+requires channel-specific evidence in those existing Phases. Phase 6 correlates
+structured IPC/lifecycle events. Phase 7 identifies audio capture, demux,
+decoder, regulator/buffering and SDL sink ownership across session generations.
+Phase 8 defines reconnect audio-recovery semantics and timestamps transport,
+first packet/decoded frame and audible-readiness transitions. Phase 12 uses
+aggregated packet/sample/drop, underflow/overflow and Windows output-state
+diagnostics in repeated hardware/soak tests. This does not add Phase 2 product
+code or broaden those later Phases.
 
 Future 3.0 directions remain plans: runtime language switching, embedded
 mirroring, Linux/macOS, Windows ARM64, automation API, extensions/transports,
@@ -232,10 +273,89 @@ No speculative production scaffolding is authorized by this list.
   `seamless-2.0` fast-forwarded to the merge; the merged Phase 0 branch was
   deleted locally and remotely. The owner authorized Phase 1 on the local
   `2.0/p01-governance` branch with no Phase 1 push or remote settings change.
+- 2026-09-24: PR #2 passed its `test` check and merged with a two-parent merge
+  commit `0c869722ad7a0e802011766c88d788e8ffd08177`. Local
+  `seamless-2.0` fast-forwarded; the nine Phase 1 commits were preserved and
+  the merged work branch was deleted locally and remotely. The owner authorized
+  local Phase 2 foundations from this exact merge commit.
+- 2026-09-24: Phase 2 pinned reviewed native, Android and .NET/Avalonia inputs
+  without replacing the imported 1.x runtime. The owner reviewed Android SDK
+  terms interactively. Local Android Gradle assemble/check passed with 47 unit
+  tests; native Meson/Ninja release build passed and 16/16 C tests passed.
+  Desktop locked restore, warning-free Release build, headless startup/binding
+  test and self-contained Windows scaffold publish passed. The upstream v4.1
+  audit ported the initial-window race/zero-size fix and audio allocation guard
+  in separate attributed commits. These automated checks do not prove device
+  reconnect or audio behavior.
+- 2026-09-24: a disposable Git clone at `37bef9539d7c9e54098a09ee9b59eb66d5076303`
+  started without copied build outputs. It restored native archives into its
+  own cache, built the client in 73 Ninja steps, and passed 16/16 C tests. It
+  built the Android server from clone sources using an explicit, verified
+  shared SDK cache whose license the owner had already reviewed. It downloaded
+  and verified the exact .NET SDK into the clone, then passed locked restore,
+  Release build (zero warnings/errors), one headless test and self-contained
+  Windows publish. The clone's native-backed package passed 28/28 PowerShell
+  suites; DocsCheck passed 419 links in 66 tracked files. This establishes a
+  repeatable documented workflow, not byte-identical output. The local CI
+  workflow passed actionlint v1.7.12; its new hosted jobs cannot be claimed
+  green before separate Phase 2 publication authorization.
+- 2026-09-24: the `p02-g7b140f3` local DEV ZIP passed 28/28 PowerShell suites
+  and kept private settings out of the archive. The owner used an extracted
+  copy with the earlier DEV-only phone configuration. Video, PC control and
+  audible output worked initially over USB, but the owner heard speed/skip
+  artifacts. After unplugging USB, video and PC control recovered over Wi-Fi
+  in the existing window while audible output did not return on either PC or
+  phone. During that first run the observer retained PID `36980` and nonzero
+  HWND `2691502` through the transition, with responsive process samples. A
+  later separate launch used PID `19792` and HWND `5311488`; do not combine
+  the two runs into one lifetime claim. The trace recorded USB selection,
+  disconnection, a TCP/IP attempt and video resume in order; its buffered log
+  collection does not establish exact event times or an audio root cause.
+  This is a failed changed-client audio smoke, not proof that the Phase 2
+  allocation guard caused it. The owner subsequently authorized a narrow A/B
+  investigation without accepting Phase 2.
+- 2026-09-24: the [Phase 2 audio A/B investigation](../../development/phase2-audio-ab.md)
+  compared the exact accepted Phase 0 DEV ZIP with the Phase 2 DEV ZIP. Their
+  packaged server, ADB, SDL and FFmpeg components are byte-identical; native
+  `scrcpy.exe` is the substantive runtime difference. Three clean USB-to-Wi-Fi
+  cycles on each build restored video, control and PC audio with stable native
+  PID/HWND. One additional old-build run overlapped another active native
+  client and was excluded. The original B audio failure did not reproduce,
+  and its playback-source state was not recorded. Classification is
+  insufficient evidence for either a Phase 2 regression or a pre-existing
+  1.x bug. No production fix was made. The owner accepted classification C,
+  retained the unexplained failure as a non-blocking intermittent observation,
+  and authorized P2.9 closure without claiming perfect audio stability.
+- 2026-09-24: final automated validation on source HEAD
+  `567f689061f559ea508dc5fcaeceded85c06efa1` passed: legacy PowerShell
+  28/28, DocsCheck 422 links in 67 tracked files, metadata agreement,
+  actionlint v1.7.12, fresh native release 73/73 and C tests 16/16, Android
+  `:server:assembleRelease :server:check` with forced 76/76 tasks and 47/47
+  tests, .NET locked restore/Release build (zero warnings/errors)/headless
+  test 1/1/self-contained `win-x64` publish, and `git diff --check`. A clean
+  checkout of the same HEAD packaged the freshly built native client with
+  reviewed imported runtime files; archive verification passed 28/28 suites,
+  metadata/DocsCheck and privacy checks. That local ZIP has SHA-256
+  `06f14afca70c8d43ff1f51d54cd41cf7b87616bbe09d3de15e0b3235e6dbe867`.
+  The earlier full clean-clone bootstrap/build at
+  `37bef9539d7c9e54098a09ee9b59eb66d5076303` was not
+  repeated because `git diff` proves subsequent commits changed only three
+  documentation files, no source/build/test inputs. No byte-identical output
+  claim follows; the new hosted CI jobs were still unrun at this checkpoint.
+- 2026-09-24: Gradle buildscript and server lock state plus SHA-256 verification
+  metadata were committed in `d13b6385dd53b93a9aea2accc4f392dbdd7cc06b`.
+  A strict build/check passed from an empty Gradle dependency cache; disposable
+  changed-checksum and changed-version fixtures failed as intended. All four
+  hosted PR #3 jobs passed after push, including the Android strict build and
+  negative safeguards. The owner then completed the
+  [source-built-server DEV smoke](../../development/phase2-source-server-smoke.md):
+  one USB-to-Wi-Fi recovery retained native PID/HWND and restored video,
+  control and PC audio. No canonical release binary was substituted.
 
 ## Handoff gate
 
-The owner accepted the Phase 0 report and its hardware/isolation limitations on
-2026-09-24. PR #1 merged Phase 0 into `seamless-2.0`; Phase 1 completed locally.
-Report its source/validation evidence and await owner review before Phase 2 or
-any Phase 1 remote publication.
+The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
+PR #3 remains open. Gradle hardening, hosted CI and one owner-run source-server
+DEV smoke have passed. The intermittent audio watch item remains tracked.
+Await the owner's final Phase 2/PR decision; do not merge PR #3 or begin
+Phase 3 without separate authorization.

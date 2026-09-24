@@ -1,6 +1,7 @@
 #include "audio_player.h"
 
 #include "util/log.h"
+#include "util/memory.h"
 #include "SDL3/SDL_hints.h"
 
 /** Downcast frame_sink to sc_audio_player */
@@ -94,12 +95,13 @@ sc_audio_player_frame_sink_open(struct sc_frame_sink *sink,
     // Make the buffer at least 1024 samples long (the hint is not always
     // honored)
     uint64_t aout_buffer_samples = MAX(1024, aout_samples);
-    ap->aout_buffer_size = aout_buffer_samples * sample_size;
-    ap->aout_buffer = malloc(ap->aout_buffer_size);
+    // Reject a multiplication overflow before allocating the callback buffer.
+    ap->aout_buffer = sc_allocarray(aout_buffer_samples, sample_size);
     if (!ap->aout_buffer) {
         sc_audio_regulator_destroy(&ap->audioreg);
         return false;
     }
+    ap->aout_buffer_size = aout_buffer_samples * sample_size;
 
     SDL_AudioSpec spec = {
         .freq = ctx->sample_rate,

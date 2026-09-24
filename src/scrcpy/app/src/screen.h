@@ -158,6 +158,10 @@ sc_screen_init(struct sc_screen *screen, const struct sc_screen_params *params);
 void
 sc_screen_prepare_reconnect(struct sc_screen *screen);
 
+// Release queued initial-size payloads before reconnect event flushing.
+void
+sc_screen_discard_pending_open_window_events(void);
+
 // Bind a new session without recreating the SDL window.
 void
 sc_screen_rebind(struct sc_screen *screen,

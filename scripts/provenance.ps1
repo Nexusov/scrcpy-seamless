@@ -1,9 +1,58 @@
+# Enumerate source inputs through Git so ignored build products never become provenance inputs.
+function Get-NativeSourcePaths {
+    param([string]$RepositoryDirectory)
+
+    $sourceDirectory = Join-Path $RepositoryDirectory 'src\scrcpy'
+
+    if (-not (Test-Path -LiteralPath (Join-Path $RepositoryDirectory '.git'))) {
+        return @(
+            Get-ChildItem -LiteralPath $sourceDirectory -File -Recurse |
+                ForEach-Object { $_.FullName.Substring($sourceDirectory.Length).TrimStart('\', '/').Replace('\', '/') }
+        )
+    }
+
+    $startInfo = New-Object Diagnostics.ProcessStartInfo
+    $startInfo.FileName = 'git'
+    $startInfo.Arguments = 'ls-files --cached --others --exclude-standard -z -- src/scrcpy'
+    $startInfo.WorkingDirectory = $RepositoryDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($startInfo)
+    $output = New-Object IO.MemoryStream
+
+    try {
+        $process.StandardOutput.BaseStream.CopyTo($output)
+        $errorOutput = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+
+        if ($process.ExitCode) {
+            throw "Git could not enumerate native source files: $errorOutput"
+        }
+
+        $encoding = New-Object Text.UTF8Encoding($false, $true)
+        $paths = $encoding.GetString($output.ToArray()).Split([char[]]@([char]0), [StringSplitOptions]::RemoveEmptyEntries)
+        $sourcePrefix = 'src/scrcpy/'
+
+        return @($paths | ForEach-Object {
+            if (-not $_.StartsWith($sourcePrefix, [StringComparison]::Ordinal)) {
+                throw "Unexpected native source path from Git: $_"
+            }
+
+            $_.Substring($sourcePrefix.Length)
+        })
+    } finally {
+        $output.Dispose()
+        $process.Dispose()
+    }
+}
+
 # Hash native sources consistently across Windows and Unix text checkouts.
 function Get-NativeSourceFingerprint {
     param([string]$RepositoryDirectory)
     $sourceDirectory = Join-Path $RepositoryDirectory 'src\scrcpy'
-    $sourceFiles = @(Get-ChildItem -LiteralPath $sourceDirectory -File -Recurse)
-    $sourcePaths = [string[]]@($sourceFiles | ForEach-Object { $_.FullName.Substring($sourceDirectory.Length).TrimStart('\', '/').Replace('\', '/') })
+    $sourcePaths = [string[]]@(Get-NativeSourcePaths -RepositoryDirectory $RepositoryDirectory)
     [Array]::Sort($sourcePaths, [StringComparer]::Ordinal)
     $entries = foreach ($sourcePath in $sourcePaths) {
         $file = Get-Item -LiteralPath (Join-Path $sourceDirectory $sourcePath)
