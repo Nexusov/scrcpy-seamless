@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/desktop/">
+    <Project Path="src/desktop/ScrcpySeamless.Core/ScrcpySeamless.Core.csproj" />
+    <Project Path="src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj" />
+    <Project Path="src/desktop/ScrcpySeamless.Infrastructure/ScrcpySeamless.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/desktop/">
+    <Project Path="tests/desktop/ScrcpySeamless.Desktop.Tests/ScrcpySeamless.Desktop.Tests.csproj" />
+  </Folder>
+</Solution>
