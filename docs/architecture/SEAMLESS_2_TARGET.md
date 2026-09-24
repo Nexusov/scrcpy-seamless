@@ -1,8 +1,9 @@
 # Seamless 2.0 target architecture
 
-Status: accepted direction, **not an implemented architecture**. Phase 0 freezes
-and characterizes the 1.x baseline; implementation starts only in the owning
-Phase after owner acceptance. See the [execution plan](../exec-plans/active/seamless-2.md),
+Status: accepted target with Phase 2 build foundations and Phase 3 headless
+Core/Infrastructure contracts implemented locally. The 2.0 product UI, IPC,
+native lifetime and ConnectionManager remain future phases. See the
+[execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
 The owner adopted `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` on 2026-09-23. Its complete
@@ -72,9 +73,12 @@ preferences and policy separate. Represent connection policy as a ConnectionPlan
 rather than unrelated booleans. v2 configuration uses typed System.Text.Json,
 explicit schema/version and source-generated metadata when useful.
 
-Migration from `app/phone.json` and `app/scrcpy-settings.json` is automatic,
-idempotent, fixture-tested, validated, atomic and interruptible with recovery
-backup. Preserve recoverable v1 data until validation succeeds. Portable data
+The Phase 3 migration service can convert `app/phone.json` and
+`app/scrcpy-settings.json` deterministically, idempotently and atomically after
+explicit invocation; it is not wired into the current launcher or scaffold.
+See the [implemented configuration contract](../development/desktop-configuration.md).
+Future Desktop startup should invoke that service before using v2 state.
+Preserve recoverable v1 data until validation succeeds. Portable data
 belongs under `<application>/data/`; installed data under
 `%LOCALAPPDATA%\scrcpy-seamless\`, behind a path abstraction. A package marker
 may select portable behavior after design review.

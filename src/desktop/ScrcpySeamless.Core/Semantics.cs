@@ -37,7 +37,10 @@ public enum CoreErrorCode
     DuplicateProfile,
     DeviceUnavailable,
     DeviceUnauthorized,
+    PairingFailed,
+    TransportUnavailable,
     ConnectionFailed,
+    NativeHostStartFailed,
     Cancelled,
 }
 

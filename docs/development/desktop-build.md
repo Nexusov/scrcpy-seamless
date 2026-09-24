@@ -1,8 +1,8 @@
 # Desktop build foundation
 
-Phase 2 introduces a buildable .NET/Avalonia scaffold. It is **not** the
-production launcher or a replacement for the 1.x portable package. Device,
-configuration, ADB and native-host behavior begin in later phases.
+Phase 2 introduced the buildable .NET/Avalonia scaffold. Phase 3 adds the
+headless [Core and Infrastructure foundation](desktop-configuration.md). It is
+**not** the production launcher or a replacement for the 1.x portable package.
 
 ## Pinned inputs
 
@@ -58,11 +58,12 @@ $sdk = powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/bootstr
 ```
 
 For a machine-wide exact SDK, replace `& $sdk` with `dotnet`. The solution
-contains three projects under `src/desktop/`: Core (future headless policy),
-Infrastructure (future platform effects, referencing Core), and Desktop
-(Avalonia presentation/composition, referencing both). The test project under
-`tests/desktop/` loads the actual placeholder XAML window through Avalonia's
-headless platform and checks its compiled binding. No hardware is needed.
+contains three projects under `src/desktop/`: Core (headless domain/application
+policy), Infrastructure (ADB/filesystem effects, referencing Core), and Desktop
+(Avalonia placeholder, referencing both). `tests/desktop/` contains Core and
+Infrastructure headless suites plus the existing Avalonia placeholder-window
+smoke. The new suites require no Android device, real ADB/native child, or
+personal configuration.
 
 `Directory.Build.props` enables nullable analysis, SDK analyzers,
 warnings-as-errors, deterministic compilation and package lock files.

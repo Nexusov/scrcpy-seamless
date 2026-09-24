@@ -3,8 +3,8 @@
 Status: Phases 0, 1 and 2 accepted and merged through PRs #1, #2 and #3.
 Phase 2 merged into `seamless-2.0` as
 `ee373709ecdda8e323d93a856a346772b2c46485`, preserving all 20 Phase 2
-commits. Local Phase 3 work starts from that exact SHA on `2.0/p03-core`;
-Phase 4 has not started.
+commits. Local Phase 3 work is complete on `2.0/p03-core` from that exact
+base; it awaits owner review and has not been pushed. Phase 4 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -120,19 +120,19 @@ sanitized fixtures and isolated test data, never the owner's portable install.
 
 | ID | Dependency-ordered checkpoint | Evidence / exit | Status |
 | --- | --- | --- | --- |
-| P3.1 | Establish value objects and semantic status/error codes | Profile/session/attempt/device/transport identity invariants; no presentation text or platform dependencies; focused headless tests | Planned |
-| P3.2 | Define versioned DeviceProfile/configuration v2 | Stable ProfileId independent of USB/network identity; separate mDNS, pairing, connection, alias, policy and mirroring concepts; typed validation | Planned |
-| P3.3 | Parse host/IPv4/IPv6 endpoints safely | Port range, bracketed IPv6, malformed input, ambiguous colon syntax and invariant formatting covered without naive splitting | Planned |
-| P3.4 | Define pure legacy migration and v2 revision semantics | Snapshot both independent v1 files, report unknown/unmappable data, validate before commit, deterministic/idempotent migration plan | Planned |
-| P3.5 | Preserve actual sanitized v1 shapes as fixtures | `phone.json`, `scrcpy-settings.json`, absent/optional fields, malformed/unsupported values, repeat/already-v2 and interruption cases | Planned |
-| P3.6 | Resolve application-data paths | Portable `<application>/data/` and installed `%LOCALAPPDATA%\scrcpy-seamless\` are explicit, isolated and testable | Planned |
-| P3.7 | Implement typed atomic configuration persistence | Short revision/CAS critical section, validated atomic replacement, recoverable migration backup and interruption tests; no external I/O while locked | Planned |
-| P3.8 | Implement owned ADB process boundary | `ProcessStartInfo.ArgumentList`, `UseShellExecute=false`, bounded stdout/stderr, exit status, cancellation/timeout and owned termination | Planned |
-| P3.9 | Parse untrusted ADB responses | Sanitized `devices -l`, `mdns services`, `pair`, `connect` fixtures including daemon noise, multiple/offline/unauthorized and malformed/IPv6 cases | Planned |
-| P3.10 | Add headless discovery and pairing use cases | Injected ADB boundary, manual endpoint input, cancellation, semantic failures and pairing-secret non-persistence/redaction | Planned |
-| P3.11 | Model ConnectionPlan and ConnectionPolicy | Candidate ordering, preferred/fallback transport, capability and retry configuration; no Phase 8 native orchestration | Planned |
-| P3.12 | Establish activation and native-host boundaries | One-control-center/multiple-session semantics, same-user activation boundary and owned native start/stop/lifetime contract; no Phase 6 IPC or product UI | Planned |
-| P3.13 | Validate and close locally | Locked restore, Release build/tests, legacy suites, DocsCheck/metadata, applicable package/provenance checks, AGENTS/docs review, logical commits and clean tree | Planned |
+| P3.1 | Establish value objects and semantic status/error codes | Profile/session/attempt/device/transport identity invariants; no presentation text or platform dependencies; focused headless tests | Complete |
+| P3.2 | Define versioned DeviceProfile/configuration v2 | Stable ProfileId independent of USB/network identity; separate mDNS, pairing, connection, alias, policy and mirroring concepts; typed validation | Complete |
+| P3.3 | Parse host/IPv4/IPv6 endpoints safely | Port range, bracketed IPv6, malformed input, ambiguous colon syntax and invariant formatting covered without naive splitting | Complete |
+| P3.4 | Define pure legacy migration and v2 revision semantics | Snapshot both independent v1 files, report unknown/unmappable data, validate before commit, deterministic/idempotent migration plan | Complete |
+| P3.5 | Preserve actual sanitized v1 shapes as fixtures | `phone.json`, `scrcpy-settings.json`, absent/optional fields, malformed/unsupported values, repeat/already-v2 and interruption cases | Complete |
+| P3.6 | Resolve application-data paths | Portable `<application>/data/` and installed `%LOCALAPPDATA%\scrcpy-seamless\` are explicit, isolated and testable | Complete |
+| P3.7 | Implement typed atomic configuration persistence | Short revision/CAS critical section, validated atomic replacement, recoverable migration backup and interruption tests; no external I/O while locked | Complete |
+| P3.8 | Implement owned ADB process boundary | `ProcessStartInfo.ArgumentList`, `UseShellExecute=false`, bounded stdout/stderr, exit status, cancellation/timeout and owned termination | Complete |
+| P3.9 | Parse untrusted ADB responses | Sanitized `devices -l`, `mdns services`, `pair`, `connect` fixtures including daemon noise, multiple/offline/unauthorized and malformed/IPv6 cases | Complete |
+| P3.10 | Add headless discovery and pairing use cases | Injected ADB boundary, manual endpoint input, cancellation, semantic failures and pairing-secret non-persistence/redaction | Complete |
+| P3.11 | Model ConnectionPlan and ConnectionPolicy | Candidate ordering, preferred/fallback transport, capability and retry configuration; no Phase 8 native orchestration | Complete |
+| P3.12 | Establish activation and native-host boundaries | One-control-center/multiple-session semantics, same-user activation boundary and owned native start/stop/lifetime contract; no Phase 6 IPC or product UI | Complete as semantic Core contracts; Windows activation and native adapter remain later integration |
+| P3.13 | Validate and close locally | Locked restore, Release build/tests, legacy suites, DocsCheck/metadata, applicable package/provenance checks, AGENTS/docs review, logical commits and clean tree | Complete locally; validation evidence below |
 
 Keep each checkpoint reviewable; combine adjacent work only when the invariants
 and their tests form one coherent commit. Do not introduce Phase 4 option
@@ -386,5 +386,22 @@ The owner accepted Phases 0–2. PR #3 merged at
 `ee373709ecdda8e323d93a856a346772b2c46485`; Phase 2's 20 commits are
 ancestors of `seamless-2.0` and the short-lived branch was deleted. The
 intermittent audio watch item remains tracked and is not Phase 3 audio work.
-Complete the planned Phase 3 checkpoints locally, report the evidence and
-stop for owner review before Phase 4 or any Phase 3 remote publication.
+Phase 3 is implemented locally as separate Core/domain, application-contract,
+configuration/migration, ADB and documentation commits. The pure v1 migration
+and v2 atomic store are headless APIs, not yet wired into the 1.x launcher or
+the placeholder Avalonia Desktop. A same-user activation channel and concrete
+native-host adapter are deliberately left for the owning Desktop/IPC phases;
+their semantic contracts and tests are in Phase 3. See the
+[configuration boundary](../../development/desktop-configuration.md).
+
+Phase 3 validation on 2026-09-24: .NET 10.0.401 locked restore, Release build
+(zero warnings) and 81/81 solution tests; existing PowerShell archive suite
+28/28; DocsCheck 444 links across 69 tracked Markdown files; build metadata
+check; fresh native Meson test build 16/16; Android offline strict
+`assembleRelease`/`check` successful (75/76 tasks up-to-date, unchanged
+server/build inputs); self-contained `win-x64` placeholder Desktop publish;
+existing archive checksum and package test passed. Phase 3 did not change
+`src/scrcpy`, the legacy launcher, reviewed package inputs or canonical 1.x
+runtime behavior. No new hardware claim follows from these headless tests.
+Report the local commits and evidence, then stop for owner review before
+Phase 4 or any Phase 3 remote publication.
