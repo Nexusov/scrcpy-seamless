@@ -70,6 +70,17 @@ jobs:
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
           test -f "$ANDROID_HOME/build-tools/36.0.0/source.properties"
           "$JAVA_HOME_17_X64/bin/java" -version
+      - name: Check approved Gradle dependency state
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dependency_state in \
+            src/scrcpy/buildscript-gradle.lockfile \
+            src/scrcpy/server/gradle.lockfile \
+            src/scrcpy/gradle/verification-metadata.xml; do
+            test -s "$dependency_state"
+            git ls-files --error-unmatch "$dependency_state" >/dev/null
+          done
       - name: Build and check the server from source
         shell: bash
         working-directory: src/scrcpy
@@ -78,7 +89,15 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
           export GRADLE_USER_HOME="$GITHUB_WORKSPACE/work/gradle-ci"
-          bash ./gradlew :server:assembleRelease :server:check --no-daemon
+          bash ./gradlew :server:assembleRelease :server:check --no-daemon --dependency-verification=strict
+      - name: Assert Gradle dependency safeguards
+        shell: bash
+        run: bash ./scripts/test-gradle-protection.sh
+      - name: Reject generated Gradle state changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- src/scrcpy/buildscript-gradle.lockfile src/scrcpy/server/gradle.lockfile src/scrcpy/gradle/verification-metadata.xml)"
 
   desktop:
     runs-on: windows-latest

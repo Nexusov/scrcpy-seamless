@@ -47,6 +47,13 @@ function Assert-ServerBuildPins {
     if ($checkstyleBuild -notmatch [regex]::Escape("toolVersion = '$($Toolchain.Checkstyle)'")) {
         throw 'Checkstyle version differs from the pinned server toolchain.'
     }
+
+    # Gradle does not enable verification when its metadata file is absent.
+    foreach ($relativePath in @('buildscript-gradle.lockfile', 'server\gradle.lockfile', 'gradle\verification-metadata.xml')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $relativePath) -PathType Leaf)) {
+            throw "Required Gradle dependency state is missing: $relativePath"
+        }
+    }
 }
 
 # Fingerprint tracked and new non-ignored server/build inputs, excluding outputs.
@@ -56,6 +63,7 @@ function Get-ServerBuildFingerprint {
     $inputPaths = @(
         'src/scrcpy/server', 'src/scrcpy/build.gradle', 'src/scrcpy/settings.gradle',
         'src/scrcpy/gradle.properties', 'src/scrcpy/gradlew.bat', 'src/scrcpy/gradle/wrapper',
+        'src/scrcpy/buildscript-gradle.lockfile', 'src/scrcpy/gradle/verification-metadata.xml',
         'src/scrcpy/config', 'scripts/server-toolchain.json',
         'scripts/bootstrap-server.ps1', 'scripts/build-server.ps1'
     )
@@ -115,7 +123,7 @@ try {
     Push-Location -LiteralPath $sourceDirectory
 
     try {
-        $gradleArguments = @(':server:assembleRelease', ':server:check', '--no-daemon')
+        $gradleArguments = @(':server:assembleRelease', ':server:check', '--no-daemon', '--dependency-verification=strict')
 
         if ($Offline) {
             $gradleArguments += '--offline'

@@ -58,6 +58,10 @@ For the Phase 2 Windows native bootstrap, exact inputs and commands live in
 download verification and source fingerprint exclusions aligned with the
 documented build; do not weaken the reviewed runtime hashes.
 
+Android server lockfiles and Gradle verification metadata are checked-in build
+inputs. Normal build and CI paths verify them; regenerate them only during a
+reviewed dependency update described in `docs/development/server-build.md`.
+
 ## Tests
 
 Run the applicable build/package/publication tests. For a 1.x package:

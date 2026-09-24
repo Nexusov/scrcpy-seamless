@@ -30,11 +30,56 @@ Gradle resolves transitive build/test dependencies from Google's Maven repositor
 and Maven Central. Exact top-level versions and distribution archives are pinned,
 and the bootstrap rejects SDK package revisions other than those above. Google
 publishes SHA-1 values for those SDK archives in its repository metadata; the
-bootstrap does not yet have independent SHA-256 values for them. Transitive
-Gradle artifacts also lack a checked-in verification metadata file or lock. Do
-not claim an offline or byte-for-byte reproducible build from these pins alone.
-Review resolved metadata and licenses before redistributing any new build input
-or switching the shipped server binary.
+bootstrap does not yet have independent SHA-256 values for them. Gradle's
+[buildscript lock](../../src/scrcpy/buildscript-gradle.lockfile),
+[server lock](../../src/scrcpy/server/gradle.lockfile), and
+[SHA-256 verification metadata](../../src/scrcpy/gradle/verification-metadata.xml)
+now approve the resolved Maven graph and artifact bytes. The root build locks
+the Android Gradle plugin classpath separately; strict locking applies to every
+resolvable project configuration. Verification covers dependency artifacts and
+Maven metadata, with signatures disabled. These controls do not prove that
+upstream repositories were uncompromised when the hashes were reviewed, nor do
+they make the server APK byte-for-byte reproducible. Review licenses and source
+obligations before redistributing any new build input or switching the shipped
+server binary.
+
+## Maintaining Gradle dependency state
+
+The lock files and verification metadata are generated Gradle inputs, not
+ordinary build outputs. A routine build and CI run must not use `--write-locks`
+or `--write-verification-metadata`. `scripts/build-server.ps1` requires these
+files and includes them in its source fingerprint. The hosted Android job checks
+that all three are tracked, runs strict verification, exercises rejected version
+and checksum fixtures, and rejects changed dependency-state files.
+
+For an intentional dependency upgrade, first review the new version, artifact
+origins and license. Update the direct pin and `scripts/server-toolchain.json`
+where applicable. Then, with the pinned JDK/SDK and a clean or refreshed Gradle
+dependency cache, run from `src/scrcpy`:
+
+```powershell
+.\gradlew.bat :server:dependencies :server:assembleRelease :server:check `
+  --write-locks --write-verification-metadata sha256 `
+  --refresh-dependencies --no-daemon
+```
+
+Both write flags are deliberate maintenance operations. The `dependencies`
+task includes the server's resolvable configurations, while Gradle's
+verification bootstrap also reaches Android Gradle Plugin internal
+configurations. Review the complete lock/XML diff; do not trust a new
+Gradle-generated checksum solely because it was generated. Check the coordinates
+against the intended Google Maven/Maven Central inputs, independently compare
+critical artifacts with their official repository bytes, and rerun the build
+with `--dependency-verification=strict` from a fresh dependency cache. Commit
+only the reviewed generated state and related version changes. If a clean
+cache reveals an additional required POM/module artifact, regenerate with
+`--refresh-dependencies`, review that addition, and repeat the clean-cache
+check. Do not replace mismatching hashes without establishing why bytes differ.
+
+For the Phase 2 baseline, the direct AGP 9.1.0, JUnit 4.13.2 and Checkstyle
+10.12.5 JAR hashes were separately checked against Google Maven/Maven Central.
+The complete recorded graph then passed a second empty-cache strict build.
+No PGP trust decision or full supply-chain attestation is claimed.
 
 ## Windows source-build commands
 
@@ -64,7 +109,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-server.p
 
 The build script bootstraps any missing pinned tools, sets Java/SDK/Gradle paths
 only for its process, and runs `gradlew.bat :server:assembleRelease
-:server:check --no-daemon`. The unsigned APK appears at
+:server:check --no-daemon --dependency-verification=strict`. The unsigned APK appears at
 `src/scrcpy/server/build/outputs/apk/release/server-release-unsigned.apk` and a
 copy plus SHA-256 evidence appears under `work/phase2/server/artifacts/`.
 `server-build.json` records the source HEAD, SHA-256 fingerprint of the relevant

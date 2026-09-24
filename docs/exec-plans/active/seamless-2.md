@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
 Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
-Phase 2 is locally complete on `2.0/p02-build`, based exactly on Phase 1 merge
-`0c869722ad7a0e802011766c88d788e8ffd08177`. Its branch has not been
-published for PR/hosted CI; Phase 3 has not started.
+Phase 2 work is on `2.0/p02-build`, based exactly on Phase 1 merge
+`0c869722ad7a0e802011766c88d788e8ffd08177`. PR #3 is open and its
+initial hosted CI passed. Final Phase 2 acceptance awaits reviewed Gradle
+dependency state and a physical source-built-server smoke; Phase 3 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -14,10 +15,12 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The owner authorized PR #2 merge and local Phase 2 clean-build foundations.
-Phase 2 may not push its branch, open/merge its PR, create tags or releases,
-change remote repository settings, force-push, modify `main`, or enter Phase 3
-without separate authorization. Keep the current launcher and imported runtime
+The owner authorized PR #2 merge and Phase 2 clean-build foundations. The
+`2.0/p02-build` branch and PR #3 were published with permission; subsequent
+Phase 2 commits may be pushed to that branch after local green validation.
+Do not merge PR #3, push `main` or `seamless-2.0` directly, create tags or
+releases, change repository settings, force-push, or enter Phase 3 without
+separate authorization. Keep the current launcher and imported runtime
 fallback functional; native lifecycle and application features belong later.
 
 ## Source baseline
@@ -95,15 +98,17 @@ keep 1.x development and the reviewed imported package fallback working.
 | P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Complete |
 | P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Complete |
 | P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
-| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete locally; hosted jobs await separately authorized branch publication |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete; four hosted jobs passed on initial PR #3 review |
 | P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
 | P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Complete locally. Hardware smoke was performed; controlled A/B restored PC audio 3/3 on Phase 0 and 3/3 on Phase 2. The initial intermittent audio failure remains unexplained and is an owner-accepted non-blocking tracked risk, not a proven Phase 2 regression or a fixed bug. |
+| P2.10 | Lock and verify Android Gradle dependencies | Buildscript and project locks, reviewed SHA-256 metadata, strict CI build and negative fixtures; clean-cache confirmation | Implemented locally; PR #3 review and hosted rerun required |
+| P2.11 | Characterize source-built server runtime | Separate labelled DEV-only source-native/source-server copy and exact owner hardware procedure; preserve canonical legacy package | DEV copy prepared locally for owner smoke; physical result pending owner |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
 practical. Never replace the current launcher or import fallback in Phase 2.
-No Phase 2 branch push, PR, tag, release or repository-settings change is
-authorized. Stop before Phase 3.
+Only normal pushes of new Phase 2 commits to `2.0/p02-build` are authorized.
+Do not merge PR #3 or enter Phase 3.
 
 ## Validation boundaries
 
@@ -340,6 +345,7 @@ No speculative production scaffolding is authorized by this list.
 ## Handoff gate
 
 The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
-Phase 2 is locally complete with the audio watch item tracked. Report the
-complete local evidence, then await separate owner authorization for branch
-push, PR, hosted CI and any Phase 3 work.
+PR #3 remains open. The audio watch item remains tracked. Finish the Gradle
+dependency hardening and DEV-only source-server smoke preparation, verify
+hosted CI, then stop for the owner's physical-device result. Do not call
+Phase 2 finally accepted or begin Phase 3 before that result is reviewed.
