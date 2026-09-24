@@ -1,7 +1,10 @@
 #include "common.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "cli.h"
 #include "options.h"
@@ -28,12 +31,131 @@ static void test_flag_help(void) {
         .version = false,
     };
 
-    char *argv[] = {"scrcpy", "-v"};
+    char *argv[] = {"scrcpy", "--help"};
 
     bool ok = scrcpy_parse_args(&args, 2, argv);
     assert(ok);
-    assert(!args.help);
-    assert(args.version);
+    assert(args.help);
+    assert(!args.version);
+}
+
+// Check the option declarations compiled into the native parser.
+static void test_generated_option_table(void) {
+    enum {
+        EXPECTED_OPTIONS = 109,
+        EXPECTED_LONG_OPTIONS = 106,
+        EXPECTED_SHORT_OPTIONS = 20,
+        EXPECTED_OPTIONAL_ARGUMENTS = 3,
+    };
+
+    assert(sc_cli_option_count() == EXPECTED_OPTIONS);
+
+    size_t long_count = 0;
+    size_t short_count = 0;
+    size_t optional_count = 0;
+    for (size_t index = 0; index < sc_cli_option_count(); ++index) {
+        struct sc_cli_option_test_info option;
+        assert(sc_cli_option_get_test_info(index, &option));
+        assert(option.longopt || option.shortopt);
+        assert(option.documented);
+        assert(!option.optional_arg || option.has_arg);
+        long_count += !!option.longopt;
+        short_count += !!option.shortopt;
+        optional_count += option.optional_arg;
+
+        if (index == 0) {
+            assert(!strcmp(option.longopt, "always-on-top"));
+        }
+        if (index == sc_cli_option_count() - 1) {
+            assert(!strcmp(option.longopt, "flex-display"));
+            assert(option.shortopt == 'x');
+        }
+    }
+
+    assert(long_count == EXPECTED_LONG_OPTIONS);
+    assert(short_count == EXPECTED_SHORT_OPTIONS);
+    assert(optional_count == EXPECTED_OPTIONAL_ARGUMENTS);
+
+    struct sc_cli_option_test_info out_of_range;
+    assert(!sc_cli_option_get_test_info(sc_cli_option_count(), &out_of_range));
+}
+
+// Check representative long, short and context-sensitive short-only aliases.
+static void test_generated_option_parser(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+    };
+
+    char *argv[] = {
+        "scrcpy", "--always-on-top", "-b", "5M", "-G", "-K", "-M",
+    };
+    assert(scrcpy_parse_args(&args, ARRAY_LEN(argv), argv));
+    assert(args.opts.always_on_top);
+    assert(args.opts.video_bit_rate == 5000000);
+    assert(args.opts.gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_UHID);
+    assert(args.opts.keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_UHID);
+    assert(args.opts.mouse_input_mode == SC_MOUSE_INPUT_MODE_UHID);
+}
+
+// Check all three optional-argument declarations through getopt.
+static void test_generated_optional_arguments(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+    };
+    char *argv[] = {
+        "scrcpy", "--new-display", "--pause-on-exit", "--tcpip",
+    };
+    assert(scrcpy_parse_args(&args, ARRAY_LEN(argv), argv));
+    assert(args.opts.new_display);
+    assert(!strcmp(args.opts.new_display, ""));
+    assert(args.pause_on_exit == SC_PAUSE_ON_EXIT_TRUE);
+    assert(args.opts.tcpip);
+    assert(!args.opts.tcpip_dst);
+
+    struct scrcpy_cli_args with_values = {
+        .opts = scrcpy_options_default,
+    };
+    char *values[] = {
+        "scrcpy", "--new-display=1920x1080/420", "--pause-on-exit=if-error",
+        "--tcpip=192.0.2.10:5555",
+    };
+    assert(scrcpy_parse_args(&with_values, ARRAY_LEN(values), values));
+    assert(!strcmp(with_values.opts.new_display, "1920x1080/420"));
+    assert(with_values.pause_on_exit == SC_PAUSE_ON_EXIT_IF_ERROR);
+    assert(!strcmp(with_values.opts.tcpip_dst, "192.0.2.10:5555"));
+}
+
+// Check that the generated declarations still produce native help output.
+static void test_generated_option_help(void) {
+    FILE *help_file = tmpfile();
+    assert(help_file);
+
+    fflush(stdout);
+    int saved_stdout = dup(fileno(stdout));
+    assert(saved_stdout >= 0);
+    assert(dup2(fileno(help_file), fileno(stdout)) >= 0);
+    scrcpy_print_usage("scrcpy");
+    fflush(stdout);
+    assert(dup2(saved_stdout, fileno(stdout)) >= 0);
+    close(saved_stdout);
+
+    assert(fseek(help_file, 0, SEEK_END) == 0);
+    long help_size = ftell(help_file);
+    assert(help_size > 0);
+    rewind(help_file);
+
+    char *help = malloc((size_t) help_size + 1);
+    assert(help);
+    assert(fread(help, 1, (size_t) help_size, help_file) == (size_t) help_size);
+    help[help_size] = '\0';
+    assert(strstr(help, "Usage: scrcpy [options]"));
+    assert(strstr(help, "-h, --help"));
+    assert(strstr(help, "--new-display"));
+    assert(strstr(help, "--port=port[:port]"));
+    assert(strstr(help, "-G"));
+
+    free(help);
+    fclose(help_file);
 }
 
 static void test_options(void) {
@@ -155,6 +277,10 @@ int main(int argc, char *argv[]) {
 
     test_flag_version();
     test_flag_help();
+    test_generated_option_table();
+    test_generated_option_parser();
+    test_generated_optional_arguments();
+    test_generated_option_help();
     test_options();
     test_options2();
     test_parse_shortcut_mods();

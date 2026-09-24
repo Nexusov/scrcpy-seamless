@@ -89,6 +89,12 @@ Seamless 2.0 keeps Meson/Ninja for the native tree. Do not migrate to CMake as
 part of the 2.0 architecture rewrite unless a concrete blocker prevents 2.0
 from shipping and the owner approves the change.
 
+`spec/options/options.yaml` owns native static CLI declarations through
+`app/src/cli_options.generated.inc`. Do not edit the generated include. Change
+the spec, run SpecGen `generate` and `verify` using the pinned .NET SDK as
+documented in `docs/development/options.md`, then run native CLI tests. Keep
+the parser and runtime semantic handlers in `app/src/cli.c` hand-written.
+
 A post-2.0 Meson-vs-CMake review is planned separately.
 
 ## Validation
