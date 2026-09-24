@@ -96,7 +96,7 @@ keep 1.x development and the reviewed imported package fallback working.
 | P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
 | P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Implemented locally; remote jobs pending authorized publication |
 | P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
-| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks and DEV artifact complete; changed-client hardware smoke found missing audio after failover, so closure is pending scope decision |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks and DEV artifact complete. Controlled hardware A/B was 3/3 successful for each build, but the initial B audio failure remains unexplained; Phase 2 acceptance is pending owner review. |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
@@ -294,11 +294,19 @@ No speculative production scaffolding is authorized by this list.
   the two runs into one lifetime claim. The trace recorded USB selection,
   disconnection, a TCP/IP attempt and video resume in order; its buffered log
   collection does not establish exact event times or an audio root cause.
-  This is a failed changed-client audio smoke,
-  not proof that the Phase 2 allocation guard caused it. The earlier owner
-  instruction to avoid further audio investigation/production changes remains
-  in force until the owner clarifies Phase 2 scope. Do not close P2.9 on these
-  results.
+  This is a failed changed-client audio smoke, not proof that the Phase 2
+  allocation guard caused it. The owner subsequently authorized a narrow A/B
+  investigation without accepting Phase 2.
+- 2026-09-24: the [Phase 2 audio A/B investigation](../../development/phase2-audio-ab.md)
+  compared the exact accepted Phase 0 DEV ZIP with the Phase 2 DEV ZIP. Their
+  packaged server, ADB, SDL and FFmpeg components are byte-identical; native
+  `scrcpy.exe` is the substantive runtime difference. Three clean USB-to-Wi-Fi
+  cycles on each build restored video, control and PC audio with stable native
+  PID/HWND. One additional old-build run overlapped another active native
+  client and was excluded. The original B audio failure did not reproduce,
+  and its playback-source state was not recorded. Classification is
+  insufficient evidence for either a Phase 2 regression or a pre-existing
+  1.x bug. No production fix was made; P2.9 remains pending owner disposition.
 
 ## Handoff gate
 
