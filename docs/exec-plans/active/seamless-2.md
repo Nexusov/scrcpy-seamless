@@ -88,15 +88,15 @@ keep 1.x development and the reviewed imported package fallback working.
 
 | ID | Checkpoint | Evidence / exit | Status |
 | --- | --- | --- | --- |
-| P2.1 | Inventory and reproduce current build boundaries | Exact native/server commands, local tools, dependency origins/licenses/hashes, hidden state and clean-checkout gaps recorded | In progress |
-| P2.2 | Pin native and Android build inputs | Reviewed versions, source/download URLs, hashes and licenses; local restore/bootstrap instructions without tracked binaries | Pending |
-| P2.3 | Establish source-build paths | Android server and native client build from this tree; tests and package consumption demonstrated without weakening provenance | Pending |
-| P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Pending |
-| P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Pending |
-| P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Pending |
-| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Pending |
-| P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Pending |
-| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Pending |
+| P2.1 | Inventory and reproduce current build boundaries | Exact native/server commands, local tools, dependency origins/licenses/hashes, hidden state and clean-checkout gaps recorded | Complete |
+| P2.2 | Pin native and Android build inputs | Reviewed versions, source/download URLs, hashes and licenses; local restore/bootstrap instructions without tracked binaries | Complete |
+| P2.3 | Establish source-build paths | Android server and native client build from this tree; tests and package consumption demonstrated without weakening provenance | Complete |
+| P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Complete |
+| P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Complete |
+| P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Implemented locally; remote jobs pending authorized publication |
+| P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks complete; changed-client hardware smoke and final artifact pending |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
@@ -261,6 +261,27 @@ No speculative production scaffolding is authorized by this list.
   `seamless-2.0` fast-forwarded; the nine Phase 1 commits were preserved and
   the merged work branch was deleted locally and remotely. The owner authorized
   local Phase 2 foundations from this exact merge commit.
+- 2026-09-24: Phase 2 pinned reviewed native, Android and .NET/Avalonia inputs
+  without replacing the imported 1.x runtime. The owner reviewed Android SDK
+  terms interactively. Local Android Gradle assemble/check passed with 47 unit
+  tests; native Meson/Ninja release build passed and 16/16 C tests passed.
+  Desktop locked restore, warning-free Release build, headless startup/binding
+  test and self-contained Windows scaffold publish passed. The upstream v4.1
+  audit ported the initial-window race/zero-size fix and audio allocation guard
+  in separate attributed commits. These automated checks do not prove device
+  reconnect or audio behavior.
+- 2026-09-24: a disposable Git clone at `37bef9539d7c9e54098a09ee9b59eb66d5076303`
+  started without copied build outputs. It restored native archives into its
+  own cache, built the client in 73 Ninja steps, and passed 16/16 C tests. It
+  built the Android server from clone sources using an explicit, verified
+  shared SDK cache whose license the owner had already reviewed. It downloaded
+  and verified the exact .NET SDK into the clone, then passed locked restore,
+  Release build (zero warnings/errors), one headless test and self-contained
+  Windows publish. The clone's native-backed package passed 28/28 PowerShell
+  suites; DocsCheck passed 419 links in 66 tracked files. This establishes a
+  repeatable documented workflow, not byte-identical output. The local CI
+  workflow passed actionlint v1.7.12; its new hosted jobs cannot be claimed
+  green before separate Phase 2 publication authorization.
 
 ## Handoff gate
 
