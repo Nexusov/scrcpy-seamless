@@ -1,9 +1,8 @@
 # Seamless 2.0 execution plan
 
-Status: Phase 0 accepted and merged through PR #1 on 2026-09-24. Phase 1 is
-complete on the local `2.0/p01-governance` branch at base
-`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c`, awaiting owner review.
-Phase 2 has not started.
+Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
+Phase 2 is active only on local `2.0/p02-build`, based exactly on Phase 1 merge
+`0c869722ad7a0e802011766c88d788e8ffd08177`. Phase 3 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -14,12 +13,11 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The Phase 0 closure restrictions applied to that completed task. The owner
-subsequently authorized PR #1 merge and local Phase 1 governance/release-safety
-work. Phase 1 may not push its branch, open/merge its PR, create tags or
-releases, change remote repository settings, force-push, modify `main`, or enter
-Phase 2 without separate authorization. No C# or native architecture rewrite
-belongs to this Phase.
+The owner authorized PR #2 merge and local Phase 2 clean-build foundations.
+Phase 2 may not push its branch, open/merge its PR, create tags or releases,
+change remote repository settings, force-push, modify `main`, or enter Phase 3
+without separate authorization. Keep the current launcher and imported runtime
+fallback functional; native lifecycle and application features belong later.
 
 ## Source baseline
 
@@ -49,9 +47,10 @@ No automatic integration or remote publication follows completion.
 
 ## Phase 1 — governance, knowledge and release safety
 
-Phase 1 starts from merge commit
-`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c` on `seamless-2.0`. Keep
-`2.0/p01-governance` local until the owner separately authorizes publication.
+Phase 1 started from merge commit
+`4d71e1ecc29d91b5696fb0e8f81a2dd6bbf9150c` on `seamless-2.0`. PR #2
+merged as `0c869722ad7a0e802011766c88d788e8ffd08177`; its nine commits
+remain in history and its short-lived work branch was deleted.
 The existing 1.x publisher is in scope for release-integrity and privacy
 corrections; product launch, native, server and future Desktop architecture are
 not.
@@ -79,6 +78,31 @@ For the release bug, first run the new regression against the old publisher and
 record the expected failure; commit the regression with the fix so the commit
 remains green. Publication tests must use disposable local remotes. Do not
 publish a real tag or release while validating Phase 1.
+
+## Phase 2 — clean build foundations
+
+Phase 2 starts at `0c869722ad7a0e802011766c88d788e8ffd08177` on a
+clean local `2.0/p02-build` branch. Phase 0 tool versions are evidence to
+investigate, not permanent pins. Prefer additive scripts and scaffolds that
+keep 1.x development and the reviewed imported package fallback working.
+
+| ID | Checkpoint | Evidence / exit | Status |
+| --- | --- | --- | --- |
+| P2.1 | Inventory and reproduce current build boundaries | Exact native/server commands, local tools, dependency origins/licenses/hashes, hidden state and clean-checkout gaps recorded | In progress |
+| P2.2 | Pin native and Android build inputs | Reviewed versions, source/download URLs, hashes and licenses; local restore/bootstrap instructions without tracked binaries | Pending |
+| P2.3 | Establish source-build paths | Android server and native client build from this tree; tests and package consumption demonstrated without weakening provenance | Pending |
+| P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Pending |
+| P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Pending |
+| P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Pending |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Pending |
+| P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Pending |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Pending |
+
+Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
+upstream audit and any urgent upstream port in separate logical commits where
+practical. Never replace the current launcher or import fallback in Phase 2.
+No Phase 2 branch push, PR, tag, release or repository-settings change is
+authorized. Stop before Phase 3.
 
 ## Validation boundaries
 
@@ -232,10 +256,14 @@ No speculative production scaffolding is authorized by this list.
   `seamless-2.0` fast-forwarded to the merge; the merged Phase 0 branch was
   deleted locally and remotely. The owner authorized Phase 1 on the local
   `2.0/p01-governance` branch with no Phase 1 push or remote settings change.
+- 2026-09-24: PR #2 passed its `test` check and merged with a two-parent merge
+  commit `0c869722ad7a0e802011766c88d788e8ffd08177`. Local
+  `seamless-2.0` fast-forwarded; the nine Phase 1 commits were preserved and
+  the merged work branch was deleted locally and remotely. The owner authorized
+  local Phase 2 foundations from this exact merge commit.
 
 ## Handoff gate
 
-The owner accepted the Phase 0 report and its hardware/isolation limitations on
-2026-09-24. PR #1 merged Phase 0 into `seamless-2.0`; Phase 1 completed locally.
-Report its source/validation evidence and await owner review before Phase 2 or
-any Phase 1 remote publication.
+The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
+Complete and report Phase 2 locally, then await owner review before Phase 3 or
+any Phase 2 remote publication.
