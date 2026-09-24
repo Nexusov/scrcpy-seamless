@@ -92,6 +92,16 @@ public sealed class OptionSelectionValidatorTests
         Assert.Empty(result.Arguments);
     }
 
+    /// <summary>Unconditional spec relationships are checked without a conditional rule.</summary>
+    [Fact]
+    public void RecordFormatRequiresRecordingTarget()
+    {
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences(("record-format", "mkv")));
+
+        Assert.Contains(result.Diagnostics, issue => issue.Code == OptionDiagnosticCode.MissingRequirement && issue.OptionId == "record-format");
+        Assert.Empty(result.Arguments);
+    }
+
     /// <summary>Recording semantics reject contradictory capture selections.</summary>
     [Fact]
     public void RecordingRuleRejectsDisabledVideoAndAudio()
