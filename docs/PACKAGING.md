@@ -26,6 +26,15 @@ against the manifest even when selecting a freshly built client. The ZIP include
 Changes to dependencies require an intentional manifest review and matching
 third-party notices/source archives.
 
+Phase 2 retains the legacy recursive copy of repository-oriented `docs/` for
+package compatibility. Source DocsCheck validates links in the checkout, and
+package tests validate the root user-facing documents, layout and privacy; they
+do not establish that every nested development-document link resolves within
+the ZIP because source and scripts are not packaged. This known distribution
+gap is tracked as R13 in the [risk register](architecture/SEAMLESS_2_RISK_REGISTER.md).
+Define and validate a self-contained portable documentation set before a public
+2.0 distribution; it is not a prerequisite for Phase 3 Core foundations.
+
 Phase 2 also provides a source build for the Android server. Its output and
 fingerprint are kept under ignored `work/phase2/server/artifacts/`; the current
 packager still requires the reviewed `scrcpy-server` hash above. To try the

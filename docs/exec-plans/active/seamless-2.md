@@ -1,8 +1,9 @@
 # Seamless 2.0 execution plan
 
 Status: Phase 0 and Phase 1 accepted and merged through PRs #1 and #2.
-Phase 2 is active only on local `2.0/p02-build`, based exactly on Phase 1 merge
-`0c869722ad7a0e802011766c88d788e8ffd08177`. Phase 3 has not started.
+Phase 2 is locally complete on `2.0/p02-build`, based exactly on Phase 1 merge
+`0c869722ad7a0e802011766c88d788e8ffd08177`. Its branch has not been
+published for PR/hosted CI; Phase 3 has not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -94,9 +95,9 @@ keep 1.x development and the reviewed imported package fallback working.
 | P2.4 | Add .NET 10 foundations | Exact stable SDK in global.json; minimal Core/Infrastructure/Desktop and test projects, central package versions, analyzers, nullable and deterministic policy | Complete |
 | P2.5 | Add stable Avalonia foundation | Exact stable 12.x packages; minimal startup, compiled-binding policy, restore/build and later self-contained publishing path demonstrated; no product UI | Complete |
 | P2.6 | Reconcile canonical metadata | Audit existing manifest/version duplication; introduce only minimum shared development/upstream/build metadata and mechanical checks | Complete |
-| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Implemented locally; remote jobs pending authorized publication |
+| P2.7 | Extend CI build coverage | Legacy tests and DocsCheck stay green; source native/server and .NET scaffold build/test in read-only, pinned/reviewed jobs where feasible | Complete locally; hosted jobs await separately authorized branch publication |
 | P2.8 | Audit latest stable upstream | Determine latest stable scrcpy at execution time; record urgent security/crash/race/correctness/protocol applicability and isolated ports only if justified | Complete |
-| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Automated checks and DEV artifact complete. Controlled hardware A/B was 3/3 successful for each build, but the initial B audio failure remains unexplained; Phase 2 acceptance is pending owner review. |
+| P2.9 | Reproduce from clean checkout and close | Disposable clean clone/bootstrap, all applicable builds/tests, package/privacy/provenance, traceable local DEV artifact, AGENTS/docs review and clean branch | Complete locally. Hardware smoke was performed; controlled A/B restored PC audio 3/3 on Phase 0 and 3/3 on Phase 2. The initial intermittent audio failure remains unexplained and is an owner-accepted non-blocking tracked risk, not a proven Phase 2 regression or a fixed bug. |
 
 Keep toolchain bootstrap, Android server, native, .NET, Avalonia, CI, metadata,
 upstream audit and any urgent upstream port in separate logical commits where
@@ -177,6 +178,16 @@ and flush them periodically; critical lifecycle events flush immediately.
 Diagnostic bundles must exclude pairing codes, ADB private keys and other
 secrets. This section specifies later Phase acceptance, not Phase 0
 implementation.
+
+The non-blocking [audio recovery watch item](../../development/phase2-audio-ab.md)
+requires channel-specific evidence in those existing Phases. Phase 6 correlates
+structured IPC/lifecycle events. Phase 7 identifies audio capture, demux,
+decoder, regulator/buffering and SDL sink ownership across session generations.
+Phase 8 defines reconnect audio-recovery semantics and timestamps transport,
+first packet/decoded frame and audible-readiness transitions. Phase 12 uses
+aggregated packet/sample/drop, underflow/overflow and Windows output-state
+diagnostics in repeated hardware/soak tests. This does not add Phase 2 product
+code or broaden those later Phases.
 
 Future 3.0 directions remain plans: runtime language switching, embedded
 mirroring, Linux/macOS, Windows ARM64, automation API, extensions/transports,
@@ -306,10 +317,29 @@ No speculative production scaffolding is authorized by this list.
   client and was excluded. The original B audio failure did not reproduce,
   and its playback-source state was not recorded. Classification is
   insufficient evidence for either a Phase 2 regression or a pre-existing
-  1.x bug. No production fix was made; P2.9 remains pending owner disposition.
+  1.x bug. No production fix was made. The owner accepted classification C,
+  retained the unexplained failure as a non-blocking intermittent observation,
+  and authorized P2.9 closure without claiming perfect audio stability.
+- 2026-09-24: final automated validation on source HEAD
+  `567f689061f559ea508dc5fcaeceded85c06efa1` passed: legacy PowerShell
+  28/28, DocsCheck 422 links in 67 tracked files, metadata agreement,
+  actionlint v1.7.12, fresh native release 73/73 and C tests 16/16, Android
+  `:server:assembleRelease :server:check` with forced 76/76 tasks and 47/47
+  tests, .NET locked restore/Release build (zero warnings/errors)/headless
+  test 1/1/self-contained `win-x64` publish, and `git diff --check`. A clean
+  checkout of the same HEAD packaged the freshly built native client with
+  reviewed imported runtime files; archive verification passed 28/28 suites,
+  metadata/DocsCheck and privacy checks. That local ZIP has SHA-256
+  `06f14afca70c8d43ff1f51d54cd41cf7b87616bbe09d3de15e0b3235e6dbe867`.
+  The earlier full clean-clone bootstrap/build at
+  `37bef9539d7c9e54098a09ee9b59eb66d5076303` was not
+  repeated because `git diff` proves subsequent commits changed only three
+  documentation files, no source/build/test inputs. No byte-identical output
+  claim follows; the new hosted CI jobs remain unrun until publication.
 
 ## Handoff gate
 
 The owner accepted Phases 0 and 1, and PRs #1 and #2 merged into `seamless-2.0`.
-Complete and report Phase 2 locally, then await owner review before Phase 3 or
-any Phase 2 remote publication.
+Phase 2 is locally complete with the audio watch item tracked. Report the
+complete local evidence, then await separate owner authorization for branch
+push, PR, hosted CI and any Phase 3 work.

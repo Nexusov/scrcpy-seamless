@@ -3,7 +3,8 @@
 2026-09-24, local hardware investigation. This note follows the
 [root-cause method](debugging.md). It records a failed initial Phase 2 smoke
 and subsequent controlled comparisons without assigning an unproven cause.
-The owner has not accepted Phase 2 or authorized Phase 3.
+The owner accepted classification C and authorized local Phase 2 closure with
+this observation tracked; Phase 3 has not been authorized.
 
 ## Builds and runtime composition
 
@@ -134,5 +135,10 @@ and a stable regression have not been identified. If the owner requests more
 investigation, the narrow next step is a timed, single-process reproduction
 with an explicitly continuous source plus temporary aggregated packet/PCM
 level and SDL/Windows sink diagnostics. Do not mask the symptom with sleeps,
-blind restarts or broad audio changes. Phase 2 remains unaccepted; P2.9 cannot
-be closed as fully green from these results. Phase 3 remains out of scope.
+blind restarts or broad audio changes. The owner classified the single failure
+as an **unresolved intermittent audio-recovery observation with no demonstrated
+Phase 2 causality** and accepted it as non-blocking for local Phase 2 closure.
+Neither a fixed audio bug nor perfectly stable recovery is claimed. The
+[execution plan](../exec-plans/active/seamless-2.md) and
+[risk register](../architecture/SEAMLESS_2_RISK_REGISTER.md) assign follow-up
+observability and stress validation to existing Phases 6, 7, 8 and 12.
