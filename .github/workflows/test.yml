@@ -2,7 +2,7 @@ name: Windows tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, seamless-2.0]
   pull_request:
   workflow_dispatch:
 
@@ -20,6 +20,86 @@ jobs:
       - name: Check documentation links
         shell: powershell
         run: ./scripts/docs-check.ps1
+      - name: Check build metadata
+        shell: powershell
+        run: ./scripts/check-build-metadata.ps1
       - name: Test with Windows PowerShell 5.1
         shell: powershell
         run: ./scripts/test.ps1
+
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12.14'
+      - name: Restore checked native inputs
+        shell: powershell
+        run: python ./scripts/bootstrap-native.py
+      - name: Build and test the native client
+        shell: powershell
+        run: |
+          $configuration = './work/native/build.local.json'
+          $runtime = './work/native/scrcpy-release/scrcpy-win64-v4.0'
+          ./scripts/build.ps1 -ConfigPath $configuration -RuntimeDirectory $runtime -NativeTests
+          ./scripts/build.ps1 -ConfigPath $configuration -RuntimeDirectory $runtime
+      - name: Verify the native-backed package
+        shell: powershell
+        run: |
+          $runtime = './work/native/scrcpy-release/scrcpy-win64-v4.0'
+          ./scripts/package.ps1 -RuntimeDirectory $runtime
+          ./scripts/test.ps1 -ArchivePath './dist/scrcpy-seamless-win64.zip'
+
+  android-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check hosted Android build inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${JAVA_HOME_17_X64:-}"
+          test -n "${ANDROID_HOME:-}"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -f "$ANDROID_HOME/build-tools/36.0.0/source.properties"
+          "$JAVA_HOME_17_X64/bin/java" -version
+      - name: Build and check the server from source
+        shell: bash
+        working-directory: src/scrcpy
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export GRADLE_USER_HOME="$GITHUB_WORKSPACE/work/gradle-ci"
+          bash ./gradlew :server:assembleRelease :server:check --no-daemon
+
+  desktop:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Restore pinned .NET SDK
+        shell: powershell
+        run: |
+          $sdk = ./scripts/bootstrap-dotnet.ps1
+          if ((& $sdk --version) -ne '10.0.401') { throw 'Unexpected .NET SDK.' }
+      - name: Restore, build, and test Desktop scaffold
+        shell: powershell
+        run: |
+          $sdk = Join-Path $PWD 'work/dotnet-sdk-10.0.401/dotnet.exe'
+          $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+          & $sdk restore ./ScrcpySeamless.slnx --locked-mode
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $sdk build ./ScrcpySeamless.slnx --no-restore --configuration Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $sdk test ./ScrcpySeamless.slnx --no-restore --configuration Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
