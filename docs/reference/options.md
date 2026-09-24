@@ -36,10 +36,10 @@ This table lists the current scrcpy Seamless 2.0 static CLI metadata. Runtime an
 | <a id="option-select-tcpip"></a>`select-tcpip` | Technical | managed | none |
 | <a id="option-fullscreen"></a>`fullscreen` | Window | editable | none |
 | <a id="option-force-adb-forward"></a>`force-adb-forward` | Technical | editable | none |
-| <a id="option-gamepad-uhid-shortcut"></a>`gamepad-uhid-shortcut` | Input & Control | alias | none |
+| <a id="option-gamepad-uhid-shortcut"></a>`gamepad-uhid-shortcut` | Control | alias | none |
 | <a id="option-gamepad"></a>`gamepad` | Control | editable | required |
 | <a id="option-help"></a>`help` | Technical | action | none |
-| <a id="option-keyboard-uhid-shortcut"></a>`keyboard-uhid-shortcut` | Input & Control | alias | none |
+| <a id="option-keyboard-uhid-shortcut"></a>`keyboard-uhid-shortcut` | Control | alias | none |
 | <a id="option-keep-active"></a>`keep-active` | Device | editable | none |
 | <a id="option-keyboard"></a>`keyboard` | Control | editable | required |
 | <a id="option-kill-adb-on-close"></a>`kill-adb-on-close` | Technical | managed | none |
@@ -50,7 +50,7 @@ This table lists the current scrcpy Seamless 2.0 static CLI metadata. Runtime an
 | <a id="option-list-displays"></a>`list-displays` | Technical | action | none |
 | <a id="option-list-encoders"></a>`list-encoders` | Technical | action | none |
 | <a id="option-max-size"></a>`max-size` | Video | editable | required |
-| <a id="option-mouse-uhid-shortcut"></a>`mouse-uhid-shortcut` | Input & Control | alias | none |
+| <a id="option-mouse-uhid-shortcut"></a>`mouse-uhid-shortcut` | Control | alias | none |
 | <a id="option-max-fps"></a>`max-fps` | Video | editable | required |
 | <a id="option-min-size-alignment"></a>`min-size-alignment` | Video | editable | required |
 | <a id="option-mouse"></a>`mouse` | Control | editable | required |

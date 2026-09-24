@@ -12,7 +12,7 @@ internal static class SpecValidator
     internal static readonly HashSet<string> ValueKinds =
         ["boolean", "string", "integer", "unsignedInteger", "decimal", "enum", "bitrate", "size", "duration", "color", "custom"];
     internal static readonly HashSet<string> Categories =
-        ["Audio", "Camera", "Control", "Device", "Recording", "Technical", "Video", "Window", "Input & Control"];
+        ["Audio", "Camera", "Control", "Device", "Recording", "Technical", "Video", "Window"];
     private static readonly HashSet<string> KnownRuleIds =
         ["audio-dup-requires-playback", "camera-source-rules", "recording-output-semantics", "virtual-display-rules", "session-output-required"];
 
