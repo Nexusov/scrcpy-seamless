@@ -1,0 +1,249 @@
+{
+  "type": "object",
+  "properties": {
+    "specVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "upstream": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "commit"
+      ],
+      "additionalProperties": false
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "longName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shortName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nativeId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nativeNumericId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "argumentShape": {
+            "type": "string",
+            "enum": [
+              "none",
+              "optional",
+              "required"
+            ]
+          },
+          "argumentHint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nativeHelp": {
+            "type": "string"
+          },
+          "nativeHelpDebug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "action",
+              "alias",
+              "editable",
+              "managed",
+              "nativeOnly",
+              "unsupported"
+            ]
+          },
+          "aliasFor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Audio",
+              "Camera",
+              "Control",
+              "Device",
+              "Input & Control",
+              "Recording",
+              "Technical",
+              "Video",
+              "Window"
+            ]
+          },
+          "valueKind": {
+            "type": "string",
+            "enum": [
+              "bitrate",
+              "boolean",
+              "color",
+              "custom",
+              "decimal",
+              "duration",
+              "enum",
+              "integer",
+              "size",
+              "string",
+              "unsignedInteger"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enumValues": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "defaultValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "pattern": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "ruleIds": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "buildCapability": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacyBasic": {
+            "type": "boolean"
+          },
+          "legacyReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacySeamlessCompatible": {
+            "type": "boolean"
+          },
+          "legacyArgumentHint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "argumentShape",
+          "nativeHelp",
+          "classification",
+          "category",
+          "valueKind"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "DO NOT EDIT - generated from spec/options/options.yaml by SpecGen v1.",
+  "required": [
+    "specVersion",
+    "upstream",
+    "options"
+  ],
+  "additionalProperties": false
+}
