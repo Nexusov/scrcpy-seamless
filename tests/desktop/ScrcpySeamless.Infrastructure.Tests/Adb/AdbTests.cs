@@ -87,7 +87,27 @@ public sealed class AdbTests
         Assert.True(startInfo.RedirectStandardInput);
         Assert.Equal(2, startInfo.ArgumentList.Count);
         Assert.Equal("[2001:db8::8]:37123", startInfo.ArgumentList[1]);
-        Assert.Equal("1", startInfo.Environment["ADB_MDNS_OPENSCREEN"]);
+    }
+
+    /** Generic process execution preserves an inherited mDNS backend choice. */
+    [Fact]
+    public void ProcessInvocationDoesNotOverrideInheritedMdnsBackend()
+    {
+        const string backendVariable = "ADB_MDNS_OPENSCREEN";
+        string? previousBackend = Environment.GetEnvironmentVariable(backendVariable);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(backendVariable, "0");
+            var runner = new AdbProcessRunner(@"C:\synthetic\adb.exe");
+            ProcessStartInfo startInfo = runner.CreateStartInfo(["mdns", "services"]);
+
+            Assert.Equal("0", startInfo.Environment[backendVariable]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(backendVariable, previousBackend);
+        }
     }
 
     [Fact]

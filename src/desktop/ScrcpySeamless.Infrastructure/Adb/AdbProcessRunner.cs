@@ -135,8 +135,6 @@ public sealed class AdbProcessRunner
             RedirectStandardError = true,
             RedirectStandardInput = redirectStandardInput,
         };
-        startInfo.Environment["ADB_MDNS_OPENSCREEN"] = "1";
-
         foreach (string argument in arguments)
         {
             ArgumentNullException.ThrowIfNull(argument);
