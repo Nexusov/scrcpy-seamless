@@ -143,10 +143,7 @@ public partial class MainWindow : Window
                     return;
                 }
             }
-            else
-            {
-                composition.DiscardDirtyGroups();
-            }
+            // Closing discards in-memory drafts without touching a stale or invalid authority.
 
             closeApproved = true;
             Close();

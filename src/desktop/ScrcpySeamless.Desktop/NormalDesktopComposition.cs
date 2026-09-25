@@ -79,19 +79,6 @@ public sealed class NormalDesktopComposition
         return true;
     }
 
-    /// <summary>Discards only uncommitted drafts after an explicit close decision.</summary>
-    public void DiscardDirtyGroups()
-    {
-        if (Configuration.IsDirty)
-        {
-            Configuration.CancelChanges();
-            Settings.RefreshValues(Configuration.Draft!.Mirroring.Options);
-        }
-
-        Profiles.CancelEditorChanges();
-        Profiles.RefreshFromDraft();
-        Preferences.CancelChanges();
-    }
 }
 
 /// <summary>Constructs real adapters only after normal mode selects one explicit root.</summary>
