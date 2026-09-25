@@ -1,8 +1,9 @@
 # Seamless 2.0 target architecture
 
 Status: accepted target with Phase 2 build foundations and Phase 3 headless
-Core/Infrastructure contracts implemented locally. The 2.0 product UI, IPC,
-native lifetime and ConnectionManager remain future phases. See the
+Core/Infrastructure contracts integrated into `seamless-2.0`. Phase 4 option
+metadata and scalar validation are in PR #5. The 2.0 product UI, IPC, native
+lifetime and ConnectionManager remain future phases. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
@@ -10,8 +11,8 @@ The owner adopted `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` on 2026-09-23. Its comple
 input SHA-256 is `fcf6f46017b943535d24f2aad60980b484951c1f42a2ed8b5c1f51dbbd82068e`.
 This document records the architecture decisions and boundaries; operational
 rules remain in the existing [development policies](../development/README.md).
-No framework selection, dependency upgrade or production migration is performed
-by this documentation change.
+This target does not authorize a framework switch, dependency upgrade or
+production migration.
 
 ## Product and fixed decisions
 

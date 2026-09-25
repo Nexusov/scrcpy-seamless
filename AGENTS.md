@@ -22,6 +22,8 @@ documents, ADRs, specifications, contribution docs, and release docs.
 
 When the repository owner speaks Russian in chat, answer the owner in Russian
 unless asked otherwise. Do not translate established identifiers.
+For README, CONTRIBUTING and repository documents, follow the
+[documentation voice guidance](docs/AGENTS.md#documentation-voice).
 
 ## Read before changing code
 

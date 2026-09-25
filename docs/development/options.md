@@ -28,6 +28,9 @@ For `flex-display`, an explicitly configured zero window width or height still
 means automatic sizing, so only a nonzero effective dimension conflicts. The
 structured `port` option has its own `N[:N]` grammar and remains outside this
 scalar correction; its leading-zero component parity requires separate work.
+Before Phase 5 presents an editor for `port` as fully validated, define the
+component grammar and test it against the native parser, including base-zero
+spelling and component ranges.
 
 ## Regeneration and verification
 

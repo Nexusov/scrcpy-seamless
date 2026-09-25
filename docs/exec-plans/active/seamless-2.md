@@ -1,28 +1,27 @@
 # Seamless 2.0 execution plan
 
-Status: Phases 0–3 accepted and merged through PRs #1–#4. Phase 3 merged
-into `seamless-2.0` as `3207892ddd37cdd6b20bafc7c770a8470b6cb81f`,
-preserving all 11 Phase 3 commits. Phase 4 is under review in PR #5 from
-`2.0/p04-options`, based on that exact merge commit; it is not merged. Final
-Phase 0 artifact evidence remains in the local
-handoff report.
+Status at the 2026-09-25 review gate: Phases 0–3 are integrated through PRs
+#1–#4. Phase 3 merged into `seamless-2.0` as
+`3207892ddd37cdd6b20bafc7c770a8470b6cb81f`, preserving all 11 Phase 3
+commits. Phase 4 is complete on `2.0/p04-options`; PR #5 awaits its final
+documentation and hosted checks before integration. Phase 5 has not started.
+Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
 
-The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
-2026-09-23. This plan implements its ordered checkpoints, with repository
+The maintainer accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md`
+charter on 2026-09-23. This plan implements its ordered checkpoints, with repository
 [Git](../../development/git-workflow.md),
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The owner accepted Phase 3 and authorized PR #4 merge-commit integration after
-its final hosted checks, followed by local Phase 4 only. PR #4 passed all four
-hosted jobs and was merged; its ancestry and short-lived branch cleanup were
-verified. The owner authorized normal Phase 4 follow-up pushes to PR #5, but
-not its merge. Do not modify `main`, create tags/releases, change repository
-settings, force-push, or enter Phase 5. Keep the current launcher
-and imported runtime fallback functional; native lifecycle and product UI
-belong later.
+PR #4 passed all four hosted jobs and integrated Phase 3 by merge commit;
+ancestry and short-lived branch cleanup were verified. Maintainer approval for
+PR #5 permits a merge commit only after its documentation follow-up, final
+hosted checks and review gates pass. That approval does not extend to Phase 5.
+Do not modify `main`, create tags/releases, change repository settings or
+force-push. Keep the current launcher and imported runtime fallback functional;
+native lifecycle and product UI belong later.
 
 ## Source baseline
 
@@ -164,7 +163,7 @@ does not need .NET generation first.
 | P4.7 | Add pure Core option selection/value validation | Editable versus managed/action enforcement; semantic diagnostics for unknown stored options without data loss; simple typed checks and named typed complex RuleIds | Complete; six named typed rules, discrete arguments only for valid selections, 92/92 Core tests after PR review follow-up |
 | P4.8 | Prove parity and determinism | Negative spec fixtures, generate-twice byte identity, verify drift/no mutation, compiled native CLI coverage, legacy/migration fixtures | Complete; frozen Phase 3 native/help and 106 × 13 legacy fixtures, compiled-table and generated-projection comparisons; clean checkout verify/generate/verify leaves Git clean |
 | P4.9 | Wire verification into docs/build/CI | Generated schema/native/Core/legacy/English-resource/reference-doc outputs checked; semantic IDs checked without prose regex; clean-checkout generation requires no hidden state | Complete; Desktop CI runs SpecGen verify after locked restore, native build consumes committed include, DocsCheck checks reference links |
-| P4.10 | Document and close Phase 4 locally | AGENTS/docs/risk review, all applicable .NET/native/legacy/docs/package checks, logical green commits, clean branch and owner handoff; no hardware claim unless runtime changes unexpectedly | Complete locally; evidence below and final closure commit |
+| P4.10 | Document and close Phase 4 locally | AGENTS/docs/risk review, all applicable .NET/native/legacy/docs/package checks, logical green commits and clean review handoff; no hardware claim unless runtime changes unexpectedly | Complete locally; evidence below and final closure commit |
 
 The three short-only aliases must be explicit in the spec even though the
 legacy catalogue intentionally contains only long names. Existing
@@ -261,7 +260,9 @@ shape remain unchanged. Local validation passed locked restore, zero-warning
 Release build, 196/196 .NET tests, 16/16 native tests, 28/28 legacy suites,
 SpecGen verify and repeat-generation byte identity, DocsCheck, metadata and
 diff checks. Structured `port` component syntax remains a separate parity
-limitation; no Phase 5 work or hardware claim is included.
+limitation; no Phase 5 work or hardware claim is included. Before Phase 5
+presents a `port` editor as fully validated, define its `N[:N]` component
+grammar and test it independently against the native parser.
 
 ## Validation boundaries
 
@@ -283,7 +284,7 @@ the Phase 0 hardware baseline; this is not full 2.0 hardware acceptance.
 
 ## Ordered roadmap after Phase 0
 
-Every row requires a separate owner acceptance before entering the next Phase.
+Each Phase requires separate maintainer acceptance before work begins.
 Exact package/tool versions are rechecked only when their owning Phase adopts
 and pins them; planning-date observations are not installation instructions.
 
@@ -293,7 +294,7 @@ and pins them; planning-date observations are not installation instructions.
 | 2 | 1 | Clean server/native source build, pinned toolchain/CI, .NET 10 and stable Avalonia 12.x foundations, central metadata, urgent upstream fix audit |
 | 3 | 2 | Headless Core/Infrastructure: identities, endpoints, plans, config v2/migration, persistence, ADB, activation and native-host boundaries |
 | 4 | 3 | Canonical option spec/schema/generator, metadata/parity and named complex rules |
-| 5 | 3, 4 | Avalonia 1.x workflow parity, localization/accessibility/design system, fake host tests; isolated legacy adapter permitted; alpha eligibility only |
+| 5 | 3, 4 | Avalonia 1.x workflow parity, localization/accessibility/design system, fake host tests; define and test composite `port` grammar against native before calling its editor fully validated; isolated legacy adapter permitted; alpha eligibility only |
 | 6 | 5 | Bounded versioned stdio IPC, handshake, Stop/Focus/events, EOF/parent-death behavior; structured ordered lifecycle events; no HWND lifecycle authority |
 | 7 | 6 | Separate native app/session/presentation/input/dispatcher lifetimes; generation-aware lifecycle diagnostics and deterministic reconnect harness |
 | 8 | 7 | ConnectionManager, resolver, retry/failure policy, hysteresis, degradation, recording/headless/deadline semantics; timed transport decisions and readiness; next alpha eligibility |
@@ -504,13 +505,13 @@ No speculative production scaffolding is authorized by this list.
   one USB-to-Wi-Fi recovery retained native PID/HWND and restored video,
   control and PC audio. No canonical release binary was substituted.
 
-## Handoff gate
+## Phase 3 integration record
 
-The owner accepted Phases 0–2. PR #3 merged at
+Phases 0–2 were accepted. PR #3 merged at
 `ee373709ecdda8e323d93a856a346772b2c46485`; Phase 2's 20 commits are
 ancestors of `seamless-2.0` and the short-lived branch was deleted. The
 intermittent audio watch item remains tracked and is not Phase 3 audio work.
-Phase 3 is implemented locally as separate Core/domain, application-contract,
+Phase 3 integrated separate Core/domain, application-contract,
 configuration/migration, ADB and documentation commits. The pure v1 migration
 and v2 atomic store are headless APIs, not yet wired into the 1.x launcher or
 the placeholder Avalonia Desktop. A same-user activation channel and concrete
@@ -527,8 +528,8 @@ server/build inputs); self-contained `win-x64` placeholder Desktop publish;
 existing archive checksum and package test passed. Phase 3 did not change
 `src/scrcpy`, the legacy launcher, reviewed package inputs or canonical 1.x
 runtime behavior. No new hardware claim follows from these headless tests.
-These baseline checks preceded the focused gate; the later authorization above
-permits merge-commit integration and then local Phase 4 after final validation.
+These baseline checks preceded the focused gate and PR #4 merge-commit
+integration.
 
 Focused Phase 3 acceptance gate on 2026-09-24: tests now enforce the one-way
 v1-to-v2 cutover, changed-v1 authority, corrupt-v2 recovery and stale-preview
@@ -542,8 +543,8 @@ Network `ro.serialno` is an observed property rather than `UsbSerial`; an
 optional explicit property comparison does not claim physical-device identity.
 Locked restore, zero-warning Release build and all 89/89 .NET tests passed
 (Core 50, Infrastructure 38, Desktop 1); the 1.x archive suite passed 28/28.
-DocsCheck, metadata and diff validation complete this local gate. Phase 3 is
-locally complete for PR review, with no Phase 4 work or new hardware claim.
+DocsCheck, metadata and diff validation completed this local gate before PR #4
+integration. No new hardware claim follows from these checks.
 
 Final Phase 3 follow-up on 2026-09-24: the generic ADB process runner no longer
 sets `ADB_MDNS_OPENSCREEN`; a regression failed before the removal when an
@@ -555,6 +556,6 @@ local full 1.x suite runs yielded 27/28, 26/28 and 27/28: `options-view` and
 `dev-observer` exceeded existing wall-clock/UI deadlines under load, while
 both passed together under the same test runner when isolated (2/2). The
 launcher, observer and their tests are unchanged by Phase 3; do not weaken
-their timing assertions for this follow-up. Require the clean hosted `test`
-job and other PR checks to pass before integration, and retain the local
-timing limitation in the handoff report.
+their timing assertions. The hosted `test` job and other PR #4 checks passed
+before integration. The local timing limitation remains part of the handoff
+evidence.
