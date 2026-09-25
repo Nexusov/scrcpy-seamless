@@ -3,8 +3,10 @@
 Phase 3 provides a headless C# foundation. The current WinForms/PowerShell
 launcher and canonical 1.x package do not consume these classes yet; no user
 configuration is migrated merely by building or testing the solution. The
-Avalonia project remains a placeholder. Phase 5 composition must choose the
-storage mode and explicitly invoke migration before using v2 state.
+Phase 5A replaces the Avalonia placeholder with a shell and an explicitly
+simulated preview; neither normal nor preview composition reads configuration,
+performs migration, or writes a stored option. Phase 5B must choose the storage
+mode and explicitly invoke migration before using v2 state.
 
 ## Storage and authority
 

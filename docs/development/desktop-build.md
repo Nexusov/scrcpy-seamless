@@ -60,18 +60,20 @@ $sdk = powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/bootstr
 For a machine-wide exact SDK, replace `& $sdk` with `dotnet`. The solution
 contains three projects under `src/desktop/`: Core (headless domain/application
 policy), Infrastructure (ADB/filesystem effects, referencing Core), and Desktop
-(Avalonia placeholder, referencing both). `tests/desktop/` contains Core and
-Infrastructure headless suites plus the existing Avalonia placeholder-window
-smoke. The new suites require no Android device, real ADB/native child, or
-personal configuration.
+(Avalonia presentation, currently referencing Core only). Phase 5A intentionally
+does not compose Infrastructure: the normal Desktop starts with an honest empty
+state and the explicit preview uses fixed in-memory scenarios. `tests/desktop/`
+contains Core and Infrastructure suites plus Avalonia.Headless shell, layout,
+scenario and settings tests. These require no Android device, ADB/native child,
+or personal configuration.
 
 `Directory.Build.props` enables nullable analysis, SDK analyzers,
 warnings-as-errors, deterministic compilation and package lock files.
 `Directory.Packages.props` pins direct NuGet dependencies centrally; checked-in
 `packages.lock.json` files lock their transitive graphs. CI should use
 `restore --locked-mode`. Avalonia 12 enables compiled bindings by default; the
-placeholder view explicitly provides `x:DataType`. Future views must do the
-same where the data type is statically known.
+Phase 5A views and repeated-item templates provide `x:DataType` where the type
+is known.
 
 The currently newer xUnit v3 4.0.1 cannot be substituted alone: with
 Avalonia.Headless.XUnit 12.1.3, test discovery failed with a
@@ -79,16 +81,32 @@ Avalonia.Headless.XUnit 12.1.3, test discovery failed with a
 3.2.2 passes. Upgrade the headless adapter and xUnit together only after a
 real compatibility check.
 
-The Desktop scaffold declares the `win-x64` runtime identifier, so the locked
-restore above prepares a self-contained Windows publish graph. Its local
-publish command is:
+The Desktop project declares the `win-x64` runtime identifier, so the locked
+restore above prepares a self-contained Windows publish graph. Build the
+reviewable Phase 5A DEV preview from a committed source state with:
 
 ```powershell
-& $sdk publish ./src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output ./dist/desktop-scaffold
+$sourceSha = (git rev-parse --short=8 HEAD).Trim()
+$previewDirectory = "./dist/dev/scrcpy-seamless-desktop-p05a-g$sourceSha"
+& $sdk publish ./src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $previewDirectory
+& "$previewDirectory/ScrcpySeamless.Desktop.exe" --preview --scenario=fallback
 ```
 
-This command passed locally in Phase 2 and created
-`dist/desktop-scaffold/ScrcpySeamless.Desktop.exe`. It is a development output
-only. It does not replace the current portable package or authorize a release.
-Runtime/package integration and distribution-license review belong to later
-phases.
+The explicit `--preview` mode is visibly marked as simulated. Scenarios are
+`empty`, `usb`, `fallback`, `unauthorized`, `offline`, `failure`, and `reconnect`;
+select them in the UI or pass `--scenario=<id>`. The default theme choice is
+System and follows Avalonia's system theme inheritance; `--theme=light` and
+`--theme=dark` override it only in memory. `--details=expanded` opens the
+synthetic device's Connection details. The preview-only `--ui-scale=1.5`
+exercises shared typography and layout metrics without writing a preference;
+supported values are `1`, `1.1`, `1.25`, and `1.5`. For a filtered Settings
+example, use `--preview --page=settings --search=audio-output-buffer`. Settings
+categories use a compact selector at narrow widths. Ctrl+F focuses option
+search while Settings is active. Preview mode
+does not discover or pair devices, start the native child, read/migrate user
+configuration, or send activation to the personal installation. Without
+`--preview`, the application shows an empty/not-yet-connected state; real
+integration belongs to later Phase 5 slices. The self-contained directory is
+a local development artifact, not a release or replacement for a legacy DEV
+package. Runtime/package integration and distribution-license review remain
+later work.

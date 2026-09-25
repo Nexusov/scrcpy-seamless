@@ -2,7 +2,7 @@ using Avalonia;
 
 namespace ScrcpySeamless.Desktop;
 
-/// <summary>Starts the minimal Avalonia desktop build foundation.</summary>
+/// <summary>Starts the desktop control center or its explicit development preview.</summary>
 internal static class Program
 {
     /// <summary>Starts a classic desktop lifetime.</summary>

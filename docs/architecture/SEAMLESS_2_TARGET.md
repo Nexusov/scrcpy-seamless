@@ -1,9 +1,10 @@
 # Seamless 2.0 target architecture
 
-Status: accepted target with Phase 2 build foundations and Phase 3 headless
-Core/Infrastructure contracts integrated into `seamless-2.0`. Phase 4 option
-metadata and scalar validation are in PR #5. The 2.0 product UI, IPC, native
-lifetime and ConnectionManager remain future phases. See the
+Status: accepted target with Phases 0–4 integrated into `seamless-2.0` through
+PR #5 (`d9617610388668715934083edfe9589ce15463ac`). Phase 5A develops the
+bounded UI foundation; real application effects and complete workflow parity
+remain later Phase 5 slices. IPC, native lifetime and ConnectionManager remain
+future phases. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
@@ -225,6 +226,18 @@ fallback readiness, profile and primary Mirror action. Reconnect is an explicit
 sequence with separate video/audio/control readiness; partial recovery is not full
 success. Prefer a coherent control center over independent floating control panes.
 
+Phase 5A implements only Devices and a Settings preview in the existing Avalonia
+Desktop. `DesktopComposition` supplies either a truthful empty source or fixed
+simulated cases to the same typed Views/ViewModels. The Desktop assembly does
+not reference Infrastructure in this slice, so preview cannot construct real
+ADB, native-host, configuration or activation adapters. Device presentation
+keeps availability, selected transport, process existence, observed stream
+and each channel's evidence distinct. The simulated reconnect case explicitly
+leaves audio unverified. The Settings draft stays in memory, reads the generated
+Core descriptors and Desktop-owned English resources, and uses Core validation;
+`port` remains read-only until Phase 5B native grammar parity. No user
+configuration or hardware is involved in this preview.
+
 FluentTheme is the base; project tokens cover type, spacing, radii, surfaces,
 borders, semantic status, focus, icon size and motion. Reusable controls should
 solve repeated UI needs rather than create a private framework. Use compiled
@@ -294,8 +307,10 @@ license constraints, current Seamless support and ADOPT/ADAPT/ALREADY_BETTER/
 DEFER/REJECT decisions. Required candidates from the charter are SimonAKing/scrcpy-gui,
 barry-ran/QtScrcpy, viarotel-org/escrcpy, srevinsaju/guiscrcpy,
 GeorgeEnglezos/Scrcpy-GUI, Shrey113/Adb-Device-Manager-2 and kil0bit-kb/scrcpy-gui.
-These are future audit inputs, not projects whose current licenses were validated
-in Phase 0. Distinguish inspiration, independent implementation and copied assets.
+The first three received a [focused Phase 5A interaction audit](../research/UI_REFERENCE_AUDIT.md)
+at pinned revisions; the broader feature audit and remaining candidates stay in
+Phase 10. No competitor license or feature was established by Phase 0 alone.
+Distinguish inspiration, independent implementation and copied assets.
 Actual reuse needs exact source/version/path/license/copyright/destination/change
 records and notices/acknowledgements. GPL/AGPL or proprietary reuse requires an
 explicit licensing decision; do not copy it to fill a feature checkbox.

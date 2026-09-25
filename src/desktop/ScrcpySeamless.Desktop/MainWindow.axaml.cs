@@ -3,14 +3,19 @@ using Avalonia.Markup.Xaml;
 
 namespace ScrcpySeamless.Desktop;
 
-/// <summary>Shows only the Phase 2 build-foundation placeholder.</summary>
+/// <summary>Hosts the typed Desktop navigation shell.</summary>
 public partial class MainWindow : Window
 {
-    /// <summary>Loads the compiled XAML and placeholder model.</summary>
-    public MainWindow()
+    /// <summary>Provides a truthful empty design-time shell.</summary>
+    public MainWindow() : this(DesktopComposition.Create(new DesktopLaunchOptions(false, AppTheme.System, null, false), _ => { }))
+    {
+    }
+
+    /// <summary>Loads the same product shell for normal and preview composition.</summary>
+    public MainWindow(ShellViewModel viewModel)
     {
         InitializeComponent();
-        DataContext = new ShellViewModel();
+        DataContext = viewModel;
     }
 
     /// <summary>Loads the window markup.</summary>

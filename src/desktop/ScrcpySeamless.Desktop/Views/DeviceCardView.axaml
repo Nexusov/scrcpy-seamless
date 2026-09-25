@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.DeviceCardView"
+             x:DataType="vm:DeviceCardViewModel">
+  <Border Classes="card" AutomationProperties.AutomationId="{Binding StableId}">
+    <StackPanel Spacing="14">
+      <!-- The compact summary preserves evidence without making every diagnostic a tile. -->
+      <StackPanel Spacing="5">
+        <TextBlock Text="{Binding DisplayName}" Classes="sectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Availability}" Foreground="{DynamicResource AccentBrush}"
+                   FontWeight="SemiBold" />
+      </StackPanel>
+      <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
+        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+          <TextBlock Text="{Binding AvailableHeading}" Classes="muted" />
+          <TextBlock Text="{Binding SummaryLabel}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
+        </StackPanel>
+        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="3">
+          <TextBlock Text="{Binding SessionHeading}" Classes="muted" />
+          <TextBlock Text="{Binding SelectedTransport}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding FallbackSummary}"
+                   Classes="muted" TextWrapping="Wrap" />
+      </Grid>
+      <Border Background="{DynamicResource WarningSoftBrush}" CornerRadius="8"
+              Padding="12,8" IsVisible="{Binding IsProblem}">
+        <TextBlock Text="{Binding Hint}" Foreground="{DynamicResource WarningBrush}"
+                   TextWrapping="Wrap" />
+      </Border>
+      <TextBlock Text="{Binding Hint}" Classes="muted" IsVisible="{Binding IsInformational}" />
+      <Expander Header="{Binding DetailsLabel}" IsExpanded="{Binding DetailsExpanded, Mode=TwoWay}"
+                AutomationProperties.AutomationId="device.connectionDetails">
+        <StackPanel Spacing="8" Margin="0,10,0,0">
+          <TextBlock Text="{Binding StableId}" Classes="muted" />
+          <ItemsControl ItemsSource="{Binding AvailabilityMetrics}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusMetric">
+                <Grid ColumnDefinitions="160,*" Margin="0,3">
+                  <TextBlock Text="{Binding Label}" Classes="muted" />
+                  <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                             AutomationProperties.AutomationId="{Binding AutomationId}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding SessionMetrics}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusMetric">
+                <Grid ColumnDefinitions="160,*" Margin="0,3">
+                  <TextBlock Text="{Binding Label}" Classes="muted" />
+                  <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                             AutomationProperties.AutomationId="{Binding AutomationId}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Expander>
+    </StackPanel>
+  </Border>
+</UserControl>
