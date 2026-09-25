@@ -92,6 +92,25 @@ public sealed class OptionSelectionValidatorTests
         Assert.Empty(result.Arguments);
     }
 
+    /// <summary>Camera exclusions use the parsed base-zero value, including hexadecimal spelling.</summary>
+    [Theory]
+    [InlineData("00", true)]
+    [InlineData("0x10", false)]
+    public void CameraSizeUsesEffectiveMaxSize(string maxSize, bool expectedValid)
+    {
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences(
+            ("video-source", "camera"),
+            ("camera-size", "1920x1080"),
+            ("max-size", maxSize)));
+
+        Assert.Equal(expectedValid, result.IsValid);
+
+        if (!expectedValid)
+        {
+            Assert.Contains(result.Diagnostics, issue => issue.RuleId == "camera-source-rules");
+        }
+    }
+
     /// <summary>Unconditional spec relationships are checked without a conditional rule.</summary>
     [Fact]
     public void RecordFormatRequiresRecordingTarget()
@@ -140,6 +159,9 @@ public sealed class OptionSelectionValidatorTests
     [InlineData("0", null, true)]
     [InlineData(null, "0", true)]
     [InlineData("0", "0", true)]
+    [InlineData("00", null, true)]
+    [InlineData("010", null, false)]
+    [InlineData(null, "0x10", false)]
     [InlineData("1", null, false)]
     [InlineData(null, "1", false)]
     public void FlexDisplayUsesEffectiveWindowDimensions(string? width, string? height, bool expectedValid)
@@ -197,6 +219,65 @@ public sealed class OptionSelectionValidatorTests
         {
             Assert.Empty(result.Arguments);
         }
+    }
+
+    /// <summary>Native base-zero spelling must be validated before forwarding the unchanged argument.</summary>
+    [Theory]
+    [InlineData("max-size", "00", true)]
+    [InlineData("max-size", "010", true)]
+    [InlineData("max-size", "08", false)]
+    [InlineData("max-size", "0x10", true)]
+    [InlineData("max-size", "0X10", true)]
+    [InlineData("max-size", "0177777", true)]
+    [InlineData("max-size", "0200000", false)]
+    [InlineData("max-size", "0x", false)]
+    [InlineData("max-size", "10junk", false)]
+    [InlineData("max-size", "2147483648", false)]
+    [InlineData("max-size", "+16", true)]
+    [InlineData("max-size", "-0", true)]
+    [InlineData("max-size", "+", false)]
+    [InlineData("max-size", " 10", false)]
+    [InlineData("min-size-alignment", "010", true)]
+    [InlineData("min-size-alignment", "020", true)]
+    [InlineData("min-size-alignment", "08", false)]
+    [InlineData("min-size-alignment", "0x10", true)]
+    [InlineData("min-size-alignment", "3", false)]
+    [InlineData("video-bit-rate", "010K", true)]
+    [InlineData("video-bit-rate", "08K", false)]
+    [InlineData("video-bit-rate", "0x10M", true)]
+    [InlineData("video-bit-rate", "2147484K", false)]
+    [InlineData("video-bit-rate", "2147M", true)]
+    [InlineData("video-bit-rate", "2148M", false)]
+    [InlineData("audio-bit-rate", "0X10m", true)]
+    [InlineData("tunnel-port", "010", true)]
+    [InlineData("tunnel-port", "08", false)]
+    [InlineData("window-x", "-010", true)]
+    [InlineData("window-x", "-08", false)]
+    [InlineData("window-y", "-0x10", true)]
+    [InlineData("window-y", "-32768", false)]
+    [InlineData("window-width", "0200000", false)]
+    [InlineData("window-height", "0177777", true)]
+    [InlineData("audio-buffer", "0x36ee80", true)]
+    [InlineData("audio-buffer", "3600001", false)]
+    [InlineData("video-buffer", "3600001", false)]
+    [InlineData("camera-fps", "65536", false)]
+    [InlineData("display-id", "2147483648", false)]
+    [InlineData("screen-off-timeout", "2147484", false)]
+    [InlineData("time-limit", "2147483648", false)]
+    [InlineData("tunnel-port", "65536", false)]
+    public void NativeScalarSyntaxMatchesEmittedArgument(string optionId, string value, bool expectedValid)
+    {
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences((optionId, value)));
+
+        Assert.Equal(expectedValid, result.IsValid);
+
+        if (expectedValid)
+        {
+            Assert.Contains($"--{optionId}={value}", result.Arguments);
+            return;
+        }
+
+        Assert.Empty(result.Arguments);
     }
 
     /// <summary>A session cannot disable all three meaningful channels at once.</summary>

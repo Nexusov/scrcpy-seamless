@@ -43,6 +43,7 @@ options:
     pattern: "^\\d+[KMkm]?$"
     defaultValue: "0"
     minimum: 0
+    maximum: 2147483647
   - id: "audio-buffer"
     longName: "audio-buffer"
     nativeId: "OPT_AUDIO_BUFFER"
@@ -55,6 +56,8 @@ options:
     valueKind: "unsignedInteger"
     label: "Audio buffer (ms)"
     pattern: "^\\d+$"
+    minimum: 0
+    maximum: 3600000
   - id: "audio-codec"
     longName: "audio-codec"
     nativeId: "OPT_AUDIO_CODEC"
@@ -160,6 +163,7 @@ options:
     legacyBasic: true
     defaultValue: "0"
     minimum: 0
+    maximum: 2147483647
   - id: "background-color"
     longName: "background-color"
     nativeId: "OPT_BACKGROUND_COLOR"
@@ -222,6 +226,7 @@ options:
       - "camera-source-rules"
     defaultValue: "0"
     minimum: 0
+    maximum: 65535
   - id: "camera-high-speed"
     longName: "camera-high-speed"
     nativeId: "OPT_CAMERA_HIGH_SPEED"
@@ -345,6 +350,7 @@ options:
       - "virtual-display-rules"
     defaultValue: "0"
     minimum: 0
+    maximum: 2147483647
   - id: "display-ime-policy"
     longName: "display-ime-policy"
     nativeId: "OPT_DISPLAY_IME_POLICY"
@@ -1071,6 +1077,8 @@ options:
     valueKind: "unsignedInteger"
     label: "Screen off timeout"
     pattern: "^\\d+$"
+    minimum: 0
+    maximum: 2147483
   - id: "shortcut-mod"
     longName: "shortcut-mod"
     nativeId: "OPT_SHORTCUT_MOD"
@@ -1129,6 +1137,7 @@ options:
     legacySeamlessCompatible: false
     defaultValue: "0"
     minimum: 0
+    maximum: 2147483647
   - id: "tunnel-host"
     longName: "tunnel-host"
     nativeId: "OPT_TUNNEL_HOST"
@@ -1152,6 +1161,8 @@ options:
     valueKind: "string"
     label: "Tunnel port"
     pattern: "^\\d+$"
+    minimum: 0
+    maximum: 65535
   - id: "version"
     longName: "version"
     shortName: "v"
@@ -1221,6 +1232,7 @@ options:
     pattern: "^\\d+$"
     defaultValue: "0"
     minimum: 0
+    maximum: 3600000
   - id: "video-codec"
     longName: "video-codec"
     nativeId: "OPT_VIDEO_CODEC"
@@ -1319,6 +1331,8 @@ options:
     valueKind: "string"
     label: "Window x"
     pattern: "^(auto|-?\\d+)$"
+    minimum: -32767
+    maximum: 32767
   - id: "window-y"
     longName: "window-y"
     nativeId: "OPT_WINDOW_Y"
@@ -1331,6 +1345,8 @@ options:
     valueKind: "string"
     label: "Window y"
     pattern: "^(auto|-?\\d+)$"
+    minimum: -32767
+    maximum: 32767
   - id: "window-width"
     longName: "window-width"
     nativeId: "OPT_WINDOW_WIDTH"
@@ -1345,6 +1361,7 @@ options:
     pattern: "^\\d+$"
     defaultValue: "0"
     minimum: 0
+    maximum: 65535
   - id: "window-height"
     longName: "window-height"
     nativeId: "OPT_WINDOW_HEIGHT"
@@ -1359,6 +1376,7 @@ options:
     pattern: "^\\d+$"
     defaultValue: "0"
     minimum: 0
+    maximum: 65535
   - id: "flex-display"
     longName: "flex-display"
     shortName: "x"

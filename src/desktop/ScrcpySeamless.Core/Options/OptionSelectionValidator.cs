@@ -43,6 +43,7 @@ public static class OptionSelectionValidator
         List<OptionDiagnostic> diagnostics = [];
         List<string> arguments = [];
         HashSet<string> activeOptions = new(StringComparer.Ordinal);
+        Dictionary<string, int> numericValues = new(StringComparer.Ordinal);
 
         foreach ((string optionId, JsonElement value) in preferences.Options)
         {
@@ -58,12 +59,17 @@ public static class OptionSelectionValidator
                 continue;
             }
 
-            OptionDiagnostic? valueIssue = ValidateValue(descriptor, value);
+            OptionDiagnostic? valueIssue = ValidateValue(descriptor, value, out int? numericValue);
 
             if (valueIssue is not null)
             {
                 diagnostics.Add(valueIssue);
                 continue;
+            }
+
+            if (numericValue is int parsedNumber)
+            {
+                numericValues.Add(optionId, parsedNumber);
             }
 
             if (IsActive(descriptor, value))
@@ -96,7 +102,7 @@ public static class OptionSelectionValidator
             }
         }
 
-        diagnostics.AddRange(OptionRuleRegistry.Validate(preferences.Options, activeOptions));
+        diagnostics.AddRange(OptionRuleRegistry.Validate(preferences.Options, activeOptions, numericValues));
 
         if (diagnostics.Count != 0)
         {
@@ -121,8 +127,10 @@ public static class OptionSelectionValidator
     }
 
     /// <summary>Checks one descriptor's simple static value contract.</summary>
-    private static OptionDiagnostic? ValidateValue(OptionDescriptor descriptor, JsonElement value)
+    private static OptionDiagnostic? ValidateValue(OptionDescriptor descriptor, JsonElement value, out int? numericValue)
     {
+        numericValue = null;
+
         if (descriptor.ArgumentShape == OptionArgumentShape.None)
         {
             return value.ValueKind is JsonValueKind.True or JsonValueKind.False
@@ -154,13 +162,39 @@ public static class OptionSelectionValidator
             return new OptionDiagnostic(OptionDiagnosticCode.InvalidValue, descriptor.Id);
         }
 
-        if (descriptor.Pattern is not null &&
+        bool nativeScalar = descriptor.ValueKind == OptionValueKind.UnsignedInteger ||
+            descriptor.Id is "tunnel-port" or "window-x" or "window-y";
+        bool nativeBitrate = descriptor.ValueKind == OptionValueKind.Bitrate;
+        bool automaticWindowPosition = (descriptor.Id is "window-x" or "window-y") && text == "auto";
+        bool nativeNumber = (nativeScalar && !automaticWindowPosition) || nativeBitrate;
+
+        // Legacy regex metadata remains unchanged; modern Core validates native number syntax here.
+        if (!nativeNumber && descriptor.Pattern is not null &&
             !Regex.IsMatch(text, descriptor.Pattern, RegexOptions.CultureInvariant, PatternTimeout))
         {
             return new OptionDiagnostic(OptionDiagnosticCode.InvalidValue, descriptor.Id);
         }
 
-        if (descriptor.ValueKind is OptionValueKind.Integer or OptionValueKind.UnsignedInteger or OptionValueKind.Decimal)
+        if (nativeNumber)
+        {
+            bool parsed = nativeBitrate
+                ? NativeIntegerSyntax.TryParseBitrate(text, out int parsedBitrate)
+                : NativeIntegerSyntax.TryParse(text, out parsedBitrate);
+            bool outsideMinimum = descriptor.Minimum is decimal minimum && parsedBitrate < minimum;
+            bool outsideMaximum = descriptor.Maximum is decimal maximum && parsedBitrate > maximum;
+            bool negativeUnsigned = (descriptor.ValueKind is OptionValueKind.UnsignedInteger or OptionValueKind.Bitrate) &&
+                parsedBitrate < 0;
+
+            if (!parsed || outsideMinimum || outsideMaximum || negativeUnsigned)
+            {
+                return new OptionDiagnostic(OptionDiagnosticCode.InvalidValue, descriptor.Id);
+            }
+
+            numericValue = parsedBitrate;
+            return null;
+        }
+
+        if (descriptor.ValueKind is OptionValueKind.Integer or OptionValueKind.Decimal)
         {
             bool parsed = decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
                 CultureInfo.InvariantCulture, out decimal number);

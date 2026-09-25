@@ -317,7 +317,7 @@ static bool parse_numeric_option(char *option, char *value,
     return scrcpy_parse_args(args, ARRAY_LEN(argv), argv);
 }
 
-// Check the native audio output buffer boundaries and malformed input.
+// Check the native audio output buffer boundaries and numeric spelling.
 static void test_audio_output_buffer_boundaries(void) {
     struct {
         char *value;
@@ -325,6 +325,9 @@ static void test_audio_output_buffer_boundaries(void) {
         unsigned milliseconds;
     } cases[] = {
         {"0", true, 0},
+        {"010", true, 8},
+        {"08", false, 0},
+        {"0x10", true, 16},
         {"1000", true, 1000},
         {"-1", false, 0},
         {"1001", false, 0},
@@ -346,7 +349,7 @@ static void test_audio_output_buffer_boundaries(void) {
     }
 }
 
-// Check the native maximum size boundaries and malformed input.
+// Check the native maximum size boundaries and base-zero numeric spelling.
 static void test_max_size_boundaries(void) {
     struct {
         char *value;
@@ -354,9 +357,20 @@ static void test_max_size_boundaries(void) {
         uint16_t size;
     } cases[] = {
         {"0", true, 0},
+        {"00", true, 0},
+        {"010", true, 8},
+        {"08", false, 0},
+        {"0x10", true, 16},
+        {"0X10", true, 16},
+        {"+010", true, 8},
+        {"-0", true, 0},
         {"65535", true, 65535},
         {"-1", false, 0},
         {"65536", false, 0},
+        {"0x", false, 0},
+        {"0xG", false, 0},
+        {"10x", false, 0},
+        {"999999999999999999999999", false, 0},
         {"invalid", false, 0},
     };
 
@@ -374,7 +388,7 @@ static void test_max_size_boundaries(void) {
     }
 }
 
-// Check the native power-of-two alignment domain and malformed input.
+// Check the native power-of-two alignment domain and numeric spelling.
 static void test_min_size_alignment_values(void) {
     struct {
         char *value;
@@ -385,7 +399,13 @@ static void test_min_size_alignment_values(void) {
         {"2", true, 2},
         {"4", true, 4},
         {"8", true, 8},
+        {"010", true, 8},
+        {"+010", true, 8},
         {"16", true, 16},
+        {"020", true, 16},
+        {"0x10", true, 16},
+        {"08", false, 0},
+        {"0x", false, 0},
         {"0", false, 0},
         {"3", false, 0},
         {"17", false, 0},
@@ -402,6 +422,41 @@ static void test_min_size_alignment_values(void) {
 
         if (accepted) {
             assert(args.opts.min_size_alignment == cases[index].alignment);
+        }
+    }
+}
+
+// Check base-zero bitrate values before and after native K/M multiplication.
+static void test_bit_rate_numeric_spelling(void) {
+    struct {
+        char *value;
+        bool accepted;
+        uint32_t bits_per_second;
+    } cases[] = {
+        {"010", true, 8},
+        {"010K", true, 8000},
+        {"0x10K", true, 16000},
+        {"0X10m", true, 16000000},
+        {"08K", false, 0},
+        {"0xK", false, 0},
+        {"2M", true, 2000000},
+        {"2147483647", true, 2147483647},
+        {"2147483648", false, 0},
+        {"2147M", true, 2147000000},
+        {"2148M", false, 0},
+        {"1KK", false, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--video-bit-rate",
+                                             cases[index].value, &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.video_bit_rate == cases[index].bits_per_second);
         }
     }
 }
@@ -450,6 +505,7 @@ int main(int argc, char *argv[]) {
     test_audio_output_buffer_boundaries();
     test_max_size_boundaries();
     test_min_size_alignment_values();
+    test_bit_rate_numeric_spelling();
     test_parse_shortcut_mods();
     return 0;
 }

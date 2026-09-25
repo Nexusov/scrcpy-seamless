@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 
@@ -28,9 +27,10 @@ internal static class OptionRuleRegistry
     /// <summary>Runs each referenced rule once in stable catalogue order.</summary>
     public static IReadOnlyList<OptionDiagnostic> Validate(
         IReadOnlyDictionary<string, JsonElement> selections,
-        IReadOnlySet<string> activeOptions)
+        IReadOnlySet<string> activeOptions,
+        IReadOnlyDictionary<string, int> numericValues)
     {
-        OptionContext context = new(selections, activeOptions);
+        OptionContext context = new(selections, activeOptions, numericValues);
         HashSet<string> visited = new(StringComparer.Ordinal);
         List<OptionDiagnostic> diagnostics = [];
 
@@ -155,9 +155,8 @@ internal static class OptionRuleRegistry
     /// <summary>Allows only native-supported powers of two for video size alignment.</summary>
     private static OptionDiagnostic? ValidateMinSizeAlignment(OptionContext context)
     {
-        string? text = context.Text("min-size-alignment");
-        bool validAlignment = uint.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture,
-            out uint alignment) && BitOperations.IsPow2(alignment);
+        bool validAlignment = context.Number("min-size-alignment") is int alignment &&
+            alignment > 0 && BitOperations.IsPow2((uint)alignment);
 
         return validAlignment ? null : Violation("min-size-alignment", MinSizeAlignmentRule);
     }
@@ -171,7 +170,8 @@ internal static class OptionRuleRegistry
     /// <summary>Provides safe access to already selected bool/string option values.</summary>
     private sealed class OptionContext(
         IReadOnlyDictionary<string, JsonElement> selections,
-        IReadOnlySet<string> activeOptions)
+        IReadOnlySet<string> activeOptions,
+        IReadOnlyDictionary<string, int> numericValues)
     {
         public bool Has(string optionId) => activeOptions.Contains(optionId);
 
@@ -184,9 +184,12 @@ internal static class OptionRuleRegistry
 
         public bool NonZero(string optionId)
         {
-            string? text = Text(optionId);
-            return text is not null && decimal.TryParse(text, System.Globalization.NumberStyles.Number,
-                System.Globalization.CultureInfo.InvariantCulture, out decimal number) && number != 0;
+            return Number(optionId) is int number && number != 0;
+        }
+
+        public int? Number(string optionId)
+        {
+            return numericValues.TryGetValue(optionId, out int number) ? number : null;
         }
     }
 }

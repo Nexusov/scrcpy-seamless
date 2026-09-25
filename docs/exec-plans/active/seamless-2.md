@@ -2,9 +2,9 @@
 
 Status: Phases 0–3 accepted and merged through PRs #1–#4. Phase 3 merged
 into `seamless-2.0` as `3207892ddd37cdd6b20bafc7c770a8470b6cb81f`,
-preserving all 11 Phase 3 commits. Phase 4 is locally complete on
-`2.0/p04-options` from that exact merge commit and awaits owner review; it has
-not been published. Final Phase 0 artifact evidence remains in the local
+preserving all 11 Phase 3 commits. Phase 4 is under review in PR #5 from
+`2.0/p04-options`, based on that exact merge commit; it is not merged. Final
+Phase 0 artifact evidence remains in the local
 handoff report.
 
 ## Authority and scope
@@ -18,8 +18,9 @@ The owner accepted the complete `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` charter on
 The owner accepted Phase 3 and authorized PR #4 merge-commit integration after
 its final hosted checks, followed by local Phase 4 only. PR #4 passed all four
 hosted jobs and was merged; its ancestry and short-lived branch cleanup were
-verified. Do not modify `main`, push Phase 4, create tags/releases, change
-repository settings, force-push, or enter Phase 5. Keep the current launcher
+verified. The owner authorized normal Phase 4 follow-up pushes to PR #5, but
+not its merge. Do not modify `main`, create tags/releases, change repository
+settings, force-push, or enter Phase 5. Keep the current launcher
 and imported runtime fallback functional; native lifecycle and product UI
 belong later.
 
@@ -239,13 +240,28 @@ data carries the three native numeric upper bounds, and one named typed rule
 checks alignment. Independent native parser tests exercise the same listed
 cases without ADB or a mirror window. The native parser, generated native
 table, legacy catalogue and frozen Phase 3 fixtures are unchanged. The
-separate leading-zero/base-zero lexical mismatch is documented in the
-[option guide](../../development/options.md) for a later scoped decision;
-this follow-up does not attempt a general integer-parser rewrite. Final local
+separate leading-zero/base-zero lexical mismatch was documented in the
+[option guide](../../development/options.md) for a later scoped decision.
+Final local
 validation passed locked restore, zero-warning Release build, 149/149 .NET
 tests (Core 92, Infrastructure 39, Desktop 2, SpecGen 16), 16/16 native tests,
 28/28 exact-archive legacy suites, SpecGen verify, DocsCheck, build metadata
 and diff checks. The reviewed Android server sources were unchanged.
+
+PR #5 numeric-syntax follow-up on 2026-09-25: focused Core regression tests
+failed 14/24 cases before the fix, including native-incompatible `08` and
+misclassified octal/hexadecimal spellings. A pure Windows C-long-width
+base-zero parser now supplies scalar range, alignment and conditional nonzero
+checks; bitrate K/M multiplication is checked separately. Core still emits
+the original validated raw value. Native CLI tests assert parsed numeric
+fields, while Core tests assert valid argument emission and rule outcomes.
+Canonical spec limits cover native scalar ranges without changing legacy
+regex fields. The native parser, legacy catalogue, frozen fixtures and v2 JSON
+shape remain unchanged. Local validation passed locked restore, zero-warning
+Release build, 196/196 .NET tests, 16/16 native tests, 28/28 legacy suites,
+SpecGen verify and repeat-generation byte identity, DocsCheck, metadata and
+diff checks. Structured `port` component syntax remains a separate parity
+limitation; no Phase 5 work or hardware claim is included.
 
 ## Validation boundaries
 

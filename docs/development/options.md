@@ -10,21 +10,24 @@ The canonical semantic `OptionId` is the invariant string `id` in the spec (equa
 
 Complex conditional semantics are implemented by named typed `RuleId` validators, not executable YAML. Examples include camera-source combinations, recording/playback constraints and virtual-display requirements. The temporary 1.x reconnect restrictions remain in the legacy catalogue/store; they are not permanent Core rules. The desktop validation layer returns machine-readable diagnostics for early feedback; native remains the final runtime authority. `MirroringPreferences.Options` retains its bool/string JSON shape. A stored unknown legacy option stays in configuration and produces an explicit unknown/unsupported diagnostic instead of being silently dropped or executed.
 
-Core mirrors three existing native numeric constraints: `audio-output-buffer`
-accepts 0–1000 ms, `max-size` accepts 0–65535, and `min-size-alignment`
-accepts powers of two from 1 through 16. Ranges live in the canonical data;
-the alignment power-of-two condition is a named typed rule. For `flex-display`,
-an explicitly configured zero window width or height still means automatic
-sizing, so only a nonzero effective dimension conflicts. These checks do not
-change native parsing or the 1.x catalogue projection.
+Core validates native scalar integers using the Windows native client's signed
+32-bit, base-zero interpretation: `010` is octal 8, `0x10` is hexadecimal 16,
+and `08` is invalid. This applies to editable unsigned integer options,
+`tunnel-port`, the numeric forms of `window-x` and `window-y`, and K/M-suffixed
+audio/video bitrates. Native ranges are canonical spec data, including
+`audio-output-buffer` (0–1000 ms), `max-size` (0–65535), and
+`min-size-alignment` (1, 2, 4, 8 or 16). The alignment power-of-two and
+conditional nonzero rules use the same parsed value. Core preserves the exact
+stored spelling in v2 JSON and emitted CLI arguments; native therefore receives
+the value Core validated. Core deliberately rejects sign-only tokens and
+leading whitespace, even where the C library happens to interpret them as zero
+or accept them. The frozen legacy catalogue retains its previous decimal regex
+fields; Core bypasses those regexes only for this native scalar family.
 
-A separate lexical parity gap remains outside this bounded constraint fix:
-native integer parsing uses C `strtol` with base zero, while Core currently
-interprets decimal-digit strings as decimal. For example, native accepts
-`min-size-alignment=010` as 8 and rejects `=08`, while Core reaches the opposite
-conclusions. The same leading-zero syntax can affect other integer options.
-Reconcile input syntax before treating Core validation as equivalent to native
-parsing for these spellings; this follow-up does not change either parser.
+For `flex-display`, an explicitly configured zero window width or height still
+means automatic sizing, so only a nonzero effective dimension conflicts. The
+structured `port` option has its own `N[:N]` grammar and remains outside this
+scalar correction; its leading-zero component parity requires separate work.
 
 ## Regeneration and verification
 
