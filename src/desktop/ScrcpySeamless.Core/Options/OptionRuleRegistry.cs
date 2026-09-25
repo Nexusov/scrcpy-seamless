@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 
 namespace ScrcpySeamless.Core.Options;
@@ -10,6 +12,7 @@ internal static class OptionRuleRegistry
     private const string RecordingRule = "recording-output-semantics";
     private const string VirtualDisplayRule = "virtual-display-rules";
     private const string SessionOutputRule = "session-output-required";
+    private const string MinSizeAlignmentRule = "min-size-alignment-power-of-two";
 
     private static readonly IReadOnlyDictionary<string, Func<OptionContext, OptionDiagnostic?>> Validators =
         new Dictionary<string, Func<OptionContext, OptionDiagnostic?>>(StringComparer.Ordinal)
@@ -19,6 +22,7 @@ internal static class OptionRuleRegistry
             [RecordingRule] = ValidateRecording,
             [VirtualDisplayRule] = ValidateVirtualDisplay,
             [SessionOutputRule] = ValidateSessionOutput,
+            [MinSizeAlignmentRule] = ValidateMinSizeAlignment,
         };
 
     /// <summary>Runs each referenced rule once in stable catalogue order.</summary>
@@ -127,7 +131,7 @@ internal static class OptionRuleRegistry
 
         if (context.Has("flex-display") && (!context.Has("new-display") || cameraSelected ||
             context.Has("no-control") || context.Has("crop") ||
-            context.Has("window-width") || context.Has("window-height")))
+            context.NonZero("window-width") || context.NonZero("window-height")))
         {
             return Violation("flex-display", VirtualDisplayRule);
         }
@@ -146,6 +150,16 @@ internal static class OptionRuleRegistry
         bool nothingToDo = videoDisabled && audioDisabled && context.Has("no-control");
 
         return nothingToDo ? Violation("no-control", SessionOutputRule) : null;
+    }
+
+    /// <summary>Allows only native-supported powers of two for video size alignment.</summary>
+    private static OptionDiagnostic? ValidateMinSizeAlignment(OptionContext context)
+    {
+        string? text = context.Text("min-size-alignment");
+        bool validAlignment = uint.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture,
+            out uint alignment) && BitOperations.IsPow2(alignment);
+
+        return validAlignment ? null : Violation("min-size-alignment", MinSizeAlignmentRule);
     }
 
     /// <summary>Creates a typed diagnostic for one conditional rule.</summary>

@@ -14,7 +14,7 @@ internal static class SpecValidator
     internal static readonly HashSet<string> Categories =
         ["Audio", "Camera", "Control", "Device", "Recording", "Technical", "Video", "Window"];
     private static readonly HashSet<string> KnownRuleIds =
-        ["audio-dup-requires-playback", "camera-source-rules", "recording-output-semantics", "virtual-display-rules", "session-output-required"];
+        ["audio-dup-requires-playback", "camera-source-rules", "recording-output-semantics", "virtual-display-rules", "session-output-required", "min-size-alignment-power-of-two"];
 
     public static void Validate(OptionSpecification specification)
     {

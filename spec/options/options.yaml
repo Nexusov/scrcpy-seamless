@@ -145,6 +145,7 @@ options:
     pattern: "^\\d+$"
     defaultValue: "10"
     minimum: 0
+    maximum: 1000
   - id: "video-bit-rate"
     longName: "video-bit-rate"
     shortName: "b"
@@ -571,6 +572,7 @@ options:
     legacyBasic: true
     defaultValue: "0"
     minimum: 0
+    maximum: 65535
   - id: "mouse-uhid-shortcut"
     shortName: "M"
     argumentShape: "none"
@@ -609,6 +611,9 @@ options:
     pattern: "^\\d+$"
     defaultValue: "1"
     minimum: 1
+    maximum: 16
+    ruleIds:
+      - "min-size-alignment-power-of-two"
   - id: "mouse"
     longName: "mouse"
     nativeId: "OPT_MOUSE"

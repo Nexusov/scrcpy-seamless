@@ -270,6 +270,142 @@ static void test_options2(void) {
     assert(opts->record_format == SC_RECORD_FORMAT_MP4);
 }
 
+// Check that flex display conflicts with effective, nonzero window dimensions.
+static void test_flex_display_window_dimensions(void) {
+    struct {
+        int argc;
+        char *argv[7];
+        bool accepted;
+        uint16_t width;
+        uint16_t height;
+    } cases[] = {
+        {3, {"scrcpy", "--new-display", "--flex-display"}, true, 0, 0},
+        {5, {"scrcpy", "--new-display", "--flex-display",
+             "--window-width", "0"}, true, 0, 0},
+        {5, {"scrcpy", "--new-display", "--flex-display",
+             "--window-height", "0"}, true, 0, 0},
+        {7, {"scrcpy", "--new-display", "--flex-display",
+             "--window-width", "0", "--window-height", "0"},
+             true, 0, 0},
+        {5, {"scrcpy", "--new-display", "--flex-display",
+             "--window-width", "1"}, false, 0, 0},
+        {5, {"scrcpy", "--new-display", "--flex-display",
+             "--window-height", "1"}, false, 0, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = scrcpy_parse_args(&args, cases[index].argc,
+                                          cases[index].argv);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.new_display);
+            assert(args.opts.flex_display);
+            assert(args.opts.window_width == cases[index].width);
+            assert(args.opts.window_height == cases[index].height);
+        }
+    }
+}
+
+// Parse one numeric option through the native CLI and its final validation.
+static bool parse_numeric_option(char *option, char *value,
+                                 struct scrcpy_cli_args *args) {
+    char *argv[] = {"scrcpy", option, value};
+    return scrcpy_parse_args(args, ARRAY_LEN(argv), argv);
+}
+
+// Check the native audio output buffer boundaries and malformed input.
+static void test_audio_output_buffer_boundaries(void) {
+    struct {
+        char *value;
+        bool accepted;
+        unsigned milliseconds;
+    } cases[] = {
+        {"0", true, 0},
+        {"1000", true, 1000},
+        {"-1", false, 0},
+        {"1001", false, 0},
+        {"invalid", false, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--audio-output-buffer",
+                                             cases[index].value, &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.audio_output_buffer
+                   == SC_TICK_FROM_MS(cases[index].milliseconds));
+        }
+    }
+}
+
+// Check the native maximum size boundaries and malformed input.
+static void test_max_size_boundaries(void) {
+    struct {
+        char *value;
+        bool accepted;
+        uint16_t size;
+    } cases[] = {
+        {"0", true, 0},
+        {"65535", true, 65535},
+        {"-1", false, 0},
+        {"65536", false, 0},
+        {"invalid", false, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--max-size",
+                                             cases[index].value, &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.max_size == cases[index].size);
+        }
+    }
+}
+
+// Check the native power-of-two alignment domain and malformed input.
+static void test_min_size_alignment_values(void) {
+    struct {
+        char *value;
+        bool accepted;
+        uint8_t alignment;
+    } cases[] = {
+        {"1", true, 1},
+        {"2", true, 2},
+        {"4", true, 4},
+        {"8", true, 8},
+        {"16", true, 16},
+        {"0", false, 0},
+        {"3", false, 0},
+        {"17", false, 0},
+        {"invalid", false, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--min-size-alignment",
+                                             cases[index].value, &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.min_size_alignment == cases[index].alignment);
+        }
+    }
+}
+
 static void test_parse_shortcut_mods(void) {
     uint8_t mods;
     bool ok;
@@ -310,6 +446,10 @@ int main(int argc, char *argv[]) {
     test_generated_option_help();
     test_options();
     test_options2();
+    test_flex_display_window_dimensions();
+    test_audio_output_buffer_boundaries();
+    test_max_size_boundaries();
+    test_min_size_alignment_values();
     test_parse_shortcut_mods();
     return 0;
 }

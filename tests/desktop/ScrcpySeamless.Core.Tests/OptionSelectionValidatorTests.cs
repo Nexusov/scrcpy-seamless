@@ -134,6 +134,71 @@ public sealed class OptionSelectionValidatorTests
         Assert.Contains(result.Diagnostics, issue => issue.RuleId == "virtual-display-rules");
     }
 
+    /// <summary>Automatic zero dimensions do not conflict with flexible virtual display sizing.</summary>
+    [Theory]
+    [InlineData(null, null, true)]
+    [InlineData("0", null, true)]
+    [InlineData(null, "0", true)]
+    [InlineData("0", "0", true)]
+    [InlineData("1", null, false)]
+    [InlineData(null, "1", false)]
+    public void FlexDisplayUsesEffectiveWindowDimensions(string? width, string? height, bool expectedValid)
+    {
+        List<(string OptionId, object Value)> selections = [("new-display", ""), ("flex-display", true)];
+
+        if (width is not null)
+        {
+            selections.Add(("window-width", width));
+        }
+
+        if (height is not null)
+        {
+            selections.Add(("window-height", height));
+        }
+
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences([.. selections]));
+
+        Assert.Equal(expectedValid, result.IsValid);
+
+        if (!expectedValid)
+        {
+            Assert.Contains(result.Diagnostics, issue => issue.RuleId == "virtual-display-rules");
+        }
+    }
+
+    /// <summary>Native numeric boundaries are enforced before constructing CLI arguments.</summary>
+    [Theory]
+    [InlineData("audio-output-buffer", "0", true)]
+    [InlineData("audio-output-buffer", "1000", true)]
+    [InlineData("audio-output-buffer", "-1", false)]
+    [InlineData("audio-output-buffer", "1001", false)]
+    [InlineData("audio-output-buffer", "invalid", false)]
+    [InlineData("max-size", "0", true)]
+    [InlineData("max-size", "65535", true)]
+    [InlineData("max-size", "-1", false)]
+    [InlineData("max-size", "65536", false)]
+    [InlineData("min-size-alignment", "1", true)]
+    [InlineData("min-size-alignment", "2", true)]
+    [InlineData("min-size-alignment", "4", true)]
+    [InlineData("min-size-alignment", "8", true)]
+    [InlineData("min-size-alignment", "16", true)]
+    [InlineData("min-size-alignment", "0", false)]
+    [InlineData("min-size-alignment", "3", false)]
+    [InlineData("min-size-alignment", "17", false)]
+    [InlineData("min-size-alignment", "invalid", false)]
+    [InlineData("min-size-alignment", "1.5", false)]
+    public void NativeNumericConstraintsAreApplied(string optionId, string value, bool expectedValid)
+    {
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences((optionId, value)));
+
+        Assert.Equal(expectedValid, result.IsValid);
+
+        if (!expectedValid)
+        {
+            Assert.Empty(result.Arguments);
+        }
+    }
+
     /// <summary>A session cannot disable all three meaningful channels at once.</summary>
     [Fact]
     public void SessionOutputRuleRejectsNoVideoAudioOrControl()

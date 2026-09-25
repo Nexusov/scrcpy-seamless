@@ -10,6 +10,22 @@ The canonical semantic `OptionId` is the invariant string `id` in the spec (equa
 
 Complex conditional semantics are implemented by named typed `RuleId` validators, not executable YAML. Examples include camera-source combinations, recording/playback constraints and virtual-display requirements. The temporary 1.x reconnect restrictions remain in the legacy catalogue/store; they are not permanent Core rules. The desktop validation layer returns machine-readable diagnostics for early feedback; native remains the final runtime authority. `MirroringPreferences.Options` retains its bool/string JSON shape. A stored unknown legacy option stays in configuration and produces an explicit unknown/unsupported diagnostic instead of being silently dropped or executed.
 
+Core mirrors three existing native numeric constraints: `audio-output-buffer`
+accepts 0–1000 ms, `max-size` accepts 0–65535, and `min-size-alignment`
+accepts powers of two from 1 through 16. Ranges live in the canonical data;
+the alignment power-of-two condition is a named typed rule. For `flex-display`,
+an explicitly configured zero window width or height still means automatic
+sizing, so only a nonzero effective dimension conflicts. These checks do not
+change native parsing or the 1.x catalogue projection.
+
+A separate lexical parity gap remains outside this bounded constraint fix:
+native integer parsing uses C `strtol` with base zero, while Core currently
+interprets decimal-digit strings as decimal. For example, native accepts
+`min-size-alignment=010` as 8 and rejects `=08`, while Core reaches the opposite
+conclusions. The same leading-zero syntax can affect other integer options.
+Reconcile input syntax before treating Core validation as equivalent to native
+parsing for these spellings; this follow-up does not change either parser.
+
 ## Regeneration and verification
 
 From the repository root, use the pinned SDK as described in the [Desktop build guide](desktop-build.md), then restore the solution in locked mode and run:
