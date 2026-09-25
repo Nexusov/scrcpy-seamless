@@ -31,7 +31,8 @@
               AutomationProperties.AutomationId="devices.empty">
         <StackPanel Spacing="12" Margin="4,8,4,12">
           <TextBlock Text="{Binding EmptyTitle}" Classes="sectionTitle" />
-          <TextBlock Text="{Binding EmptyBody}" Classes="muted" MaxWidth="560" />
+          <TextBlock Text="{Binding EmptyBody}" Classes="muted" MaxWidth="560"
+                     HorizontalAlignment="Left" />
         </StackPanel>
       </Border>
       <ItemsControl ItemsSource="{Binding Cards}">
