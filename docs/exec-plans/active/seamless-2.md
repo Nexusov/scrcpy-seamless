@@ -434,23 +434,28 @@ remain distinct; Desktop key events or global hooks are not a substitute.
 
 ### Phase 5B local validation
 
-Code source `17116ca07c623b2175f52015e80fc0d92738e51a` produced the
-self-contained `dist/dev/scrcpy-seamless-desktop-p05b-g17116ca/` Windows x64
-DEV application. Normal-mode writes were exercised only under the ignored
+Code source `190b37c2953c1822869c4a1c5f8971274c2d9389` produced the
+self-contained `dist/dev/scrcpy-seamless-desktop-p05b-g190b37c2/` Windows x64
+DEV application. An earlier source build at `17116ca07c623b2175f52015e80fc0d92738e51a`
+performed the initial write/restart UI exercise; the final source adds only a
+safe close-time discard for stale drafts and was run against those saved files.
+Normal-mode writes were exercised only under the ignored
 `.dev-data/p05b/` directory, which was absent at first launch and remained
 absent until Apply. A real first process saved a synthetic profile, raw
 `max-size=1024`, accent `#3B82F6` and 110% interface scale. A second process
 loaded those values; editing `max-size` to `2048` and selecting Cancel returned
-the visible value to `1024`. A separate synthetic invalid-v2 root remained
-unchanged and disabled editing. Actual running-window captures of preview,
-dirty/saved settings, profile editing/restart and invalid-v2 state are under
-ignored `work/phase5b/screenshots/`. These are Desktop-only observations; no
+the visible value to `1024`; the final build repeated that Cancel check. A
+separate synthetic invalid-v2 root remained unchanged and disabled editing.
+Actual running-window captures of final preview, dirty/saved settings, saved
+profile and invalid-v2 state are under ignored
+`work/phase5b/screenshots/g190b37c2/`. These are Desktop-only observations; no
 phone, discovery, native mirroring or hardware outcome is claimed.
 
 Locked restore, zero-warning Release build, 272/272 .NET tests, 28/28 legacy
 PowerShell suites, native Meson 16/16 tests including port-parser endpoints,
 SpecGen verify (109 native entries and six outputs), DocsCheck and build
-metadata checks passed. Headless tests cover detached drafts, raw values,
+metadata checks passed. After the close-time correction, the warning-free
+Release build and all 39 Desktop tests passed again. Headless tests cover detached drafts, raw values,
 profile identity, migration authority, preference conflict/fallback,
 shortcuts, preview isolation and enlarged-metrics reachability. Real Windows
 screen-reader and multi-monitor behavior remain unverified for the later
