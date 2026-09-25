@@ -1,10 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 
 namespace ScrcpySeamless.Desktop;
 
-/// <summary>Provides the minimal desktop application lifetime.</summary>
+/// <summary>Provides the Desktop lifetime and explicit launch composition.</summary>
 public partial class App : Application
 {
     /// <summary>Loads the application theme.</summary>
@@ -13,12 +14,15 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    /// <summary>Creates the placeholder window for the desktop lifetime.</summary>
+    /// <summary>Creates one shell from normal or explicitly requested preview sources.</summary>
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
         {
-            desktopLifetime.MainWindow = new MainWindow();
+            DesktopLaunchOptions options = DesktopLaunchOptions.Parse(desktopLifetime.Args ?? []);
+            RequestedThemeVariant = options.Dark ? ThemeVariant.Dark : ThemeVariant.Light;
+            desktopLifetime.MainWindow = new MainWindow(DesktopComposition.Create(options,
+                dark => RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light));
         }
 
         base.OnFrameworkInitializationCompleted();

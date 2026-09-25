@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.OptionRowView"
+             x:DataType="vm:OptionRowViewModel">
+  <Border Classes="card" Margin="0,0,0,10" Padding="18"
+          AutomationProperties.AutomationId="{Binding AutomationId}">
+    <StackPanel Spacing="12">
+      <StackPanel Spacing="7">
+        <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Description}" Classes="muted" FontSize="12" />
+        <TextBlock Text="{Binding DefaultLabel}" Classes="muted" FontSize="11" />
+        <TextBlock Text="{Binding PortUnavailableLabel}" Classes="muted" FontSize="11"
+                   IsVisible="{Binding IsCompositePort}" />
+        <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource WarningBrush}"
+                   FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                   IsVisible="{Binding HasValidation}" />
+      </StackPanel>
+      <StackPanel Spacing="9" HorizontalAlignment="Left" MinWidth="180" MaxWidth="300">
+        <TextBlock Text="{Binding OriginLabel}" FontSize="11"
+                   Foreground="{DynamicResource AccentBrush}" />
+        <CheckBox IsVisible="{Binding IsBoolean}" IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                  Content="{Binding Label}" AutomationProperties.Name="{Binding Label}" />
+        <ComboBox IsVisible="{Binding IsChoice}" IsEnabled="{Binding CanEdit}"
+                  ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding Label}" />
+        <TextBox Name="OptionEditor" IsVisible="{Binding IsText}" IsEnabled="{Binding CanEdit}"
+                 Text="{Binding TextValue, Mode=TwoWay}" AutomationProperties.Name="{Binding Label}" />
+        <Button Content="{Binding ResetLabel}" Command="{Binding ResetCommand}"
+                IsVisible="{Binding HasOverride}" HorizontalAlignment="Left"
+                AutomationProperties.Name="{Binding ResetLabel}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

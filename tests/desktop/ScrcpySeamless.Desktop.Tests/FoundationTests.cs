@@ -4,6 +4,9 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using ScrcpySeamless.Core.Options;
 using ScrcpySeamless.Desktop;
+using ScrcpySeamless.Desktop.Presentation;
+using Avalonia.Styling;
+using Avalonia.VisualTree;
 using System.Text.Json;
 using Xunit;
 
@@ -21,20 +24,79 @@ public static class TestApplicationBuilder
     }
 }
 
-/// <summary>Checks that XAML, theme, and compiled binding start together.</summary>
+/// <summary>Checks that the product shell and typed views load under Avalonia.Headless.</summary>
 public sealed class FoundationTests
 {
-    /// <summary>Loads the placeholder window and its compiled binding.</summary>
+    /// <summary>Loads the normal empty state and navigates only to implemented destinations.</summary>
     [AvaloniaFact]
-    public void PlaceholderWindowLoads()
+    public void ShellLoadsAndNavigates()
     {
-        var window = new MainWindow();
+        var shell = DesktopComposition.Create(new DesktopLaunchOptions(false, false, null, false), _ => { });
+        var window = new MainWindow(shell);
         window.Show();
 
-        var status = window.FindControl<TextBlock>("FoundationStatus");
-        Assert.NotNull(status);
-        Assert.Equal("Desktop build foundation ready", status.Text);
+        var devices = window.FindControl<Button>("DevicesNavigation");
+        var settings = window.FindControl<Button>("SettingsNavigation");
+        var content = window.FindControl<ContentControl>("WorkspaceContent");
+        Assert.NotNull(devices);
+        Assert.NotNull(settings);
+        Assert.NotNull(content);
+        Assert.Same(shell.Devices, content.Content);
+        Assert.True(shell.Devices.IsEmpty);
 
+        settings.Command!.Execute(null);
+        Assert.Same(shell.Settings, content.Content);
+        devices.Command!.Execute(null);
+        Assert.Same(shell.Devices, content.Content);
+
+        window.Close();
+    }
+
+    /// <summary>Checks practical laptop dimensions and both Fluent theme variants.</summary>
+    [AvaloniaFact]
+    public void ShellLaysOutInLightAndDark()
+    {
+        var shell = DesktopComposition.Create(new DesktopLaunchOptions(true, false, "fallback", false), _ => { });
+        var window = new MainWindow(shell) { Width = 900, Height = 620, RequestedThemeVariant = ThemeVariant.Light };
+        window.Show();
+        window.UpdateLayout();
+        Assert.True(window.Bounds.Width >= 780);
+        Assert.True(window.Bounds.Height >= 580);
+
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        window.UpdateLayout();
+        Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant);
+        Assert.Single(shell.Devices.Cards);
+        window.Close();
+    }
+
+    /// <summary>Mounting and searching Settings does not create an override or hide validation.</summary>
+    [AvaloniaFact]
+    public void SettingsViewKeepsDraftDetachedAndShowsCoreError()
+    {
+        var normal = DesktopComposition.Create(new DesktopLaunchOptions(false, false, null, true), _ => { });
+        var window = new MainWindow(normal) { Width = 900, Height = 620 };
+        window.Show();
+        window.UpdateLayout();
+        Assert.Empty(normal.Settings.DraftValues);
+
+        normal.Settings.SearchText = "max-size";
+        window.UpdateLayout();
+        Assert.Empty(normal.Settings.DraftValues);
+
+        var row = Assert.Single(normal.Settings.VisibleRows);
+        var editor = Assert.Single(window.GetVisualDescendants().OfType<TextBox>(), box => box.Name == "OptionEditor");
+        editor.Text = "08";
+        window.UpdateLayout();
+        Assert.Equal("08", normal.Settings.DraftValues["max-size"].GetString());
+        Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), block =>
+            block.Text == row.ValidationMessage && block.IsVisible);
+
+        var reset = Assert.Single(window.GetVisualDescendants().OfType<Button>(), button => button.Name == "ResetDraftButton");
+        reset.Command!.Execute(null);
+        window.UpdateLayout();
+        Assert.Empty(normal.Settings.DraftValues);
+        Assert.False(row.HasOverride);
         window.Close();
     }
 

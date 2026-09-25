@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             xmlns:views="using:ScrcpySeamless.Desktop.Views"
+             x:Class="ScrcpySeamless.Desktop.Views.DevicesView"
+             x:DataType="vm:DevicesViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,28" Spacing="24">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Spacing="5">
+          <TextBlock Classes="eyebrow" Text="{Binding Eyebrow}" />
+          <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+          <TextBlock Classes="muted" Text="{Binding Subtitle}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Spacing="5" IsVisible="{Binding IsPreview}"
+                    VerticalAlignment="Bottom" MinWidth="210">
+          <TextBlock Text="{Binding ScenarioLabel}" FontSize="11" Classes="muted" />
+          <ComboBox Name="ScenarioPicker" ItemsSource="{Binding Scenarios}"
+                    SelectedItem="{Binding SelectedScenario, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="preview.scenario"
+                    AutomationProperties.Name="{Binding ScenarioLabel}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeviceScenarioChoice">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+      </Grid>
+      <Border Classes="card" IsVisible="{Binding IsEmpty}"
+              AutomationProperties.AutomationId="devices.empty">
+        <StackPanel Spacing="12" Margin="4,8,4,12">
+          <TextBlock Text="{Binding EmptyTitle}" Classes="sectionTitle" />
+          <TextBlock Text="{Binding EmptyBody}" Classes="muted" MaxWidth="560" />
+        </StackPanel>
+      </Border>
+      <ItemsControl ItemsSource="{Binding Cards}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:DeviceCardViewModel">
+            <views:DeviceCardView />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

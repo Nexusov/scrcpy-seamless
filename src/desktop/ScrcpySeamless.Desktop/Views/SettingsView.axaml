@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             xmlns:views="using:ScrcpySeamless.Desktop.Views"
+             x:Class="ScrcpySeamless.Desktop.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="32,28" RowSpacing="20">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+      <StackPanel Spacing="5">
+        <TextBlock Classes="eyebrow" Text="{Binding Eyebrow}" />
+        <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="muted" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
+              VerticalAlignment="Bottom" AutomationProperties.AutomationId="settings.resetDraft"
+              AutomationProperties.Name="{Binding ResetLabel}" />
+    </Grid>
+    <Border Grid.Row="1" Background="{DynamicResource AccentSoftBrush}" CornerRadius="8"
+            Padding="16,11">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding GlobalLabel}" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+        <TextBlock Text="{Binding UnsavedLabel}" Classes="muted" FontSize="11" />
+      </StackPanel>
+    </Border>
+    <Grid Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18">
+      <StackPanel Grid.Column="0" Spacing="8">
+        <TextBlock Text="{Binding CategoriesLabel}" Classes="eyebrow" />
+        <ListBox Name="CategoryList" ItemsSource="{Binding Categories}"
+                 SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="settings.categories"
+                 AutomationProperties.Name="{Binding CategoriesLabel}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsCategory">
+              <TextBlock Text="{Binding Label}" Margin="6,4" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
+        <TextBox Name="OptionSearch" Grid.Row="0" Text="{Binding SearchText, Mode=TwoWay}"
+                 PlaceholderText="{Binding SearchWatermark}"
+                 AutomationProperties.AutomationId="settings.search"
+                 AutomationProperties.Name="{Binding SearchLabel}" />
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="12">
+            <TextBlock Text="{Binding EmptyLabel}" IsVisible="{Binding HasNoResults}"
+                       Classes="muted" Margin="8,16" />
+            <ItemsControl ItemsSource="{Binding VisibleRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:OptionRowViewModel">
+                  <views:OptionRowView />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>
