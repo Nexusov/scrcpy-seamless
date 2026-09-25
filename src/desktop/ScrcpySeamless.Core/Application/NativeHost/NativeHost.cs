@@ -30,6 +30,10 @@ public sealed class NativeStartRequest
     public SessionId SessionId { get; }
     public ConnectionPlan Plan { get; }
     public ProfileId ProfileId => Plan.ProfileId;
+    public string SelectedAdbSerial { get; }
+    public TransportKind SelectedTransport { get; }
+    public NetworkEndpoint? ReconnectEndpoint { get; }
+    public string? ConfigurationRevision { get; }
     public MirroringPreferences Mirroring => new()
     {
         Reconnect = reconnect,
@@ -37,7 +41,9 @@ public sealed class NativeStartRequest
     };
 
     /// <summary>Captures validated mirroring preferences without retaining a mutable caller dictionary.</summary>
-    public NativeStartRequest(SessionId sessionId, ConnectionPlan plan, MirroringPreferences mirroring)
+    public NativeStartRequest(SessionId sessionId, ConnectionPlan plan, MirroringPreferences mirroring,
+        string selectedAdbSerial, TransportKind selectedTransport,
+        NetworkEndpoint? reconnectEndpoint, string? configurationRevision)
     {
         if (sessionId.Value == Guid.Empty)
         {
@@ -52,8 +58,23 @@ public sealed class NativeStartRequest
             throw new ArgumentException("Mirroring preferences are invalid.", nameof(mirroring));
         }
 
+        if (string.IsNullOrWhiteSpace(selectedAdbSerial) || selectedAdbSerial.Any(char.IsControl) ||
+            !Enum.IsDefined(selectedTransport))
+        {
+            throw new ArgumentException("An explicit ADB transport selection is required.", nameof(selectedAdbSerial));
+        }
+
+        if (configurationRevision is not null && configurationRevision.Length == 0)
+        {
+            throw new ArgumentException("A configuration revision cannot be empty.", nameof(configurationRevision));
+        }
+
         SessionId = sessionId;
         Plan = plan;
+        SelectedAdbSerial = selectedAdbSerial;
+        SelectedTransport = selectedTransport;
+        ReconnectEndpoint = reconnectEndpoint;
+        ConfigurationRevision = configurationRevision;
         reconnect = mirroring.Reconnect;
         options = mirroring.Options.ToDictionary(
             option => option.Key,
