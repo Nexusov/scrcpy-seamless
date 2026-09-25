@@ -7,13 +7,16 @@ namespace ScrcpySeamless.Desktop;
 /// <summary>Owns the two independent normal-mode save groups and their explicit data root.</summary>
 public sealed class NormalDesktopComposition
 {
+    private readonly PresentationText text;
+
     public NormalDesktopComposition(
         ShellViewModel shell,
         SettingsViewModel settings,
         ProfilesViewModel profiles,
         ConfigurationWorkspaceViewModel configuration,
         DesktopPreferencesViewModel preferences,
-        ApplicationDataPaths dataPaths)
+        ApplicationDataPaths dataPaths,
+        PresentationText text)
     {
         Shell = shell;
         Settings = settings;
@@ -21,6 +24,7 @@ public sealed class NormalDesktopComposition
         Configuration = configuration;
         Preferences = preferences;
         DataPaths = dataPaths;
+        this.text = text;
     }
 
     public ShellViewModel Shell { get; }
@@ -33,8 +37,8 @@ public sealed class NormalDesktopComposition
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
     public string DirtyGroupsLabel => string.Join(" and ", new[]
     {
-        Configuration.IsDirty || Profiles.HasUnstagedChanges ? "Device/Profiles/Mirroring" : null,
-        Preferences.IsDirty ? "Desktop Appearance/Shortcuts" : null,
+        Configuration.IsDirty || Profiles.HasUnstagedChanges ? text.Get("close.configurationGroup") : null,
+        Preferences.IsDirty ? text.Get("close.desktopGroup") : null,
     }.Where(group => group is not null));
 
     /// <summary>Loads selected files without creating absent documents or probing any device.</summary>
@@ -147,7 +151,7 @@ public static class NormalDesktopFactory
             shell.ShowProfiles();
         }
 
-        return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences, paths);
+        return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences, paths, text);
     }
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>

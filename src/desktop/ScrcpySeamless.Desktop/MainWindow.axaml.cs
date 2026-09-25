@@ -1,4 +1,6 @@
+using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Layout;
@@ -15,6 +17,7 @@ public partial class MainWindow : Window
     private NormalDesktopComposition? normalComposition;
     private bool closeApproved;
     private bool closePromptOpen;
+    private readonly PresentationText closeText = new();
 
     /// <summary>Provides a truthful empty design-time shell.</summary>
     public MainWindow() : this(DesktopComposition.Create(new DesktopLaunchOptions(false, AppTheme.System, null, false), _ => { }))
@@ -155,11 +158,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Asks for the exact owned save groups without silently writing or discarding.</summary>
-    private Task<CloseDecision> AskCloseDecisionAsync(string groups)
+    protected virtual Task<CloseDecision> AskCloseDecisionAsync(string groups)
     {
         Window dialog = new()
         {
-            Title = "Unsaved changes",
+            Title = closeText.Get("close.unsavedTitle"),
             Width = 480,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -168,17 +171,20 @@ public partial class MainWindow : Window
         StackPanel content = new() { Margin = new Avalonia.Thickness(20), Spacing = 14 };
         content.Children.Add(new TextBlock
         {
-            Text = $"Unsaved changes in {groups}. Apply, discard, or stay in Settings?",
+            Text = string.Format(CultureInfo.CurrentCulture, closeText.Get("close.unsavedMessage"), groups),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         });
         StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
 
-        foreach ((string label, CloseDecision decision) in new[]
+        foreach ((string label, string automationId, CloseDecision decision) in new[]
         {
-            ("Apply", CloseDecision.Apply), ("Discard", CloseDecision.Discard), ("Stay", CloseDecision.Stay),
+            (closeText.Get("close.saveAndClose"), "close.saveAndClose", CloseDecision.Apply),
+            (closeText.Get("close.discardAndClose"), "close.discardAndClose", CloseDecision.Discard),
+            (closeText.Get("close.keepEditing"), "close.keepEditing", CloseDecision.Stay),
         })
         {
             Button button = new() { Content = label };
+            AutomationProperties.SetAutomationId(button, automationId);
             button.Click += (_, _) => dialog.Close(decision);
             actions.Children.Add(button);
         }
@@ -189,11 +195,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Explains a partial or failed close-time save while retaining all unsaved drafts.</summary>
-    private async Task ShowCloseFailureAsync()
+    protected virtual async Task ShowCloseFailureAsync()
     {
         Window dialog = new()
         {
-            Title = "Changes remain open",
+            Title = closeText.Get("close.failureTitle"),
             Width = 480,
             Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -201,14 +207,13 @@ public partial class MainWindow : Window
             {
                 Margin = new Avalonia.Thickness(20),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Text = "A save failed. A previously completed save may remain committed; the other draft is still open. " +
-                    "Review each group's status before closing.",
+                Text = closeText.Get("close.failureMessage"),
             },
         };
         await dialog.ShowDialog(this);
     }
 
-    private enum CloseDecision { Stay, Apply, Discard }
+    protected enum CloseDecision { Stay, Apply, Discard }
 
     /// <summary>Loads the window markup.</summary>
     private void InitializeComponent()

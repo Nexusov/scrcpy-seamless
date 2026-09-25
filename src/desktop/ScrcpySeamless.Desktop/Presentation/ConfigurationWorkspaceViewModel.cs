@@ -44,6 +44,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     private ConfigurationMigrationSummary? migrationSummary;
     private int operationActive;
     private string? lastCommandErrorKind;
+    private ProfilesViewModel? profileEditor;
 
     /// <summary>Constructs an in-memory workspace; the caller selects persistent adapters explicitly.</summary>
     public ConfigurationWorkspaceViewModel(
@@ -57,7 +58,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
         optionDraft.Changed += OnOptionChanged;
         ApplyCommand = new AsyncActionCommand(
             async () => { await ApplyAsync(CancellationToken.None); },
-            () => CanEdit && IsDirty,
+            () => CanEdit && IsDirty && !HasPendingProfileEdit,
             ReportCommandError);
         CancelCommand = new AsyncActionCommand(
             () => { CancelChanges(); return Task.CompletedTask; },
@@ -77,7 +78,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
             ReportCommandError);
         ReloadCommand = new AsyncActionCommand(
             async () => { await LoadAsync(CancellationToken.None); },
-            () => !IsBusy,
+            () => !IsBusy && (!ReloadBlockedByUnsavedChanges || RequiresReload),
             ReportCommandError);
     }
 
@@ -101,6 +102,9 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     public ConfigurationV2? Draft => session.Draft;
     public string? Revision => session.Revision;
     public bool IsDirty => session.IsDirty;
+    public bool HasPendingProfileEdit => profileEditor?.HasUnstagedChanges == true;
+    public bool ReloadBlockedByUnsavedChanges => IsDirty || HasPendingProfileEdit;
+    public bool ReloadRequiresDiscard => RequiresReload && ReloadBlockedByUnsavedChanges;
     public bool IsBusy => Volatile.Read(ref operationActive) != 0 || session.IsBusy;
     public bool RequiresReload => session.RequiresReload;
     public bool HasPreparedMigration => preparedMigration is not null;
@@ -120,6 +124,29 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     public ICommand CancelMigrationCommand { get; }
     public event Action? DraftReplaced;
     public ICommand ReloadCommand { get; }
+
+    /// <summary>Keeps Settings actions from omitting or replacing a separate profile editor buffer.</summary>
+    public void AttachProfileEditor(ProfilesViewModel editor)
+    {
+        profileEditor = editor;
+        editor.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(ProfilesViewModel.HasUnstagedChanges))
+            {
+                RefreshPendingProfileState();
+            }
+        };
+        RefreshPendingProfileState();
+    }
+
+    /// <summary>Updates save and reload controls when the profile buffer changes.</summary>
+    private void RefreshPendingProfileState()
+    {
+        OnPropertyChanged(nameof(HasPendingProfileEdit));
+        OnPropertyChanged(nameof(ReloadBlockedByUnsavedChanges));
+        OnPropertyChanged(nameof(ReloadRequiresDiscard));
+        NotifyCommands();
+    }
 
     /// <summary>Loads selected v2 authority and hydrates the detached option editor on success.</summary>
     public async Task<ConfigurationSessionLoadResult> LoadAsync(CancellationToken cancellationToken)
@@ -402,6 +429,8 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
         OnPropertyChanged(nameof(Draft));
         OnPropertyChanged(nameof(Revision));
         OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(ReloadBlockedByUnsavedChanges));
+        OnPropertyChanged(nameof(ReloadRequiresDiscard));
         OnPropertyChanged(nameof(RequiresReload));
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(CanPrepareMigration));

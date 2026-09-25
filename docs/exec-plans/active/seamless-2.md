@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5B local review gate: Phase 5A merged
+Status at the 2026-09-25 Phase 5B PR preparation gate: Phase 5A merged
 through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
 the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
-commits. Phase 5B is locally complete and awaiting review; overall Phase 5 remains incomplete.
+commits. Phase 5B is being prepared for independent PR review; overall Phase 5
+remains incomplete.
 Phase 5C–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -15,9 +16,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The accepted Phase 5A merge is the base for local branch `2.0/p05b-settings`.
-Phase 5B remains local; no push, PR, merge, tag or release is authorized for
-that branch. Keep the current
+The accepted Phase 5A merge is the base for branch `2.0/p05b-settings`.
+Only publication of that branch as a PR into `seamless-2.0` is authorized at
+this gate; merge, tag, release and Phase 5C remain unapproved. Keep the current
 launcher and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
@@ -271,7 +272,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Complete locally; awaiting review, not published |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | PR preparation; independent review pending |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
@@ -407,8 +408,12 @@ draft performs no write. Cancel restores the current baseline without I/O.
 Reset removes only a selected draft override, or resets an explicitly scoped
 preference group, and remains unsaved until Apply. Conflicts retain the draft
 and require a deliberate reload/discard; write failures retain the draft and
-expose a diagnostic. Navigation retains drafts. Closing with dirty groups asks
-for Apply, Discard, or Stay and reports any partial two-document save outcome.
+expose a diagnostic. Navigation retains drafts. Settings Apply waits for an
+unstaged profile editor, and ordinary Settings Reload waits for pending
+configuration or profile edits to be applied or cancelled. Failed-authority
+recovery offers an explicitly labelled discard-and-reload retry. Closing with
+dirty groups asks to Save and close, Discard and close, or Keep editing, and
+reports any partial two-document save outcome.
 
 Desktop preferences live in versioned `desktop-preferences.json` alongside but
 separate from `configuration.v2.json`. Appearance edits may preview live and
@@ -453,6 +458,14 @@ phone, discovery, native mirroring or hardware outcome is claimed.
 The final Windows build also displayed the group-specific Apply/Discard/Stay
 close prompt for an unsaved option; selecting Stay kept the draft open, and
 normal Cancel restored the committed value before closing.
+
+The PR preparation gate added focused headless checks of the actual window
+Closing decision path, sequential partial-save behavior and pending profile
+buffers. A previously unguarded Settings Reload could replace unstaged profile
+input; Settings Apply could also report success while omitting that input.
+Both commands now wait for the separate editor to be staged or cancelled.
+The invalid-v2 diagnostic retains its complete path in the status tooltip and
+accessibility help text; its visual ellipsis does not truncate those values.
 
 Locked restore, zero-warning Release build, 272/272 .NET tests, 28/28 legacy
 PowerShell suites, native Meson 16/16 tests including port-parser endpoints,

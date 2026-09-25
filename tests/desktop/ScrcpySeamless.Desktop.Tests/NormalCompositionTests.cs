@@ -117,6 +117,273 @@ public sealed class NormalCompositionTests
         Assert.Equal(ConfigurationWorkspaceStatus.Invalid, composition.Configuration.Status);
         Assert.Contains("invalid", composition.Settings.ConfigurationStatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.False(composition.Configuration.CanEdit);
+        ScrcpySeamless.Desktop.Views.SettingsView view = new() { DataContext = composition.Settings };
+        Window window = new() { Content = view };
+
+        try
+        {
+            window.Show();
+            TextBlock status = view.FindControl<TextBlock>("SettingsConfigurationStatus")!;
+            Assert.Contains(composition.DataPaths.ConfigurationFile, status.Text);
+            Assert.Equal(status.Text, ToolTip.GetTip(status));
+            Assert.Equal(status.Text, Avalonia.Automation.AutomationProperties.GetHelpText(status));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>An invalid authority can be retried with an explicitly labelled discard after repair.</summary>
+    [AvaloniaFact]
+    public async Task InvalidReloadCanRecoverWithoutTrappingTheDirtyDraft()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+            (await composition.Configuration.ApplyAsync(CancellationToken.None)).Status);
+        byte[] savedBytes = await File.ReadAllBytesAsync(composition.DataPaths.ConfigurationFile);
+
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "2048";
+        await File.WriteAllTextAsync(composition.DataPaths.ConfigurationFile, "{invalid synthetic document");
+        Assert.Equal(ConfigurationSessionLoadStatus.Invalid,
+            (await composition.Configuration.LoadAsync(CancellationToken.None)).Status);
+        Assert.True(composition.Configuration.RequiresReload);
+        Assert.True(composition.Configuration.IsDirty);
+        Assert.True(composition.Configuration.ReloadCommand.CanExecute(null));
+        Assert.Equal("Discard edits and reload", composition.Settings.ConfigurationReloadLabel);
+
+        await File.WriteAllBytesAsync(composition.DataPaths.ConfigurationFile, savedBytes);
+        TaskCompletionSource reloaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        composition.Configuration.DraftReplaced += () => reloaded.TrySetResult();
+        composition.Configuration.ReloadCommand.Execute(null);
+        await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(ConfigurationWorkspaceStatus.Ready, composition.Configuration.Status);
+        Assert.False(composition.Configuration.IsDirty);
+        Assert.Equal("1024", composition.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
+    }
+
+    /// <summary>Settings actions cannot replace or omit an unstaged profile editor buffer.</summary>
+    [AvaloniaFact]
+    public async Task SettingsCommandsPreservePendingProfileEdits()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Profiles.BeginNewProfile();
+        composition.Profiles.Alias = "Saved profile";
+        composition.Profiles.UsbSerial = "SYNTHETIC_SERIAL";
+        Assert.True(composition.Profiles.TrySaveToDraft());
+        Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+            (await composition.Configuration.ApplyAsync(CancellationToken.None)).Status);
+
+        string profileId = composition.Profiles.EditingId!;
+        composition.Profiles.Alias = "Pending name";
+        Assert.True(composition.Profiles.HasUnstagedChanges);
+        Assert.False(composition.Configuration.ReloadCommand.CanExecute(null));
+        Assert.False(composition.Configuration.ApplyCommand.CanExecute(null));
+        composition.Configuration.ReloadCommand.Execute(null);
+        composition.Shell.ShowSettings();
+        composition.Shell.ShowProfiles();
+        Assert.Equal("Pending name", composition.Profiles.Alias);
+        Assert.Equal(profileId, composition.Profiles.EditingId);
+        Assert.Equal("Saved profile", Assert.Single(composition.Configuration.Draft!.Profiles).Alias);
+
+        composition.Profiles.ConnectionEndpoint = "invalid-endpoint";
+        Assert.True(composition.Profiles.HasValidation);
+        Assert.False(composition.Configuration.ReloadCommand.CanExecute(null));
+        Assert.Equal("invalid-endpoint", composition.Profiles.ConnectionEndpoint);
+
+        composition.Profiles.CancelEditorChanges();
+        composition.Profiles.BeginNewProfile();
+        string newProfileId = composition.Profiles.EditingId!;
+        Assert.False(composition.Configuration.ReloadCommand.CanExecute(null));
+        composition.Configuration.ReloadCommand.Execute(null);
+        Assert.Equal(newProfileId, composition.Profiles.EditingId);
+
+        composition.Profiles.CancelEditorChanges();
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        Assert.False(composition.Configuration.ReloadCommand.CanExecute(null));
+        composition.Profiles.BeginNewProfile();
+        composition.Profiles.Alias = "New pending profile";
+        composition.Profiles.UsbSerial = "NEW_SYNTHETIC_SERIAL";
+        Assert.False(composition.Configuration.ApplyCommand.CanExecute(null));
+        Assert.True(composition.Profiles.TrySaveToDraft());
+        Assert.True(composition.Configuration.ApplyCommand.CanExecute(null));
+    }
+
+    /// <summary>Real window Closing honours the theme group's decision without writing on Stay or Discard.</summary>
+    [AvaloniaFact]
+    public async Task WindowClosePromptsForSidebarThemeAndPreservesDiscardedFiles()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.Show();
+
+        composition.Shell.SelectedTheme = Assert.Single(composition.Shell.Themes,
+            choice => choice.Theme == AppTheme.Dark);
+        Assert.True(composition.HasDirtyGroups);
+        Assert.Equal("Desktop appearance and keyboard shortcuts", composition.DirtyGroupsLabel);
+
+        window.NextDecision = ScriptedCloseWindow.Decision.KeepEditing;
+        window.Close();
+        Assert.True(window.IsVisible);
+        Assert.True(composition.Preferences.IsDirty);
+        Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
+
+        window.NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose;
+        window.Close();
+        Assert.False(window.IsVisible);
+        Assert.Equal(2, window.PromptCount);
+        Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
+    }
+
+    /// <summary>Repeated close requests share one pending confirmation and leave the editor intact.</summary>
+    [AvaloniaFact]
+    public async Task RepeatedCloseRequestsDoNotStackConfirmations()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        TaskCompletionSource<ScriptedCloseWindow.Decision> decision = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        window.PendingDecision = decision.Task;
+        window.Show();
+
+        window.Close();
+        window.Close();
+        Assert.Equal(1, window.PromptCount);
+        Assert.True(window.IsVisible);
+        decision.SetResult(ScriptedCloseWindow.Decision.KeepEditing);
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { },
+            Avalonia.Threading.DispatcherPriority.Loaded);
+        Assert.True(window.IsVisible);
+        Assert.True(composition.Preferences.IsDirty);
+
+        window.PendingDecision = null;
+        window.NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose;
+        window.Close();
+        Assert.Equal(2, window.PromptCount);
+        Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
+    }
+
+    /// <summary>Sequential close saves advance only the successful group's baseline after a preference conflict.</summary>
+    [AvaloniaFact]
+    public async Task PartialCloseSaveKeepsFailedPreferenceDraft()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        Assert.Contains("saved devices and mirroring settings", composition.DirtyGroupsLabel);
+        Assert.Contains("Desktop appearance and keyboard shortcuts", composition.DirtyGroupsLabel);
+
+        VersionedDesktopPreferencesStore otherWriter = new(composition.DataPaths.DesktopPreferencesFile);
+        Assert.Equal(DesktopPreferencesCommitStatus.Committed,
+            otherWriter.Commit(null, new DesktopPreferences(), CancellationToken.None).Status);
+
+        Assert.False(await composition.ApplyDirtyGroupsAsync(CancellationToken.None));
+        Assert.False(composition.Configuration.IsDirty);
+        Assert.True(composition.Preferences.IsDirty);
+        Assert.Equal("1024", composition.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
+        Assert.True(File.Exists(composition.DataPaths.ConfigurationFile));
+        Assert.Equal(DesktopTheme.System,
+            (await otherWriter.ReadAsync(CancellationToken.None)).Preferences!.Appearance.Theme);
+    }
+
+    /// <summary>Window Save closes only after both files commit and a fresh composition loads them.</summary>
+    [AvaloniaFact]
+    public async Task WindowSaveAndCloseCommitsBothGroupsBeforeShutdown()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.NextDecision = ScriptedCloseWindow.Decision.SaveAndClose;
+        TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Show();
+
+        window.Close();
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        NormalDesktopComposition restarted = Create(root.Path);
+        await restarted.InitializeAsync(CancellationToken.None);
+        Assert.Equal("1024", restarted.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
+        Assert.Equal(DesktopTheme.Dark, restarted.Preferences.Theme);
+        Assert.Equal(1, window.PromptCount);
+    }
+
+    /// <summary>A failed second write keeps the actual close request open and retains its draft.</summary>
+    [AvaloniaFact]
+    public async Task WindowCloseStaysOpenAfterPartialSave()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        VersionedDesktopPreferencesStore otherWriter = new(composition.DataPaths.DesktopPreferencesFile);
+        otherWriter.Commit(null, new DesktopPreferences(), CancellationToken.None);
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.NextDecision = ScriptedCloseWindow.Decision.SaveAndClose;
+        window.Show();
+
+        window.Close();
+        await window.FailureShown.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(window.IsVisible);
+        Assert.False(composition.Configuration.IsDirty);
+        Assert.True(composition.Preferences.IsDirty);
+        Assert.Equal(1, window.PromptCount);
+        window.NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose;
+        window.Close();
+        Assert.False(window.IsVisible);
+    }
+
+    /// <summary>An invalid unstaged profile prevents close-time writes and keeps its raw editor text.</summary>
+    [AvaloniaFact]
+    public async Task WindowCloseKeepsInvalidPendingProfileOpen()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Profiles.BeginNewProfile();
+        composition.Profiles.ConnectionEndpoint = "invalid-endpoint";
+        string profileId = composition.Profiles.EditingId!;
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.NextDecision = ScriptedCloseWindow.Decision.SaveAndClose;
+        window.Show();
+
+        window.Close();
+        await window.FailureShown.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(window.IsVisible);
+        Assert.Equal(profileId, composition.Profiles.EditingId);
+        Assert.Equal("invalid-endpoint", composition.Profiles.ConnectionEndpoint);
+        Assert.False(File.Exists(composition.DataPaths.ConfigurationFile));
+        window.NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose;
+        window.Close();
     }
 
     /// <summary>Preview composition ignores an explicitly supplied poisoned data root.</summary>
@@ -208,6 +475,36 @@ public sealed class NormalCompositionTests
         DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
             StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: directory);
         return NormalDesktopFactory.Create(options, _ => { }, _ => { }, requested => requested);
+    }
+
+    /// <summary>Feeds deterministic confirmation results through the actual window Closing handler.</summary>
+    private sealed class ScriptedCloseWindow(ShellViewModel shell) : MainWindow(shell)
+    {
+        private readonly TaskCompletionSource failureShown = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public enum Decision { KeepEditing, DiscardAndClose, SaveAndClose }
+
+        public Decision NextDecision { get; set; }
+        public Task<Decision>? PendingDecision { get; set; }
+        public int PromptCount { get; private set; }
+        public Task FailureShown => failureShown.Task;
+
+        protected override async Task<CloseDecision> AskCloseDecisionAsync(string groups)
+        {
+            PromptCount++;
+            Decision decision = PendingDecision is null ? NextDecision : await PendingDecision;
+            return decision switch
+            {
+                Decision.SaveAndClose => CloseDecision.Apply,
+                Decision.DiscardAndClose => CloseDecision.Discard,
+                _ => CloseDecision.Stay,
+            };
+        }
+
+        protected override Task ShowCloseFailureAsync()
+        {
+            failureShown.TrySetResult();
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>Owns only synthetic test state and removes it after assertions.</summary>

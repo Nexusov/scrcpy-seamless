@@ -133,6 +133,7 @@ public sealed class ProfilesViewModel : ObservableViewModel
     public void AttachWorkspace(ConfigurationWorkspaceViewModel configuration)
     {
         workspace = configuration;
+        configuration.AttachProfileEditor(this);
         configuration.PropertyChanged += OnWorkspaceChanged;
         NotifyActionState();
     }

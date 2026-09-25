@@ -45,6 +45,17 @@ shows counts for a prepared proposal and requires confirmation. Migration uses
 `LegacyMigrationCoordinator`, rechecks v1 snapshots under its established lock
 order and reloads committed v2 before further editing. It never rewrites v1.
 
+The separate profile editor keeps unstaged input across page navigation and
+blocks profile switching until that input is staged or cancelled. Settings
+Apply cannot omit an unstaged profile edit, and Settings Reload is unavailable
+while either the configuration draft or profile editor has pending changes.
+After a failed authority reload, a clearly labelled "Discard edits and reload"
+retry remains available so repaired files can be reopened. Apply or Cancel the
+relevant edit before an ordinary reload. Closing the normal window
+asks about both dirty save groups; a successful save advances each group's
+baseline independently. If the second save fails, the first remains committed
+and the failed draft stays open for review.
+
 Appearance and supported control-center shortcuts live in separate versioned
 `desktop-preferences.json` in the selected data directory. Its read and atomic
 write use a separate exact-byte revision and mutex. There is no cross-file

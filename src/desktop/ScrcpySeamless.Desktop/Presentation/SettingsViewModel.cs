@@ -268,7 +268,6 @@ public sealed class SettingsViewModel : ObservableViewModel
         DesktopSectionLabel = text.Get("settings.section.desktop");
         ConfigurationApplyLabel = text.Get("settings.configuration.apply");
         ConfigurationCancelLabel = text.Get("settings.configuration.cancel");
-        ConfigurationReloadLabel = text.Get("settings.configuration.reload");
         MigrationPrepareLabel = text.Get("settings.migration.prepare");
         MigrationCommitLabel = text.Get("settings.migration.commit");
         MigrationCancelLabel = text.Get("settings.migration.cancel");
@@ -286,7 +285,9 @@ public sealed class SettingsViewModel : ObservableViewModel
     public string DesktopSectionLabel { get; }
     public string ConfigurationApplyLabel { get; }
     public string ConfigurationCancelLabel { get; }
-    public string ConfigurationReloadLabel { get; }
+    public string ConfigurationReloadLabel => text.Get(Configuration?.ReloadRequiresDiscard == true
+        ? "settings.configuration.discardAndReload"
+        : "settings.configuration.reload");
     public string MigrationPrepareLabel { get; }
     public string MigrationCommitLabel { get; }
     public string MigrationCancelLabel { get; }
@@ -316,6 +317,18 @@ public sealed class SettingsViewModel : ObservableViewModel
             if (Configuration is null)
             {
                 return string.Empty;
+            }
+
+            // The separate profile editor must be staged or cancelled before Settings Apply or Reload.
+            if (Configuration.HasPendingProfileEdit && !Configuration.HasError)
+            {
+                return text.Get("settings.configuration.pendingProfileEdit");
+            }
+
+            if (Configuration.ReloadBlockedByUnsavedChanges && !Configuration.HasError &&
+                Configuration.LastApplyResult is null)
+            {
+                return text.Get("settings.configuration.pendingDraft");
             }
 
             string? migrationKey = Configuration.LastMigrationResult?.Status switch
@@ -392,6 +405,7 @@ public sealed class SettingsViewModel : ObservableViewModel
         configuration.PropertyChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(ConfigurationStatusMessage));
+            OnPropertyChanged(nameof(ConfigurationReloadLabel));
             OnPropertyChanged(nameof(MigrationSummaryMessage));
             OnPropertyChanged(nameof(IsOptionEditorAvailable));
         };
