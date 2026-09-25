@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5A start: Phases 0–4 are integrated into
+Status at the 2026-09-25 Phase 5A local review gate: Phases 0–4 are integrated into
 `seamless-2.0`; Phase 4 merged through PR #5 at
-`d9617610388668715934083edfe9589ce15463ac`. Phase 5A is the active,
-bounded UI-foundation slice. Phase 5B–5D and Phases 6–13 have not started.
+`d9617610388668715934083edfe9589ce15463ac`. Phase 5A is implemented
+locally for visual and architectural review; it is not yet accepted as all of
+Phase 5. Phase 5B–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -269,7 +270,7 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
-| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | In progress |
+| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Implemented locally; awaiting review |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Not started |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
@@ -278,10 +279,10 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
-| 5A.1 | Pin bounded reference revisions and record interaction decisions; update current Phase 5 guidance and 5B/5C contracts | In progress |
-| 5A.2 | Replace placeholder with a typed shell, resource boundary and reusable design tokens/components; normal startup remains truthful | Not started |
-| 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Not started |
-| 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Not started |
+| 5A.1 | Pin bounded reference revisions and record interaction decisions; update current Phase 5 guidance and 5B/5C contracts | Complete locally |
+| 5A.2 | Replace placeholder with a typed shell, resource boundary and reusable design tokens/components; normal startup remains truthful | Complete locally |
+| 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Complete locally |
+| 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete locally; hardware/accessibility follow-up remains 5D |
 
 The intended local commit sequence is: (1) research/plan and boundary decisions,
 (2) UI shell and resource foundation, (3) Devices and Settings preview behavior,
@@ -290,6 +291,31 @@ practical; a test stays with the behavior it protects. Preview composition may
 not create or call ADB, native-host, migration or production configuration
 adapters. Normal startup shows an empty/not-yet-connected state until real
 integration exists.
+
+The implementation kept the coupled shell, Views/ViewModels, preview sources
+and their tests in one buildable UI commit. Later local commits added the
+deterministic Settings filter, corrected empty-state alignment and completed
+the token set. The source build at
+`7d6002ca9aca20ea847bacb8892e61d5b05d18d4` produced the self-contained
+`dist/dev/scrcpy-seamless-desktop-p05a-g7d6002c/` preview; it opens a real
+Avalonia window with `--preview` and no phone or mirror. The local visual
+record under ignored `work/phase5a/screenshots/g7d6002c/` contains light and
+dark Devices, a filtered Settings validation state and an empty state. These
+are Windows window captures from the running application at a configured
+1080×720 logical window, 150% display scaling and 1642×1136 captured pixels
+including window chrome; they are not concept art or hardware observations.
+
+At this gate locked restore and Release build passed with no warnings; 204
+.NET tests passed, including 10 Desktop tests; 28/28 legacy PowerShell suites,
+SpecGen verify (109 native entries, six current outputs), DocsCheck and build
+metadata checks passed. The Desktop assembly has no Infrastructure reference;
+the preview tests verify normal startup stays empty, scenarios are deterministic,
+Settings search leaves the draft unchanged, Core validation appears in the
+rendered view, and Reset removes the in-memory override. Headless layout checks
+cover a 900×620 window and light/dark variants. These checks do not establish
+real Windows DPI/multi-monitor behavior, screen-reader usability, ADB/native
+integration or hardware recovery. No new native/server/toolchain input was
+changed or rebuilt for this UI slice.
 
 Phase 5B opens a detached draft of canonical v2 state. Opening or searching
 Settings cannot mutate stored values. Omitted, false, zero and an empty optional
