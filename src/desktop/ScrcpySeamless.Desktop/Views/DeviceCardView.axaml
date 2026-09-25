@@ -4,68 +4,61 @@
              x:Class="ScrcpySeamless.Desktop.Views.DeviceCardView"
              x:DataType="vm:DeviceCardViewModel">
   <Border Classes="card" AutomationProperties.AutomationId="{Binding StableId}">
-    <StackPanel Spacing="22">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding DisplayName}" Classes="sectionTitle" />
-          <TextBlock Text="{Binding StableId}" FontSize="11" Classes="muted" />
+    <StackPanel Spacing="14">
+      <!-- The compact summary preserves evidence without making every diagnostic a tile. -->
+      <StackPanel Spacing="5">
+        <TextBlock Text="{Binding DisplayName}" Classes="sectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Availability}" Foreground="{DynamicResource AccentBrush}"
+                   FontWeight="SemiBold" />
+      </StackPanel>
+      <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
+        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+          <TextBlock Text="{Binding AvailableHeading}" Classes="muted" />
+          <TextBlock Text="{Binding SummaryLabel}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
         </StackPanel>
-        <Border Grid.Column="1" Background="{DynamicResource AccentSoftBrush}"
-                CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Availability}" Foreground="{DynamicResource AccentBrush}"
-                     FontWeight="SemiBold" FontSize="11" />
-        </Border>
+        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="3">
+          <TextBlock Text="{Binding SessionHeading}" Classes="muted" />
+          <TextBlock Text="{Binding SelectedTransport}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding FallbackSummary}"
+                   Classes="muted" TextWrapping="Wrap" />
       </Grid>
-      <StackPanel Spacing="12">
-        <TextBlock Text="{Binding AvailableHeading}" Classes="eyebrow" />
-        <ItemsControl ItemsSource="{Binding AvailabilityMetrics}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:StatusMetric">
-              <Border Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8"
-                      Padding="12,9" Width="170" Margin="0,0,8,8"
-                      AutomationProperties.AutomationId="{Binding AutomationId}">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding Label}" FontSize="11" Classes="muted" />
-                  <TextBlock Text="{Binding Value}" FontWeight="SemiBold"
-                             Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-      <StackPanel Spacing="12">
-        <TextBlock Text="{Binding SessionHeading}" Classes="eyebrow" />
-        <ItemsControl ItemsSource="{Binding SessionMetrics}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:StatusMetric">
-              <Border Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8"
-                      Padding="12,9" Width="170" Margin="0,0,8,8"
-                      AutomationProperties.AutomationId="{Binding AutomationId}">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding Label}" FontSize="11" Classes="muted" />
-                  <TextBlock Text="{Binding Value}" FontWeight="SemiBold"
-                             Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
       <Border Background="{DynamicResource WarningSoftBrush}" CornerRadius="8"
-              Padding="14,11" IsVisible="{Binding IsProblem}">
+              Padding="12,8" IsVisible="{Binding IsProblem}">
         <TextBlock Text="{Binding Hint}" Foreground="{DynamicResource WarningBrush}"
                    TextWrapping="Wrap" />
       </Border>
       <TextBlock Text="{Binding Hint}" Classes="muted" IsVisible="{Binding IsInformational}" />
-      <TextBlock Text="{Binding PreviewNote}" Classes="muted" IsVisible="{Binding IsPreview}"
-                 FontSize="11" />
+      <Expander Header="{Binding DetailsLabel}" IsExpanded="{Binding DetailsExpanded, Mode=TwoWay}"
+                AutomationProperties.AutomationId="device.connectionDetails">
+        <StackPanel Spacing="8" Margin="0,10,0,0">
+          <TextBlock Text="{Binding StableId}" Classes="muted" />
+          <ItemsControl ItemsSource="{Binding AvailabilityMetrics}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusMetric">
+                <Grid ColumnDefinitions="160,*" Margin="0,3">
+                  <TextBlock Text="{Binding Label}" Classes="muted" />
+                  <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                             AutomationProperties.AutomationId="{Binding AutomationId}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding SessionMetrics}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusMetric">
+                <Grid ColumnDefinitions="160,*" Margin="0,3">
+                  <TextBlock Text="{Binding Label}" Classes="muted" />
+                  <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                             AutomationProperties.AutomationId="{Binding AutomationId}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Expander>
     </StackPanel>
   </Border>
 </UserControl>

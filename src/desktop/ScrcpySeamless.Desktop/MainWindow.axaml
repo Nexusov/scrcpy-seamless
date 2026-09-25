@@ -6,51 +6,66 @@
         Title="{Binding ProductName}"
         Width="1080"
         Height="720"
-        MinWidth="780"
-        MinHeight="580"
+        MinWidth="660"
+        MinHeight="460"
         Background="{DynamicResource CanvasBrush}">
   <Grid ColumnDefinitions="208,*">
     <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0"
-            Padding="16,24">
-      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="28">
-        <StackPanel Grid.Row="0" Spacing="4" Margin="8,0">
-          <TextBlock Text="{Binding ProductName}" FontSize="18" FontWeight="Bold"
+            Padding="16,16">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="24">
+        <StackPanel Spacing="4" Margin="8,0">
+          <TextBlock Text="{Binding ProductName}" FontSize="{DynamicResource SectionFontSize}" FontWeight="Bold"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
-          <TextBlock Text="{Binding ProductSubtitle}" FontSize="11" Classes="muted" />
+          <TextBlock Text="{Binding ProductSubtitle}" FontSize="{DynamicResource SmallFontSize}" Classes="muted" />
         </StackPanel>
-        <StackPanel Grid.Row="1" Spacing="5">
+        <StackPanel Spacing="5">
           <Button Name="DevicesNavigation" Classes="nav" Classes.active="{Binding IsDevicesSelected}"
                   Content="{Binding DevicesLabel}" Command="{Binding ShowDevicesCommand}"
                   AutomationProperties.AutomationId="nav.devices"
                   AutomationProperties.Name="{Binding DevicesLabel}" />
-          <Button Classes="nav" Content="{Binding SessionsLabel}" IsEnabled="False"
-                  ToolTip.Tip="{Binding UnavailableHint}" AutomationProperties.AutomationId="nav.sessions"
-                  AutomationProperties.Name="{Binding SessionsLabel}" />
-          <Button Classes="nav" Content="{Binding ProfilesLabel}" IsEnabled="False"
-                  ToolTip.Tip="{Binding UnavailableHint}" AutomationProperties.AutomationId="nav.profiles"
-                  AutomationProperties.Name="{Binding ProfilesLabel}" />
+          <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  AutomationProperties.HelpText="{Binding UnavailableHint}"
+                  AutomationProperties.AutomationId="nav.sessions">
+            <TextBlock Text="{Binding SessionsLabel}" Classes="muted" Opacity="0.75" />
+          </Border>
+          <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  AutomationProperties.HelpText="{Binding UnavailableHint}"
+                  AutomationProperties.AutomationId="nav.profiles">
+            <TextBlock Text="{Binding ProfilesLabel}" Classes="muted" Opacity="0.75" />
+          </Border>
           <Button Name="SettingsNavigation" Classes="nav" Classes.active="{Binding IsSettingsSelected}"
                   Content="{Binding SettingsLabel}" Command="{Binding ShowSettingsCommand}"
                   AutomationProperties.AutomationId="nav.settings"
                   AutomationProperties.Name="{Binding SettingsLabel}" />
-          <Button Classes="nav" Content="{Binding DiagnosticsLabel}" IsEnabled="False"
-                  ToolTip.Tip="{Binding UnavailableHint}" AutomationProperties.AutomationId="nav.diagnostics"
-                  AutomationProperties.Name="{Binding DiagnosticsLabel}" />
+          <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  AutomationProperties.HelpText="{Binding UnavailableHint}"
+                  AutomationProperties.AutomationId="nav.diagnostics">
+            <TextBlock Text="{Binding DiagnosticsLabel}" Classes="muted" Opacity="0.75" />
+          </Border>
         </StackPanel>
-        <StackPanel Grid.Row="3" Spacing="12">
-          <Button Content="{Binding ThemeButtonLabel}" Command="{Binding ToggleThemeCommand}"
-                  AutomationProperties.AutomationId="theme.toggle"
-                  AutomationProperties.Name="{Binding ThemeButtonLabel}" />
-          <TextBlock Text="{Binding UnavailableHint}" FontSize="11" Classes="muted" Margin="4,0" />
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding ThemeLabel}" Classes="muted" />
+          <ComboBox Name="ThemePicker" ItemsSource="{Binding Themes}"
+                    SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="theme.choice"
+                    AutomationProperties.Name="{Binding ThemeLabel}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ThemeChoice">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
         </StackPanel>
-      </Grid>
+      </StackPanel>
+      </ScrollViewer>
     </Border>
     <Grid Grid.Column="1" RowDefinitions="Auto,*">
-      <Border Grid.Row="0" Background="{DynamicResource AccentSoftBrush}"
+      <Border Grid.Row="0" Background="{DynamicResource SurfaceSubtleBrush}"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
               Padding="24,12">
-        <TextBlock Text="{Binding ModeLabel}" FontSize="11" FontWeight="SemiBold"
+        <TextBlock Text="{Binding ModeLabel}" FontSize="{DynamicResource SmallFontSize}" FontWeight="SemiBold"
                    Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" />
       </Border>
       <ContentControl Name="WorkspaceContent" Grid.Row="1" Content="{Binding CurrentPage}"

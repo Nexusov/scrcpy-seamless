@@ -8,6 +8,9 @@ namespace ScrcpySeamless.Desktop.Presentation;
 /// <summary>A localized category entry backed by an invariant generated category key.</summary>
 public sealed record SettingsCategory(string Id, string Label);
 
+/// <summary>Identifies the two result changes that move the visible list to its start.</summary>
+public enum SettingsResultsChange { Category, Search }
+
 /// <summary>Exposes one generated editable option and its detached draft value.</summary>
 public sealed class OptionRowViewModel : ObservableViewModel
 {
@@ -31,6 +34,8 @@ public sealed class OptionRowViewModel : ObservableViewModel
         this.onChanged = onChanged;
         Label = text.Get(descriptor.LabelResourceKey);
         Description = text.Get(descriptor.DescriptionResourceKey);
+        ShortDescription = Description.Split('\n')[0];
+        HelpLabel = text.Get("settings.row.help");
         ResetLabel = text.Get("settings.row.reset");
         PortUnavailableLabel = text.Get("settings.portUnavailable");
         IsCompositePort = descriptor.Id == "port";
@@ -47,6 +52,8 @@ public sealed class OptionRowViewModel : ObservableViewModel
     public string AutomationId => $"option.{Id}";
     public string Label { get; }
     public string Description { get; }
+    public string ShortDescription { get; }
+    public string HelpLabel { get; }
     public string ResetLabel { get; }
     public string PortUnavailableLabel { get; }
     public bool IsCompositePort { get; }
@@ -123,6 +130,15 @@ public sealed class OptionRowViewModel : ObservableViewModel
     /// <summary>Displays a semantic Core diagnostic through a Desktop-owned message.</summary>
     public void SetDiagnostic(OptionDiagnostic? diagnostic)
     {
+        if (diagnostic?.Code == OptionDiagnosticCode.InvalidValue &&
+            Descriptor.Minimum is decimal minimum && Descriptor.Maximum is decimal maximum)
+        {
+            string rangeKey = Descriptor.ArgumentHint is null ? "settings.validation.range" : "settings.validation.rangeUnit";
+            ValidationMessage = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                text.Get(rangeKey), minimum, maximum, Descriptor.ArgumentHint);
+            return;
+        }
+
         ValidationMessage = diagnostic is null ? null : text.Get(diagnostic.Code switch
         {
             OptionDiagnosticCode.InvalidValue => "settings.validation.invalid",
@@ -183,6 +199,7 @@ public sealed class SettingsViewModel : ObservableViewModel
         GlobalLabel = text.Get("settings.global");
         SearchLabel = text.Get("settings.search");
         SearchWatermark = text.Get("settings.searchWatermark");
+        ShortcutHelp = $"{SettingsShortcuts.FocusSearch}: {text.Get(SettingsShortcuts.FocusSearchHelpKey)}";
         CategoriesLabel = text.Get("settings.categories");
         EmptyLabel = text.Get("settings.noResults");
         UnsavedLabel = text.Get("settings.unsaved");
@@ -213,6 +230,7 @@ public sealed class SettingsViewModel : ObservableViewModel
     public string GlobalLabel { get; }
     public string SearchLabel { get; }
     public string SearchWatermark { get; }
+    public string ShortcutHelp { get; }
     public string CategoriesLabel { get; }
     public string EmptyLabel { get; }
     public string UnsavedLabel { get; }
@@ -225,6 +243,7 @@ public sealed class SettingsViewModel : ObservableViewModel
     public int VisibleCount => VisibleRows.Count;
     public bool HasNoResults => VisibleCount == 0;
     public IReadOnlyDictionary<string, JsonElement> DraftValues => draft.Values;
+    public event Action<SettingsResultsChange>? ResultsChanged;
 
     public string SearchText
     {
@@ -234,6 +253,7 @@ public sealed class SettingsViewModel : ObservableViewModel
             if (SetProperty(ref searchText, value ?? string.Empty))
             {
                 Filter();
+                ResultsChanged?.Invoke(SettingsResultsChange.Search);
             }
         }
     }
@@ -246,6 +266,7 @@ public sealed class SettingsViewModel : ObservableViewModel
             if (SetProperty(ref selectedCategory, value))
             {
                 Filter();
+                ResultsChanged?.Invoke(SettingsResultsChange.Category);
             }
         }
     }

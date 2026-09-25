@@ -16,13 +16,13 @@ public sealed class PresentationTests
         var references = typeof(App).Assembly.GetReferencedAssemblies();
         Assert.DoesNotContain(references, reference => reference.Name == "ScrcpySeamless.Infrastructure");
 
-        var normal = DesktopComposition.Create(new DesktopLaunchOptions(false, false, null, false), _ => { });
+        var normal = DesktopComposition.Create(new DesktopLaunchOptions(false, AppTheme.System, null, false), _ => { });
         Assert.False(normal.IsPreview);
         Assert.Empty(normal.Devices.Cards);
         Assert.Empty(normal.Devices.Scenarios);
         Assert.Empty(normal.Settings.DraftValues);
 
-        var preview = DesktopComposition.Create(new DesktopLaunchOptions(true, false, "fallback", false), _ => { });
+        var preview = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.System, "fallback", false), _ => { });
         Assert.True(preview.IsPreview);
         Assert.Single(preview.Devices.Cards);
         Assert.Equal("preview-device-7a31", preview.Devices.Cards[0].StableId);
@@ -32,7 +32,7 @@ public sealed class PresentationTests
     [Fact]
     public void ScenarioSelectionIsDeterministicAndDoesNotInventReadiness()
     {
-        var devices = DesktopComposition.Create(new DesktopLaunchOptions(true, false, null, false), _ => { }).Devices;
+        var devices = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.System, null, false), _ => { }).Devices;
         Assert.True(devices.IsEmpty);
 
         devices.SelectScenario("usb");

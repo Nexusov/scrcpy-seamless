@@ -12,6 +12,15 @@
       <CornerRadius x:Key="RadiusSmall">8</CornerRadius>
       <CornerRadius x:Key="RadiusCard">14</CornerRadius>
       <x:Double x:Key="IconSize">18</x:Double>
+      <x:Double x:Key="BodyFontSize">13</x:Double>
+      <x:Double x:Key="SmallFontSize">11</x:Double>
+      <x:Double x:Key="TitleFontSize">28</x:Double>
+      <x:Double x:Key="SectionFontSize">16</x:Double>
+      <Thickness x:Key="PageInset">24,16</Thickness>
+      <x:Double x:Key="SectionGap">14</x:Double>
+      <x:Double x:Key="EditorBelowWidth">620</x:Double>
+      <Thickness x:Key="ControlPadding">10,7</Thickness>
+      <Thickness x:Key="NavPadding">14,11</Thickness>
       <x:Double x:Key="MotionQuickMilliseconds">120</x:Double>
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
@@ -27,38 +36,53 @@
           <SolidColorBrush x:Key="WarningBrush" Color="#8D4700" />
           <SolidColorBrush x:Key="WarningSoftBrush" Color="#FFF0D8" />
           <SolidColorBrush x:Key="FocusBrush" Color="#005FCC" />
+          <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="InfoBrush" Color="#1459B5" />
+          <SolidColorBrush x:Key="ErrorBrush" Color="#A92525" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="CanvasBrush" Color="#101923" />
-          <SolidColorBrush x:Key="SidebarBrush" Color="#172331" />
-          <SolidColorBrush x:Key="SurfaceBrush" Color="#1D2B3B" />
-          <SolidColorBrush x:Key="SurfaceSubtleBrush" Color="#25364A" />
-          <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F6FB" />
-          <SolidColorBrush x:Key="TextMutedBrush" Color="#B2C1D1" />
-          <SolidColorBrush x:Key="BorderBrush" Color="#354960" />
-          <SolidColorBrush x:Key="AccentBrush" Color="#8AB8FF" />
-          <SolidColorBrush x:Key="AccentSoftBrush" Color="#253F62" />
+          <SolidColorBrush x:Key="CanvasBrush" Color="#171819" />
+          <SolidColorBrush x:Key="SidebarBrush" Color="#202123" />
+          <SolidColorBrush x:Key="SurfaceBrush" Color="#282A2C" />
+          <SolidColorBrush x:Key="SurfaceSubtleBrush" Color="#333638" />
+          <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F4F4F2" />
+          <SolidColorBrush x:Key="TextMutedBrush" Color="#BEC2C4" />
+          <SolidColorBrush x:Key="BorderBrush" Color="#53575A" />
+          <SolidColorBrush x:Key="AccentBrush" Color="#A9C7FA" />
+          <SolidColorBrush x:Key="AccentSoftBrush" Color="#303F57" />
           <SolidColorBrush x:Key="WarningBrush" Color="#FFD18A" />
-          <SolidColorBrush x:Key="WarningSoftBrush" Color="#5A3C1E" />
+          <SolidColorBrush x:Key="WarningSoftBrush" Color="#423427" />
           <SolidColorBrush x:Key="FocusBrush" Color="#A8CDFF" />
+          <SolidColorBrush x:Key="TextOnAccentBrush" Color="#101923" />
+          <SolidColorBrush x:Key="InfoBrush" Color="#A9C7FA" />
+          <SolidColorBrush x:Key="ErrorBrush" Color="#FFABA8" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
+    <Style Selector="TextBlock">
+      <Setter Property="FontSize" Value="{DynamicResource BodyFontSize}" />
+    </Style>
+    <Style Selector="Button, TextBox, ComboBox, ComboBoxItem, CheckBox, ListBoxItem, Expander">
+      <Setter Property="FontSize" Value="{DynamicResource BodyFontSize}" />
+    </Style>
+    <Style Selector="Button, TextBox, ComboBox">
+      <Setter Property="Padding" Value="{DynamicResource ControlPadding}" />
+    </Style>
     <Style Selector="TextBlock.eyebrow">
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{DynamicResource SmallFontSize}" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="TextBlock.pageTitle">
-      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontSize" Value="{DynamicResource TitleFontSize}" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="TextBlock.sectionTitle">
-      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontSize" Value="{DynamicResource SectionFontSize}" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
@@ -71,11 +95,11 @@
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
-      <Setter Property="Padding" Value="{StaticResource SpaceLarge}" />
+      <Setter Property="Padding" Value="{DynamicResource SpaceLarge}" />
     </Style>
     <Style Selector="Button.nav">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
-      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="Padding" Value="{DynamicResource NavPadding}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />

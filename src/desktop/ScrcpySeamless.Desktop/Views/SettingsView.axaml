@@ -4,29 +4,30 @@
              xmlns:views="using:ScrcpySeamless.Desktop.Views"
              x:Class="ScrcpySeamless.Desktop.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
-  <Grid RowDefinitions="Auto,Auto,*" Margin="32,28" RowSpacing="20">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource PageInset}" RowSpacing="{DynamicResource SectionGap}">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Spacing="5">
-        <TextBlock Classes="eyebrow" Text="{Binding Eyebrow}" />
+        <TextBlock Name="SettingsEyebrow" Classes="eyebrow" Text="{Binding Eyebrow}" />
         <TextBlock Classes="pageTitle" Text="{Binding Title}" />
-        <TextBlock Classes="muted" Text="{Binding Subtitle}" />
+        <TextBlock Name="SettingsSubtitle" Classes="muted" Text="{Binding Subtitle}" />
       </StackPanel>
       <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
               VerticalAlignment="Bottom" AutomationProperties.AutomationId="settings.resetDraft"
               AutomationProperties.Name="{Binding ResetLabel}" />
     </Grid>
-    <Border Grid.Row="1" Background="{DynamicResource AccentSoftBrush}" CornerRadius="8"
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8"
             Padding="16,11">
       <StackPanel Spacing="4">
-        <TextBlock Text="{Binding GlobalLabel}" FontWeight="SemiBold"
+        <TextBlock Name="SettingsGlobalLabel" Text="{Binding GlobalLabel}" FontWeight="SemiBold"
                    Foreground="{DynamicResource TextPrimaryBrush}" />
-        <TextBlock Text="{Binding UnsavedLabel}" Classes="muted" FontSize="11" />
+        <TextBlock Text="{Binding UnsavedLabel}" Classes="muted" FontSize="{DynamicResource SmallFontSize}" />
       </StackPanel>
     </Border>
-    <Grid Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18">
-      <StackPanel Grid.Column="0" Spacing="8">
-        <TextBlock Text="{Binding CategoriesLabel}" Classes="eyebrow" />
+    <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18">
+      <Grid Name="CategoryNavigation" Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
+        <TextBlock Grid.Row="0" Text="{Binding CategoriesLabel}" Classes="eyebrow" />
         <ListBox Name="CategoryList" ItemsSource="{Binding Categories}"
+                 Grid.Row="1"
                  SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                  AutomationProperties.AutomationId="settings.categories"
                  AutomationProperties.Name="{Binding CategoriesLabel}">
@@ -36,13 +37,26 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-      </StackPanel>
-      <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
-        <TextBox Name="OptionSearch" Grid.Row="0" Text="{Binding SearchText, Mode=TwoWay}"
-                 PlaceholderText="{Binding SearchWatermark}"
-                 AutomationProperties.AutomationId="settings.search"
-                 AutomationProperties.Name="{Binding SearchLabel}" />
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+      </Grid>
+      <ComboBox Name="CompactCategoryPicker" Grid.Column="0" IsVisible="False"
+                ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                AutomationProperties.AutomationId="settings.compactCategories"
+                AutomationProperties.Name="{Binding CategoriesLabel}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SettingsCategory">
+            <TextBlock Text="{Binding Label}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Grid Name="SettingsResults" Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="4">
+          <TextBox Name="OptionSearch" Grid.Row="0" Text="{Binding SearchText, Mode=TwoWay}"
+                   PlaceholderText="{Binding SearchWatermark}"
+                   AutomationProperties.AutomationId="settings.search"
+                   AutomationProperties.Name="{Binding SearchLabel}" />
+          <TextBlock Grid.Row="1" Text="{Binding ShortcutHelp}" Classes="muted" />
+        </Grid>
+        <ScrollViewer Name="OptionScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding EmptyLabel}" IsVisible="{Binding HasNoResults}"
                        Classes="muted" Margin="8,16" />

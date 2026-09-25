@@ -10,9 +10,10 @@ public sealed record DeviceScenarioChoice(DeviceScenario Scenario, string Label)
 public sealed record StatusMetric(string AutomationId, string Label, string Value);
 
 /// <summary>Projects one device's independent availability, transport and session evidence.</summary>
-public sealed class DeviceCardViewModel
+public sealed class DeviceCardViewModel : ObservableViewModel
 {
-    public DeviceCardViewModel(DevicePresentation device, PresentationText text, bool isPreview)
+    private bool detailsExpanded;
+    public DeviceCardViewModel(DevicePresentation device, PresentationText text)
     {
         StableId = device.StableId;
         DisplayName = device.DisplayName;
@@ -37,13 +38,20 @@ public sealed class DeviceCardViewModel
         Audio = ChannelText(device.Audio, text);
         Control = ChannelText(device.Control, text);
         Hint = text.Get(device.HintResourceKey);
-        AvailableHeading = text.Get("devices.section.available");
-        SessionHeading = text.Get("devices.section.session");
-        PreviewNote = text.Get("devices.recovery.note");
+        DetailsLabel = text.Get("devices.connectionDetails");
+        SummaryLabel = text.Get(device.Stream switch
+        {
+            StreamEvidence.ObservedStreaming => "devices.summary.streaming",
+            StreamEvidence.Recovering => "devices.summary.recovering",
+            StreamEvidence.Failed => "devices.summary.failed",
+            _ => "devices.summary.noEvidence",
+        });
+        FallbackSummary = text.Get(device.WirelessPrepared ? "devices.summary.fallbackReady" : "devices.summary.fallbackUnavailable");
+        AvailableHeading = text.Get("devices.summary.sessionHeading");
+        SessionHeading = text.Get("devices.summary.transportHeading");
         IsProblem = device.Availability is DeviceAvailability.Offline or DeviceAvailability.Unauthorized ||
             device.Stream == StreamEvidence.Failed;
         IsInformational = !IsProblem;
-        IsPreview = isPreview;
         AvailabilityMetrics =
         [
             new($"device.{StableId}.availability", text.Get("devices.availability"), Availability),
@@ -73,12 +81,18 @@ public sealed class DeviceCardViewModel
     public string Audio { get; }
     public string Control { get; }
     public string Hint { get; }
+    public string DetailsLabel { get; }
+    public string SummaryLabel { get; }
+    public string FallbackSummary { get; }
+    public bool DetailsExpanded
+    {
+        get => detailsExpanded;
+        set => SetProperty(ref detailsExpanded, value);
+    }
     public string AvailableHeading { get; }
     public string SessionHeading { get; }
-    public string PreviewNote { get; }
     public bool IsProblem { get; }
     public bool IsInformational { get; }
-    public bool IsPreview { get; }
     public IReadOnlyList<StatusMetric> AvailabilityMetrics { get; }
     public IReadOnlyList<StatusMetric> SessionMetrics { get; }
 
@@ -114,19 +128,6 @@ public sealed class DevicesViewModel : ObservableViewModel
         ScenarioLabel = text.Get("devices.previewScenario");
         EmptyTitle = text.Get("devices.empty.title");
         EmptyBody = text.Get(source.IsPreview ? "devices.empty.previewBody" : "devices.empty.body");
-        AvailableHeading = text.Get("devices.section.available");
-        SessionHeading = text.Get("devices.section.session");
-        AvailabilityLabel = text.Get("devices.availability");
-        TransportLabel = text.Get("devices.transport");
-        UsbLabel = text.Get("devices.usb");
-        WirelessLabel = text.Get("devices.wireless");
-        ProcessLabel = text.Get("devices.process");
-        StreamingLabel = text.Get("devices.streaming");
-        VideoLabel = text.Get("devices.video");
-        AudioLabel = text.Get("devices.audio");
-        ControlLabel = text.Get("devices.control");
-        RecoveryNote = text.Get("devices.recovery.note");
-        ActionUnavailable = text.Get("devices.action.unavailable");
         SelectedScenario = Scenarios.FirstOrDefault();
     }
 
@@ -139,19 +140,6 @@ public sealed class DevicesViewModel : ObservableViewModel
     public string ScenarioLabel { get; }
     public string EmptyTitle { get; }
     public string EmptyBody { get; }
-    public string AvailableHeading { get; }
-    public string SessionHeading { get; }
-    public string AvailabilityLabel { get; }
-    public string TransportLabel { get; }
-    public string UsbLabel { get; }
-    public string WirelessLabel { get; }
-    public string ProcessLabel { get; }
-    public string StreamingLabel { get; }
-    public string VideoLabel { get; }
-    public string AudioLabel { get; }
-    public string ControlLabel { get; }
-    public string RecoveryNote { get; }
-    public string ActionUnavailable { get; }
     public bool IsEmpty => Cards.Count == 0;
 
     public DeviceScenarioChoice? SelectedScenario
@@ -168,7 +156,7 @@ public sealed class DevicesViewModel : ObservableViewModel
 
             if (value?.Scenario.Device is DevicePresentation device)
             {
-                Cards.Add(new DeviceCardViewModel(device, text, IsPreview));
+                Cards.Add(new DeviceCardViewModel(device, text));
             }
 
             OnPropertyChanged(nameof(IsEmpty));

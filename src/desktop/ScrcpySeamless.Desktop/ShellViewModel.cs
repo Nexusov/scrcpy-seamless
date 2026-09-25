@@ -6,22 +6,21 @@ namespace ScrcpySeamless.Desktop;
 /// <summary>Coordinates implemented Desktop destinations without owning device or settings logic.</summary>
 public sealed class ShellViewModel : ObservableViewModel
 {
-    private readonly Action<bool> setDarkTheme;
+    private readonly Action<AppTheme> setTheme;
     private object currentPage;
-    private bool isDark;
+    private ThemeChoice selectedTheme;
 
     public ShellViewModel(
         DevicesViewModel devices,
         SettingsViewModel settings,
         PresentationText text,
         bool isPreview,
-        bool initiallyDark,
-        Action<bool> setDarkTheme)
+        AppTheme initialTheme,
+        Action<AppTheme> setTheme)
     {
         Devices = devices;
         Settings = settings;
-        this.setDarkTheme = setDarkTheme;
-        isDark = initiallyDark;
+        this.setTheme = setTheme;
         currentPage = devices;
         IsPreview = isPreview;
         ProductName = text.Get("app.title");
@@ -32,12 +31,14 @@ public sealed class ShellViewModel : ObservableViewModel
         ProfilesLabel = text.Get("nav.profiles");
         SettingsLabel = text.Get("nav.settings");
         DiagnosticsLabel = text.Get("nav.diagnostics");
-        UnavailableHint = text.Get("nav.later");
-        LightThemeLabel = text.Get("app.theme.light");
-        DarkThemeLabel = text.Get("app.theme.dark");
+        UnavailableHint = text.Get("nav.unavailable");
+        ThemeLabel = text.Get("app.theme.label");
+        Themes = Enum.GetValues<AppTheme>()
+            .Select(theme => new ThemeChoice(theme, text.Get($"app.theme.{theme.ToString().ToLowerInvariant()}")))
+            .ToArray();
+        selectedTheme = Themes.Single(choice => choice.Theme == initialTheme);
         ShowDevicesCommand = new ActionCommand(ShowDevices);
         ShowSettingsCommand = new ActionCommand(ShowSettings);
-        ToggleThemeCommand = new ActionCommand(ToggleTheme);
     }
 
     public DevicesViewModel Devices { get; }
@@ -52,15 +53,25 @@ public sealed class ShellViewModel : ObservableViewModel
     public string SettingsLabel { get; }
     public string DiagnosticsLabel { get; }
     public string UnavailableHint { get; }
-    public string LightThemeLabel { get; }
-    public string DarkThemeLabel { get; }
-    public string ThemeButtonLabel => IsDark ? LightThemeLabel : DarkThemeLabel;
-    public bool IsDark => isDark;
+    public string ThemeLabel { get; }
+    public IReadOnlyList<ThemeChoice> Themes { get; }
+    public ThemeChoice SelectedTheme
+    {
+        get => selectedTheme;
+        set
+        {
+            if (!SetProperty(ref selectedTheme, value))
+            {
+                return;
+            }
+
+            setTheme(value.Theme);
+        }
+    }
     public bool IsDevicesSelected => ReferenceEquals(CurrentPage, Devices);
     public bool IsSettingsSelected => ReferenceEquals(CurrentPage, Settings);
     public ICommand ShowDevicesCommand { get; }
     public ICommand ShowSettingsCommand { get; }
-    public ICommand ToggleThemeCommand { get; }
 
     public object CurrentPage
     {
@@ -83,12 +94,7 @@ public sealed class ShellViewModel : ObservableViewModel
     /// <summary>Navigates to the implemented Settings preview.</summary>
     public void ShowSettings() => CurrentPage = Settings;
 
-    /// <summary>Changes only the current presentation theme.</summary>
-    private void ToggleTheme()
-    {
-        isDark = !isDark;
-        setDarkTheme(isDark);
-        OnPropertyChanged(nameof(IsDark));
-        OnPropertyChanged(nameof(ThemeButtonLabel));
-    }
 }
+
+/// <summary>Localized presentation choice for an application theme request.</summary>
+public sealed record ThemeChoice(AppTheme Theme, string Label);

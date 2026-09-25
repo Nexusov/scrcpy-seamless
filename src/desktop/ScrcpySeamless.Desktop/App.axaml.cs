@@ -20,11 +20,46 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
         {
             DesktopLaunchOptions options = DesktopLaunchOptions.Parse(desktopLifetime.Args ?? []);
-            RequestedThemeVariant = options.Dark ? ThemeVariant.Dark : ThemeVariant.Light;
+            ApplyMetricScale(options.UiScale);
+            RequestedThemeVariant = ResolveTheme(options.Theme);
             desktopLifetime.MainWindow = new MainWindow(DesktopComposition.Create(options,
-                dark => RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light));
+                theme => RequestedThemeVariant = ResolveTheme(theme)));
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Maps the local choice onto Avalonia's inherited system theme.</summary>
+    public static ThemeVariant ResolveTheme(AppTheme theme) => theme switch
+    {
+        AppTheme.Light => ThemeVariant.Light,
+        AppTheme.Dark => ThemeVariant.Dark,
+        _ => ThemeVariant.Default,
+    };
+
+    /// <summary>Applies preview-only layout metrics before constructing the window.</summary>
+    public void ApplyMetricScale(double scale)
+    {
+        Dictionary<string, double> metricBases = new()
+        {
+            ["BodyFontSize"] = 13,
+            ["SmallFontSize"] = 11,
+            ["TitleFontSize"] = 28,
+            ["SectionFontSize"] = 16,
+            ["SectionGap"] = 14,
+            ["EditorBelowWidth"] = 620,
+        };
+
+        foreach ((string key, double value) in metricBases)
+        {
+            Resources[key] = value * scale;
+        }
+
+        Resources["PageInset"] = new Thickness(24 * scale, 16 * scale);
+        Resources["SpaceLarge"] = new Thickness(24 * scale);
+        Resources["SpaceMedium"] = new Thickness(16 * scale);
+        Resources["SpaceSmall"] = new Thickness(8 * scale);
+        Resources["ControlPadding"] = new Thickness(10 * scale, 7 * scale);
+        Resources["NavPadding"] = new Thickness(14 * scale, 11 * scale);
     }
 }

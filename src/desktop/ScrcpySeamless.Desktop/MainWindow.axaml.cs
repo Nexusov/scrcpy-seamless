@@ -7,7 +7,7 @@ namespace ScrcpySeamless.Desktop;
 public partial class MainWindow : Window
 {
     /// <summary>Provides a truthful empty design-time shell.</summary>
-    public MainWindow() : this(DesktopComposition.Create(new DesktopLaunchOptions(false, false, null, false), _ => { }))
+    public MainWindow() : this(DesktopComposition.Create(new DesktopLaunchOptions(false, AppTheme.System, null, false), _ => { }))
     {
     }
 

@@ -5,7 +5,7 @@
              x:Class="ScrcpySeamless.Desktop.Views.DevicesView"
              x:DataType="vm:DevicesViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Margin="32,28" Spacing="24">
+    <StackPanel Margin="{DynamicResource PageInset}" Spacing="{DynamicResource SectionGap}">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
         <StackPanel Spacing="5">
           <TextBlock Classes="eyebrow" Text="{Binding Eyebrow}" />
@@ -14,7 +14,7 @@
         </StackPanel>
         <StackPanel Grid.Column="1" Spacing="5" IsVisible="{Binding IsPreview}"
                     VerticalAlignment="Bottom" MinWidth="210">
-          <TextBlock Text="{Binding ScenarioLabel}" FontSize="11" Classes="muted" />
+          <TextBlock Text="{Binding ScenarioLabel}" FontSize="{DynamicResource SmallFontSize}" Classes="muted" />
           <ComboBox Name="ScenarioPicker" ItemsSource="{Binding Scenarios}"
                     SelectedItem="{Binding SelectedScenario, Mode=TwoWay}"
                     AutomationProperties.AutomationId="preview.scenario"
