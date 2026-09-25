@@ -39,7 +39,8 @@ public sealed class LegacyNativeHostTests
             Assert.Equal(serverPath, startInfo.Environment["SCRCPY_SERVER_PATH"]);
             Assert.Equal("Local\\synthetic-stop", startInfo.Environment["SCRCPY_STOP_EVENT"]);
             Assert.Equal("synthetic.example:37123", startInfo.Environment["SCRCPY_RECONNECT_SERIAL"]);
-            Assert.False(startInfo.Environment.TryGetValue("ADB_MDNS_OPENSCREEN", out string? backend) && backend == "1");
+            Assert.Equal(Environment.GetEnvironmentVariable("ADB_MDNS_OPENSCREEN"),
+                startInfo.Environment.TryGetValue("ADB_MDNS_OPENSCREEN", out string? backend) ? backend : null);
             Assert.False(Directory.Exists(Path.Combine(directory, "sessions")));
         }
         finally
