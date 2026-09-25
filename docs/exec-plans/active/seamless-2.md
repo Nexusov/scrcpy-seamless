@@ -1,10 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5A PR gate: Phases 0–4 are integrated into
-`seamless-2.0`; Phase 4 merged through PR #5 at
-`d9617610388668715934083edfe9589ce15463ac`. Phase 5A is implemented
-and ready for PR review; overall Phase 5 remains incomplete. Phase 5B–5D
-and Phases 6–13 have not started.
+Status at the 2026-09-25 Phase 5B local implementation gate: Phase 5A merged
+through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
+the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
+commits. Phase 5B is in local development; overall Phase 5 remains incomplete.
+Phase 5C–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -271,8 +271,8 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
-| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Implemented; ready for PR review |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Not started |
+| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | In local implementation; not published |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
@@ -388,6 +388,35 @@ options cannot become launch arguments. The current schema has global mirroring
 preferences; per-profile overrides are not implemented. Before enabling a
 validated `port` editor, test `N[:N]` components, ranges and effective values
 against the actual native parser.
+
+### Phase 5B edit-session and storage contract
+
+Normal startup selects exactly one explicit storage mode: portable
+`<application>/data/`, installed per-user data, or a named development data
+directory. Preview composition is selected first and uses only in-memory
+sources; it cannot read, create, migrate or write configuration. A missing v2
+document creates an empty edit session in memory; malformed, unsupported or
+inaccessible data is an explicit error and never silently becomes an empty
+session. Legacy migration is prepared from an explicitly selected DEV source,
+reviewed, and committed separately; an existing valid v2 remains authoritative.
+
+The device/profile/mirroring document and Desktop preferences are independent
+save groups. Each group tracks its last loaded or applied snapshot, exact byte
+revision, and detached draft. Apply validates and compares against that revision,
+then advances the baseline only after a successful atomic commit; an unchanged
+draft performs no write. Cancel restores the current baseline without I/O.
+Reset removes only a selected draft override, or resets an explicitly scoped
+preference group, and remains unsaved until Apply. Conflicts retain the draft
+and require a deliberate reload/discard; write failures retain the draft and
+expose a diagnostic. Navigation retains drafts. Closing with dirty groups asks
+for Apply, Discard, or Stay and reports any partial two-document save outcome.
+
+Desktop preferences live in versioned `desktop-preferences.json` alongside but
+separate from `configuration.v2.json`. Appearance edits may preview live and
+Cancel restores committed rendering; command shortcuts take effect only after
+Apply. No transaction is implied across the two files. Profiles are saved
+identities, not discovered or online devices, and mirroring preferences remain
+global. No Phase 5B path launches ADB or native mirroring.
 
 Phase 5B also owns persistent application appearance preferences, separate from
 phone profiles and scrcpy option metadata: System/Light/Dark selection, a
