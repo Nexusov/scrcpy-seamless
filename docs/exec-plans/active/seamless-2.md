@@ -272,9 +272,22 @@ interface here; broad competitive feature completion remains Phase 10.
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | PR preparation; independent review pending |
-| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
+| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | In progress locally; hardware pending |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
+
+### Phase 5C dependency-ordered checkpoints
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Pending |
+| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Pending |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Pending |
+| 5C.4 | Execution preflight and immutable native request translated from committed settings | Pending |
+| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Pending |
+| 5C.6 | Device/session actions, cancellation and coordinated application close | Pending |
+| 5C.7 | Same-scope activation and duplicate-launch protection | Pending |
+| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | Pending |
 
 ### Phase 5A dependency-ordered checkpoints
 
