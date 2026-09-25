@@ -29,6 +29,8 @@ public sealed partial class DevicesViewModel
     private Action<Action>? dispatch;
     private CancellationTokenSource? discoveryCancellation;
     private CancellationTokenSource? pairingCancellation;
+    private Task activeRefresh = Task.CompletedTask;
+    private Task activePairing = Task.CompletedTask;
     private long discoveryGeneration;
     private long pairingGeneration;
     private bool liveDisposed;
@@ -111,6 +113,7 @@ public sealed partial class DevicesViewModel
     public bool CanPair => IsLiveEnabled && !IsPairing && ResolvePairingEndpoint() is not null &&
         pairingCode.Length == PairingCodeLength && pairingCode.All(char.IsAsciiDigit);
     private const int PairingCodeLength = 6;
+    private static readonly TimeSpan ShutdownWait = TimeSpan.FromSeconds(5);
 
     /// <summary>Hosts session actions supplied by the application composition without starting them.</summary>
     public void AttachSessionActions(DeviceSessionViewModel actions)
@@ -231,7 +234,15 @@ public sealed partial class DevicesViewModel
     }
 
     /// <summary>Refreshes only when explicitly requested, retaining failed observations as stale.</summary>
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        Task operation = RefreshCoreAsync(cancellationToken);
+        activeRefresh = operation;
+        return operation;
+    }
+
+    /// <summary>Runs one owned discovery attempt and ignores superseded completions.</summary>
+    private async Task RefreshCoreAsync(CancellationToken cancellationToken)
     {
         if (!IsLiveEnabled)
         {
@@ -296,7 +307,15 @@ public sealed partial class DevicesViewModel
     }
 
     /// <summary>Pairs explicitly and optionally connects a separately chosen endpoint.</summary>
-    public async Task PairAsync(CancellationToken cancellationToken = default)
+    public Task PairAsync(CancellationToken cancellationToken = default)
+    {
+        Task operation = PairCoreAsync(cancellationToken);
+        activePairing = operation;
+        return operation;
+    }
+
+    /// <summary>Runs a captured pairing attempt without retaining its visible code.</summary>
+    private async Task PairCoreAsync(CancellationToken cancellationToken)
     {
         if (!CanPair)
         {
@@ -374,6 +393,23 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(IsLiveEnabled));
         OnPropertyChanged(nameof(CanRefresh));
         OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Cancels owned ADB work and awaits its settlement before application shutdown.</summary>
+    public async Task<bool> ShutdownLiveAsync(CancellationToken cancellationToken = default)
+    {
+        DisposeLive();
+
+        try
+        {
+            await Task.WhenAll(activeRefresh, activePairing).WaitAsync(ShutdownWait, cancellationToken);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            // Generations are invalidated even when an external gateway fails to honor cancellation.
+            return false;
+        }
     }
 
     /// <summary>Publishes a current ADB result without guessing profile or device equivalence.</summary>

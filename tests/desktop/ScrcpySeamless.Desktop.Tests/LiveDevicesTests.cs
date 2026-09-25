@@ -145,13 +145,70 @@ public sealed class LiveDevicesTests
         Assert.Equal(string.Empty, devices.PairingCode);
     }
 
+    /// <summary>Shutdown cancels the active direct ADB command and waits for its settlement.</summary>
+    [Fact]
+    public async Task ShutdownCancelsAndAwaitsOwnedPairing()
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeGateway gateway = new()
+        {
+            PairAsyncOverride = async (_, _, cancellationToken) =>
+            {
+                started.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return AdbResult<bool>.Success(true);
+            },
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.ManualPairingEndpoint = "phone.local:37123";
+        devices.PairingCode = "123456";
+        Task pending = devices.PairAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        bool settled = await devices.ShutdownLiveAsync(TestContext.Current.CancellationToken);
+        await pending;
+
+        Assert.True(settled);
+        Assert.False(devices.IsLiveEnabled);
+        Assert.Null(devices.PairingOutcome);
+        Assert.Equal(string.Empty, devices.PairingCode);
+    }
+
+    /// <summary>Queued UI publications after shutdown cannot revive observations or pairing status.</summary>
+    [Fact]
+    public async Task ShutdownInvalidatesQueuedDeviceAndPairingResults()
+    {
+        Queue<Action> queuedPublications = new();
+        FakeGateway gateway = new()
+        {
+            Devices = AdbResult<IReadOnlyList<AdbDevice>>.Success(
+                [new AdbDevice("usb-a", AdbDeviceState.Device, null)]),
+        };
+        DevicesViewModel devices = CreateDevices(gateway, action => queuedPublications.Enqueue(action));
+        await devices.RefreshAsync(TestContext.Current.CancellationToken);
+        devices.ManualPairingEndpoint = "phone.local:37123";
+        devices.PairingCode = "123456";
+        await devices.PairAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(await devices.ShutdownLiveAsync(TestContext.Current.CancellationToken));
+        while (queuedPublications.TryDequeue(out Action? publication))
+        {
+            publication();
+        }
+
+        Assert.Empty(devices.ObservedDevices);
+        Assert.Null(devices.PairingOutcome);
+        Assert.Null(devices.SelectedObservedDevice);
+        Assert.Equal(string.Empty, devices.PairingCode);
+    }
+
     /// <summary>Constructs a normal view model with fake ADB and an immediate test dispatcher.</summary>
-    private static DevicesViewModel CreateDevices(FakeGateway gateway)
+    private static DevicesViewModel CreateDevices(FakeGateway gateway, Action<Action>? dispatcher = null)
     {
         DevicesViewModel devices = new(StaticDevicePresentationSource.Empty(),
             new PresentationText());
         devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
-            action => action());
+            dispatcher ?? (action => action()));
         return devices;
     }
 
