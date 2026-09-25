@@ -46,7 +46,13 @@ public sealed class DeviceCardViewModel : ObservableViewModel
             StreamEvidence.Failed => "devices.summary.failed",
             _ => "devices.summary.noEvidence",
         });
-        FallbackSummary = text.Get(device.WirelessPrepared ? "devices.summary.fallbackReady" : "devices.summary.fallbackUnavailable");
+        // Describe a selected Wi-Fi recovery route as recovery, not a second fallback.
+        FallbackSummary = text.Get((device.SelectedTransport, device.Stream, device.WirelessPrepared) switch
+        {
+            (TransportKind.Network, StreamEvidence.Recovering, _) => "devices.summary.wirelessRecovery",
+            (_, _, true) => "devices.summary.fallbackReady",
+            _ => "devices.summary.fallbackUnavailable",
+        });
         AvailableHeading = text.Get("devices.summary.sessionHeading");
         SessionHeading = text.Get("devices.summary.transportHeading");
         IsProblem = device.Availability is DeviceAvailability.Offline or DeviceAvailability.Unauthorized ||

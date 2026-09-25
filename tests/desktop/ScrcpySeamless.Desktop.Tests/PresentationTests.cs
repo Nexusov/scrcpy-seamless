@@ -58,6 +58,38 @@ public sealed class PresentationTests
         Assert.True(devices.IsEmpty);
     }
 
+    /// <summary>Labels USB selection separately from a prepared Wi-Fi fallback.</summary>
+    [Fact]
+    public void UsbSelectionRetainsPreparedWirelessFallbackSummary()
+    {
+        var devices = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.System, "fallback", false), _ => { }).Devices;
+        var card = Assert.Single(devices.Cards);
+
+        Assert.True(devices.IsPreview);
+        Assert.Equal("Selected transport", card.SessionHeading);
+        Assert.Equal("USB selected", card.SelectedTransport);
+        Assert.Equal("Wi-Fi fallback prepared", card.FallbackSummary);
+        Assert.Equal("Prepared", Assert.Single(card.AvailabilityMetrics, metric => metric.Label == "Wireless fallback").Value);
+    }
+
+    /// <summary>Describes Wi-Fi recovery without claiming a second fallback or verified audio.</summary>
+    [Fact]
+    public void WirelessRecoveryDoesNotClaimAdditionalFallbackOrAudioReadiness()
+    {
+        var devices = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.System, "reconnect", false), _ => { }).Devices;
+        var card = Assert.Single(devices.Cards);
+
+        Assert.True(devices.IsPreview);
+        Assert.Equal("Selected transport", card.SessionHeading);
+        Assert.Equal("Wi-Fi selected", card.SelectedTransport);
+        Assert.Equal("Session recovering", card.SummaryLabel);
+        Assert.Equal("Recovery targeting Wi-Fi", card.FallbackSummary);
+        Assert.Equal("Running", Assert.Single(card.SessionMetrics, metric => metric.Label == "Native process").Value);
+        Assert.Equal("Observed ready", Assert.Single(card.SessionMetrics, metric => metric.Label == "Video").Value);
+        Assert.Equal("Unverified", Assert.Single(card.SessionMetrics, metric => metric.Label == "Audio").Value);
+        Assert.Equal("Observed ready", Assert.Single(card.SessionMetrics, metric => metric.Label == "Control").Value);
+    }
+
     /// <summary>Filters generated options by localized content without mutating the draft.</summary>
     [Fact]
     public void SettingsSearchAndCategoriesUseGeneratedMetadataAndResources()

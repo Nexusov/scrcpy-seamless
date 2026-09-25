@@ -10,13 +10,16 @@
         MinHeight="460"
         Background="{DynamicResource CanvasBrush}">
   <Grid ColumnDefinitions="208,*">
-    <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
+    <Border Name="SidebarPanel" Grid.Column="0" Background="{DynamicResource SidebarBrush}"
             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0"
             Padding="16,16">
       <ScrollViewer HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="24">
         <StackPanel Spacing="4" Margin="8,0">
-          <TextBlock Text="{Binding ProductName}" FontSize="{DynamicResource SectionFontSize}" FontWeight="Bold"
+          <!-- Wrap the complete product name within the sidebar at enlarged UI metrics. -->
+          <TextBlock Name="SidebarBrand" Text="{Binding ProductName}" TextWrapping="Wrap"
+                     AutomationProperties.Name="{Binding ProductName}"
+                     FontSize="{DynamicResource SectionFontSize}" FontWeight="Bold"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
           <TextBlock Text="{Binding ProductSubtitle}" FontSize="{DynamicResource SmallFontSize}" Classes="muted" />
         </StackPanel>

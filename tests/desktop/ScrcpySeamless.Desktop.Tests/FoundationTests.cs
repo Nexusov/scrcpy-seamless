@@ -29,6 +29,46 @@ public static class TestApplicationBuilder
 /// <summary>Checks that the product shell and typed views load under Avalonia.Headless.</summary>
 public sealed class FoundationTests
 {
+    /// <summary>Keeps the complete product name inside the sidebar at normal and enlarged metrics.</summary>
+    [AvaloniaFact]
+    public void SidebarBrandRemainsFullyLaidOutAtReferenceMetrics()
+    {
+        var application = Assert.IsType<App>(Application.Current);
+
+        try
+        {
+            foreach (double metricScale in new[] { 1d, 1.5d })
+            {
+                application.ApplyMetricScale(metricScale);
+                var shell = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.System, null, true), _ => { });
+                var window = new MainWindow(shell) { Width = 900, Height = 620 };
+                window.Show();
+                window.UpdateLayout();
+
+                var brand = Assert.IsType<TextBlock>(window.FindControl<TextBlock>("SidebarBrand"));
+                var sidebar = Assert.IsType<Border>(window.FindControl<Border>("SidebarPanel"));
+                Point? brandPosition = brand.TranslatePoint(new Point(0, 0), sidebar);
+
+                Assert.Equal(shell.ProductName, brand.Text);
+                Assert.NotNull(brandPosition);
+                Assert.True(brandPosition.Value.X + brand.Bounds.Width <= sidebar.Bounds.Width,
+                    $"Brand extends past the sidebar at {metricScale}x metrics");
+
+                if (metricScale > 1)
+                {
+                    Assert.True(brand.Bounds.Height > brand.FontSize * 1.5,
+                        $"Enlarged brand stayed on one clipped line: {brand.Bounds}");
+                }
+
+                window.Close();
+            }
+        }
+        finally
+        {
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Measures the actual bounded Settings viewport and reaches the final option at laptop sizes.</summary>
     [AvaloniaFact]
     public void SettingsControlsRemainReachableAtReferenceSizes()
@@ -94,6 +134,80 @@ public sealed class FoundationTests
             Assert.True(theme.Bounds.Height > 0);
             Assert.Contains(window.GetVisualDescendants().OfType<ScrollViewer>(),
                 viewer => viewer.Extent.Height > viewer.Viewport.Height);
+
+            shell.Devices.SelectScenario("reconnect");
+            Assert.Single(shell.Devices.Cards).DetailsExpanded = true;
+            shell.ShowDevicesCommand.Execute(null);
+            window.UpdateLayout();
+            var devices = Assert.Single(window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.DevicesView>());
+            var deviceScroll = Assert.Single(devices.GetVisualDescendants().OfType<ScrollViewer>());
+            var details = Assert.Single(devices.GetVisualDescendants().OfType<Expander>());
+            var finalMetric = details.GetVisualDescendants().OfType<TextBlock>().Last();
+            finalMetric.BringIntoView();
+            window.UpdateLayout();
+            Point? metricPosition = finalMetric.TranslatePoint(new Point(0, 0), deviceScroll);
+            Assert.NotNull(metricPosition);
+            Assert.True(metricPosition.Value.Y + finalMetric.Bounds.Height <= deviceScroll.Viewport.Height + 2);
+            window.Close();
+        }
+        finally
+        {
+            application.ApplyMetricScale(1);
+        }
+    }
+
+    /// <summary>Enlarged Settings exposes editing, validation, reset, and help through its scroll viewport.</summary>
+    [AvaloniaFact]
+    public void EnlargedSettingsOptionControlsRemainReachableByScrolling()
+    {
+        var application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+
+        try
+        {
+            var shell = DesktopComposition.Create(new DesktopLaunchOptions(true, AppTheme.Dark, null, true), _ => { });
+            shell.Settings.SearchText = "audio-output-buffer";
+            var row = Assert.Single(shell.Settings.VisibleRows);
+            row.TextValue = "1001";
+            var window = new MainWindow(shell) { Width = 900, Height = 620 };
+            window.Show();
+            window.UpdateLayout();
+
+            var settings = Assert.Single(window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            var scroll = settings.FindControl<ScrollViewer>("OptionScroll")!;
+            var option = Assert.Single(window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.OptionRowView>());
+            var editor = option.FindControl<TextBox>("OptionEditor")!;
+            var validation = Assert.Single(option.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == row.ValidationMessage);
+            var reset = Assert.Single(option.GetVisualDescendants().OfType<Button>(),
+                button => button.Content?.ToString() == row.ResetLabel);
+            var help = Assert.Single(option.GetVisualDescendants().OfType<Expander>());
+            help.IsExpanded = true;
+            window.UpdateLayout();
+            var helpHeader = Assert.Single(help.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == row.HelpLabel);
+            var helpDescription = Assert.Single(help.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == row.Description);
+            var helpDefault = Assert.Single(help.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == row.DefaultLabel);
+
+            Assert.True(scroll.Viewport.Height > 0);
+            Assert.True(scroll.Extent.Height > scroll.Viewport.Height);
+
+            foreach (Control control in new Control[] { editor, validation, reset, helpHeader, helpDescription, helpDefault })
+            {
+                control.BringIntoView();
+                window.UpdateLayout();
+                Point? position = control.TranslatePoint(new Point(0, 0), scroll);
+
+                Assert.NotNull(position);
+                Assert.InRange(position.Value.Y, -2, scroll.Viewport.Height);
+                Assert.True(position.Value.Y + control.Bounds.Height <= scroll.Viewport.Height + 2,
+                    $"{control.GetType().Name} remains below the enlarged option viewport");
+            }
+
+            Assert.True(editor.Focus());
+            Assert.True(editor.IsFocused);
             window.Close();
         }
         finally
