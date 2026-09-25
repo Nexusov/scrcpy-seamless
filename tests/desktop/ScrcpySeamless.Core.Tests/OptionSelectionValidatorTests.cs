@@ -280,6 +280,55 @@ public sealed class OptionSelectionValidatorTests
         Assert.Empty(result.Arguments);
     }
 
+    /// <summary>Composite ports follow the native component grammar while preserving the user's spelling.</summary>
+    [Theory]
+    [InlineData("27183", true)]
+    [InlineData("27183:27199", true)]
+    [InlineData("27199:27183", true)]
+    [InlineData("0", true)]
+    [InlineData("0:65535", true)]
+    [InlineData("010:0x10", true)]
+    [InlineData("+0X10:-0", true)]
+    [InlineData("08", false)]
+    [InlineData("0x", false)]
+    [InlineData("-1", false)]
+    [InlineData("65536", false)]
+    [InlineData(":27183", false)]
+    [InlineData("27183:", false)]
+    [InlineData("1:2:3", false)]
+    [InlineData("1junk", false)]
+    [InlineData("+", false)]
+    [InlineData(" 10", false)]
+    [InlineData("", false)]
+    public void CompositePortSyntaxMatchesNativeRangeContract(string value, bool expectedValid)
+    {
+        MirroringPreferences preferences = CreatePreferences(("port", value));
+
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(preferences);
+
+        Assert.Equal(expectedValid, result.IsValid);
+        Assert.Equal(value, preferences.Options["port"].GetString());
+
+        if (expectedValid)
+        {
+            Assert.Contains($"--port={value}", result.Arguments);
+            return;
+        }
+
+        Assert.Empty(result.Arguments);
+    }
+
+    /// <summary>An absent required port value is reported separately from malformed components.</summary>
+    [Fact]
+    public void EmptyPortValueReportsMissingArgument()
+    {
+        OptionSelectionResult result = OptionSelectionValidator.Evaluate(CreatePreferences(("port", "")));
+
+        Assert.Contains(result.Diagnostics, issue =>
+            issue.OptionId == "port" && issue.Code == OptionDiagnosticCode.MissingArgument);
+        Assert.Empty(result.Arguments);
+    }
+
     /// <summary>A session cannot disable all three meaningful channels at once.</summary>
     [Fact]
     public void SessionOutputRuleRejectsNoVideoAudioOrControl()

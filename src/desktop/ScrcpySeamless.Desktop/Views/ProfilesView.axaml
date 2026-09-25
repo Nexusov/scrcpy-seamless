@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.ProfilesView"
+             x:DataType="vm:ProfilesViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="{DynamicResource PageInset}" Spacing="{DynamicResource SectionGap}">
+      <StackPanel Spacing="5">
+        <TextBlock Classes="eyebrow" Text="{Binding Eyebrow}" />
+        <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="muted" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+      </StackPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <TextBlock Classes="sectionTitle" Text="{Binding ListLabel}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="{Binding AddLabel}" Command="{Binding NewCommand}"
+                    IsEnabled="{Binding CanEdit}"
+                    AutomationProperties.AutomationId="profiles.add" />
+          </Grid>
+          <TextBlock Classes="muted" Text="{Binding EmptyLabel}" IsVisible="{Binding HasNoProfiles}" />
+          <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                   AutomationProperties.AutomationId="profiles.list"
+                   AutomationProperties.Name="{Binding ListLabel}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SavedProfileChoice">
+                <TextBlock Text="{Binding Label}" Margin="6,4" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+      </Border>
+      <Border Classes="card" IsVisible="{Binding IsEditing}" IsEnabled="{Binding CanEdit}">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="muted" Text="{Binding EditingId}" FontSize="{DynamicResource SmallFontSize}" />
+          <Grid Name="ProfileFields" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+            <StackPanel Name="AliasField" Grid.Row="0" Grid.Column="0" Spacing="4">
+              <TextBlock Text="{Binding AliasLabel}" />
+              <TextBox Text="{Binding Alias, Mode=TwoWay}" AutomationProperties.AutomationId="profiles.alias"
+                       AutomationProperties.Name="{Binding AliasLabel}" />
+            </StackPanel>
+            <StackPanel Name="UsbField" Grid.Row="0" Grid.Column="1" Spacing="4">
+              <TextBlock Text="{Binding UsbLabel}" />
+              <TextBox Text="{Binding UsbSerial, Mode=TwoWay}" AutomationProperties.AutomationId="profiles.usb"
+                       AutomationProperties.Name="{Binding UsbLabel}" />
+            </StackPanel>
+            <StackPanel Name="MdnsField" Grid.Row="1" Grid.Column="0" Spacing="4">
+              <TextBlock Text="{Binding MdnsLabel}" />
+              <TextBox Text="{Binding MdnsService, Mode=TwoWay}" AutomationProperties.AutomationId="profiles.mdns"
+                       AutomationProperties.Name="{Binding MdnsLabel}" />
+            </StackPanel>
+            <StackPanel Name="PairingField" Grid.Row="1" Grid.Column="1" Spacing="4">
+              <TextBlock Text="{Binding PairingLabel}" />
+              <TextBox Text="{Binding PairingEndpoint, Mode=TwoWay}" AutomationProperties.AutomationId="profiles.pairing"
+                       AutomationProperties.Name="{Binding PairingLabel}" />
+            </StackPanel>
+            <StackPanel Name="ConnectionField" Grid.Row="2" Grid.Column="0" Spacing="4">
+              <TextBlock Text="{Binding ConnectionLabel}" />
+              <TextBox Text="{Binding ConnectionEndpoint, Mode=TwoWay}" AutomationProperties.AutomationId="profiles.connection"
+                       AutomationProperties.Name="{Binding ConnectionLabel}" />
+            </StackPanel>
+            <StackPanel Name="TransportField" Grid.Row="2" Grid.Column="1" Spacing="4">
+              <TextBlock Text="{Binding TransportLabel}" />
+              <ComboBox ItemsSource="{Binding TransportChoices}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}"
+                        AutomationProperties.AutomationId="profiles.transport"
+                        AutomationProperties.Name="{Binding TransportLabel}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ProfileTransportChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <CheckBox Name="FallbackField" Grid.Row="3" Grid.ColumnSpan="2" Content="{Binding FallbackLabel}"
+                      IsChecked="{Binding AllowFallback, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="profiles.fallback" />
+          </Grid>
+          <TextBlock Text="{Binding ValidationMessage}" IsVisible="{Binding HasValidation}"
+                     TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" />
+          <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+            <Button Content="{Binding SaveDraftLabel}" Command="{Binding SaveDraftCommand}"
+                    IsEnabled="{Binding CanSaveDraft}" AutomationProperties.AutomationId="profiles.saveDraft" />
+            <Button Content="{Binding CancelLabel}" Command="{Binding CancelEditorCommand}"
+                    AutomationProperties.AutomationId="profiles.cancelEditor" />
+            <Button Content="{Binding DeleteLabel}" Command="{Binding RequestDeleteCommand}"
+                    IsEnabled="{Binding CanDelete}" AutomationProperties.AutomationId="profiles.delete" />
+          </WrapPanel>
+          <WrapPanel IsVisible="{Binding DeleteConfirmationVisible}" Orientation="Horizontal"
+                     ItemSpacing="8" LineSpacing="8">
+            <Button Content="{Binding ConfirmDeleteLabel}" Command="{Binding ConfirmDeleteCommand}"
+                    AutomationProperties.AutomationId="profiles.confirmDelete" />
+            <Button Content="{Binding KeepLabel}" Command="{Binding KeepCommand}"
+                    AutomationProperties.AutomationId="profiles.keep" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+      <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Classes="muted" />
+      <WrapPanel IsVisible="{Binding !IsPreview}" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+        <Button Content="{Binding ApplyLabel}" Click="OnApplyClicked" IsEnabled="{Binding CanApply}"
+                AutomationProperties.AutomationId="profiles.apply" />
+        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"
+                AutomationProperties.AutomationId="profiles.cancelConfiguration" />
+      </WrapPanel>
+      <TextBlock Text="{Binding PreviewLabel}" IsVisible="{Binding IsPreview}" Classes="muted" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

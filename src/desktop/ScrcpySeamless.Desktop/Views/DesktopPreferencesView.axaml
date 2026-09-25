@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.DesktopPreferencesView"
+             x:DataType="vm:DesktopPreferencesViewModel">
+  <Grid RowDefinitions="Auto,*,Auto"
+        RowSpacing="{DynamicResource SectionGap}">
+    <StackPanel Grid.Row="0" Spacing="5">
+      <TextBlock Classes="pageTitle" Text="{Binding Title}" TextWrapping="Wrap" />
+      <TextBlock Classes="muted" Text="{Binding Subtitle}" />
+      <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding HasStatus}"
+                 TextWrapping="Wrap" AutomationProperties.AutomationId="preferences.status" />
+      <TextBlock Text="{Binding ValidationMessage}" IsVisible="{Binding HasValidation}"
+                 Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="preferences.validation" />
+    </StackPanel>
+
+    <ScrollViewer Name="PreferencesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="18" IsEnabled="{Binding CanEdit}">
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Classes="sectionTitle" Text="{Binding AppearanceLabel}" />
+            <TextBlock Text="{Binding ThemeLabel}" />
+            <ComboBox ItemsSource="{Binding ThemeChoices}" SelectedItem="{Binding Theme, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="preferences.theme"
+                      AutomationProperties.Name="{Binding ThemeLabel}" />
+            <TextBlock Text="{Binding AccentLabel}" />
+            <TextBox Text="{Binding AccentColor, Mode=TwoWay}" PlaceholderText="#RRGGBB"
+                     AutomationProperties.AutomationId="preferences.accent"
+                     AutomationProperties.Name="{Binding AccentLabel}" />
+            <TextBlock Text="{Binding FontLabel}" />
+            <TextBox Text="{Binding FontFamily, Mode=TwoWay}" PlaceholderText="System default"
+                     AutomationProperties.AutomationId="preferences.font"
+                     AutomationProperties.Name="{Binding FontLabel}" />
+            <TextBlock Text="{Binding FontSubstitutionMessage}" IsVisible="{Binding HasFontSubstitution}"
+                       Classes="muted" AutomationProperties.AutomationId="preferences.fontFallback" />
+            <TextBlock Text="{Binding ScaleLabel}" />
+            <ComboBox ItemsSource="{Binding ScaleChoices}" SelectedItem="{Binding ScalePercent, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="preferences.scale"
+                      AutomationProperties.Name="{Binding ScaleLabel}" />
+            <TextBlock Text="{Binding DefaultHint}" Classes="muted" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Classes="sectionTitle" Text="{Binding ShortcutsLabel}" />
+            <TextBlock Text="{Binding FocusSearchLabel}" />
+            <TextBox Text="{Binding FocusSearchBinding, Mode=TwoWay}"
+                     AutomationProperties.AutomationId="preferences.focusSearch"
+                     AutomationProperties.Name="{Binding FocusSearchLabel}" />
+            <TextBlock Text="{Binding ShowDevicesLabel}" />
+            <TextBox Text="{Binding ShowDevicesBinding, Mode=TwoWay}"
+                     AutomationProperties.AutomationId="preferences.showDevices"
+                     AutomationProperties.Name="{Binding ShowDevicesLabel}" />
+            <TextBlock Text="{Binding ShowSettingsLabel}" />
+            <TextBox Text="{Binding ShowSettingsBinding, Mode=TwoWay}"
+                     AutomationProperties.AutomationId="preferences.showSettings"
+                     AutomationProperties.Name="{Binding ShowSettingsLabel}" />
+            <TextBlock Text="{Binding UnboundHint}" Classes="muted" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <WrapPanel Grid.Row="2" Orientation="Horizontal">
+      <Button Name="PreferencesApply" Content="{Binding ApplyLabel}" Click="OnApplyClicked"
+              IsEnabled="{Binding CanApply}" AutomationProperties.AutomationId="preferences.apply"
+              AutomationProperties.Name="{Binding ApplyLabel}" Margin="0,0,8,8" />
+      <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+              IsEnabled="{Binding CanCancel}" AutomationProperties.AutomationId="preferences.cancel"
+              AutomationProperties.Name="{Binding CancelLabel}" Margin="0,0,8,8" />
+      <Button Content="{Binding ResetLabel}" Command="{Binding ResetCommand}"
+              IsEnabled="{Binding CanEdit}" AutomationProperties.AutomationId="preferences.reset"
+              AutomationProperties.Name="{Binding ResetLabel}" Margin="0,0,8,8" />
+      <Button Content="{Binding ReloadLabel}" Click="OnReloadClicked"
+              IsEnabled="{Binding CanReload}" AutomationProperties.AutomationId="preferences.reload"
+              AutomationProperties.Name="{Binding ReloadLabel}" Margin="0,0,8,8" />
+    </WrapPanel>
+  </Grid>
+</UserControl>

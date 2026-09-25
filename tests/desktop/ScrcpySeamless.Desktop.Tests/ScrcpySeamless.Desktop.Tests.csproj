@@ -9,5 +9,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj" />
+    <ProjectReference Include="../../../src/desktop/ScrcpySeamless.Infrastructure/ScrcpySeamless.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

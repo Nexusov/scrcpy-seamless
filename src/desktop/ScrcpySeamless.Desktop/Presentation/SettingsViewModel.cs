@@ -11,6 +11,9 @@ public sealed record SettingsCategory(string Id, string Label);
 /// <summary>Identifies the two result changes that move the visible list to its start.</summary>
 public enum SettingsResultsChange { Category, Search }
 
+/// <summary>Selects one settings editor without discarding either detached draft.</summary>
+public enum SettingsSection { Mirroring, Desktop }
+
 /// <summary>Exposes one generated editable option and its detached draft value.</summary>
 public sealed class OptionRowViewModel : ObservableViewModel
 {
@@ -37,6 +40,7 @@ public sealed class OptionRowViewModel : ObservableViewModel
         ShortDescription = Description.Split('\n')[0];
         HelpLabel = text.Get("settings.row.help");
         ResetLabel = text.Get("settings.row.reset");
+        OverrideLabel = text.Get("settings.row.override");
         PortUnavailableLabel = text.Get("settings.portUnavailable");
         IsCompositePort = descriptor.Id == "port";
         IsBoolean = descriptor.ArgumentShape == OptionArgumentShape.None;
@@ -55,15 +59,46 @@ public sealed class OptionRowViewModel : ObservableViewModel
     public string ShortDescription { get; }
     public string HelpLabel { get; }
     public string ResetLabel { get; }
+    public string OverrideLabel { get; }
     public string PortUnavailableLabel { get; }
     public bool IsCompositePort { get; }
-    public bool CanEdit => !IsCompositePort;
+    public bool CanEdit => true;
     public bool IsBoolean { get; }
     public bool IsChoice { get; }
     public bool IsText { get; }
     public IReadOnlyList<string> Choices { get; }
     public ICommand ResetCommand { get; }
     public bool HasOverride => draft.TryGet(Id, out _);
+    public bool IsOverrideSelected
+    {
+        get => HasOverride;
+        set
+        {
+            if (value == HasOverride)
+            {
+                return;
+            }
+
+            if (!value)
+            {
+                draft.Remove(Id);
+                LoadValue();
+                onChanged();
+                return;
+            }
+
+            if (IsBoolean)
+            {
+                draft.SetBoolean(Id, BooleanValue);
+            }
+            else
+            {
+                draft.SetText(Id, IsChoice ? ChoiceValue ?? string.Empty : TextValue);
+            }
+
+            DraftChanged();
+        }
+    }
     public string OriginLabel => text.Get(HasOverride ? "settings.override" : "settings.default");
     public string DefaultLabel => Descriptor.DefaultValue is string value
         ? string.Format(System.Globalization.CultureInfo.CurrentCulture, text.Get("settings.defaultValue"), value)
@@ -162,6 +197,7 @@ public sealed class OptionRowViewModel : ObservableViewModel
         OnPropertyChanged(nameof(ChoiceValue));
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(HasOverride));
+        OnPropertyChanged(nameof(IsOverrideSelected));
         OnPropertyChanged(nameof(OriginLabel));
     }
 
@@ -177,6 +213,7 @@ public sealed class OptionRowViewModel : ObservableViewModel
     private void DraftChanged()
     {
         OnPropertyChanged(nameof(HasOverride));
+        OnPropertyChanged(nameof(IsOverrideSelected));
         OnPropertyChanged(nameof(OriginLabel));
         onChanged();
     }
@@ -186,23 +223,28 @@ public sealed class OptionRowViewModel : ObservableViewModel
 public sealed class SettingsViewModel : ObservableViewModel
 {
     private readonly InMemoryOptionDraft draft;
+    private readonly PresentationText text;
     private readonly IReadOnlyList<OptionRowViewModel> allRows;
     private string searchText = string.Empty;
+    private string shortcutHelp;
     private SettingsCategory? selectedCategory;
+    private SettingsSection selectedSection = SettingsSection.Mirroring;
 
-    public SettingsViewModel(PresentationText text, InMemoryOptionDraft draft)
+    public SettingsViewModel(PresentationText text, InMemoryOptionDraft draft, bool isPreview = true)
     {
         this.draft = draft;
+        this.text = text;
+        IsPreview = isPreview;
         Eyebrow = text.Get("settings.eyebrow");
-        Title = text.Get("settings.title");
-        Subtitle = text.Get("settings.subtitle");
+        Title = text.Get(isPreview ? "settings.title" : "settings.title.normal");
+        Subtitle = text.Get(isPreview ? "settings.subtitle" : "settings.subtitle.normal");
         GlobalLabel = text.Get("settings.global");
         SearchLabel = text.Get("settings.search");
         SearchWatermark = text.Get("settings.searchWatermark");
-        ShortcutHelp = $"{SettingsShortcuts.FocusSearch}: {text.Get(SettingsShortcuts.FocusSearchHelpKey)}";
+        shortcutHelp = $"{SettingsShortcuts.FocusSearch}: {text.Get(SettingsShortcuts.FocusSearchHelpKey)}";
         CategoriesLabel = text.Get("settings.categories");
         EmptyLabel = text.Get("settings.noResults");
-        UnsavedLabel = text.Get("settings.unsaved");
+        UnsavedLabel = text.Get(isPreview ? "settings.unsaved" : "settings.unsaved.normal");
         ResetLabel = text.Get("settings.reset");
         ResetRowLabel = text.Get("settings.row.reset");
         PortUnavailableLabel = text.Get("settings.portUnavailable");
@@ -220,17 +262,124 @@ public sealed class SettingsViewModel : ObservableViewModel
             .ToArray();
         VisibleRows = [];
         ResetDraftCommand = new ActionCommand(ResetDraft);
+        ShowMirroringCommand = new ActionCommand(() => SelectedSection = SettingsSection.Mirroring);
+        ShowDesktopCommand = new ActionCommand(() => SelectedSection = SettingsSection.Desktop);
+        MirroringSectionLabel = text.Get("settings.section.mirroring");
+        DesktopSectionLabel = text.Get("settings.section.desktop");
+        ConfigurationApplyLabel = text.Get("settings.configuration.apply");
+        ConfigurationCancelLabel = text.Get("settings.configuration.cancel");
+        MigrationPrepareLabel = text.Get("settings.migration.prepare");
+        MigrationCommitLabel = text.Get("settings.migration.commit");
+        MigrationCancelLabel = text.Get("settings.migration.cancel");
         SelectedCategory = Categories[0];
         Validate();
     }
 
     public string Eyebrow { get; }
+    public bool IsPreview { get; }
+    public bool IsPersistent => !IsPreview;
+    public ConfigurationWorkspaceViewModel? Configuration { get; private set; }
+    public DesktopPreferencesViewModel? Preferences { get; private set; }
+    public string? ConfigurationPath { get; private set; }
+    public string MirroringSectionLabel { get; }
+    public string DesktopSectionLabel { get; }
+    public string ConfigurationApplyLabel { get; }
+    public string ConfigurationCancelLabel { get; }
+    public string ConfigurationReloadLabel => text.Get(Configuration?.ReloadRequiresDiscard == true
+        ? "settings.configuration.discardAndReload"
+        : "settings.configuration.reload");
+    public string MigrationPrepareLabel { get; }
+    public string MigrationCommitLabel { get; }
+    public string MigrationCancelLabel { get; }
+    public ICommand ShowMirroringCommand { get; }
+    public ICommand ShowDesktopCommand { get; }
+    public SettingsSection SelectedSection
+    {
+        get => selectedSection;
+        private set
+        {
+            if (!SetProperty(ref selectedSection, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsMirroringSection));
+            OnPropertyChanged(nameof(IsDesktopSection));
+        }
+    }
+    public bool IsMirroringSection => SelectedSection == SettingsSection.Mirroring;
+    public bool IsDesktopSection => SelectedSection == SettingsSection.Desktop;
+    public bool IsOptionEditorAvailable => IsPreview || Configuration?.CanEdit == true;
+    public string ConfigurationStatusMessage
+    {
+        get
+        {
+            if (Configuration is null)
+            {
+                return string.Empty;
+            }
+
+            // The separate profile editor must be staged or cancelled before Settings Apply or Reload.
+            if (Configuration.HasPendingProfileEdit && !Configuration.HasError)
+            {
+                return text.Get("settings.configuration.pendingProfileEdit");
+            }
+
+            if (Configuration.ReloadBlockedByUnsavedChanges && !Configuration.HasError &&
+                Configuration.LastApplyResult is null)
+            {
+                return text.Get("settings.configuration.pendingDraft");
+            }
+
+            string? migrationKey = Configuration.LastMigrationResult?.Status switch
+            {
+                Infrastructure.Configuration.LegacyMigrationStatus.NoLegacyData => "settings.migration.noLegacy",
+                Infrastructure.Configuration.LegacyMigrationStatus.AlreadyV2 => "settings.migration.alreadyV2",
+                Infrastructure.Configuration.LegacyMigrationStatus.InvalidV2 => "settings.migration.invalidV2",
+                Infrastructure.Configuration.LegacyMigrationStatus.InvalidLegacy => "settings.migration.invalidLegacy",
+                Infrastructure.Configuration.LegacyMigrationStatus.LegacyChanged => "settings.migration.legacyChanged",
+                Infrastructure.Configuration.LegacyMigrationStatus.Busy => "settings.migration.busy",
+                Infrastructure.Configuration.LegacyMigrationStatus.RevisionConflict => "settings.migration.conflict",
+                _ => Configuration.LastMigrationResult?.ErrorKind is not null
+                    ? "settings.migration.failure"
+                    : null,
+            };
+
+            if (migrationKey is not null)
+            {
+                return $"{text.Get(migrationKey)} {ConfigurationPath}";
+            }
+
+            string key = Configuration.LastApplyResult?.Status switch
+            {
+                Infrastructure.Configuration.ConfigurationSessionApplyStatus.RevisionConflict => "settings.configuration.conflict",
+                Infrastructure.Configuration.ConfigurationSessionApplyStatus.Invalid => "settings.configuration.invalidDraft",
+                Infrastructure.Configuration.ConfigurationSessionApplyStatus.IoError => "settings.configuration.writeFailure",
+                Infrastructure.Configuration.ConfigurationSessionApplyStatus.Busy => "settings.configuration.busy",
+                Infrastructure.Configuration.ConfigurationSessionApplyStatus.Applied => "settings.configuration.saved",
+                _ => Configuration.Status switch
+                {
+                    ConfigurationWorkspaceStatus.Loading => "settings.configuration.loading",
+                    ConfigurationWorkspaceStatus.Missing => "settings.configuration.missing",
+                    ConfigurationWorkspaceStatus.Ready => "settings.configuration.ready",
+                    ConfigurationWorkspaceStatus.Invalid => "settings.configuration.invalidFile",
+                    ConfigurationWorkspaceStatus.Inaccessible => "settings.configuration.readFailure",
+                    _ => "settings.configuration.loading",
+                },
+            };
+            return $"{text.Get(key)} {ConfigurationPath}";
+        }
+    }
+    public string MigrationSummaryMessage => Configuration?.MigrationSummary is { } summary
+        ? string.Format(System.Globalization.CultureInfo.CurrentCulture, text.Get("settings.migration.summary"),
+            summary.ProfileCount, summary.OptionOverrideCount)
+        : string.Empty;
     public string Title { get; }
     public string Subtitle { get; }
     public string GlobalLabel { get; }
     public string SearchLabel { get; }
     public string SearchWatermark { get; }
-    public string ShortcutHelp { get; }
+    public string ShortcutHelp { get => shortcutHelp; private set => SetProperty(ref shortcutHelp, value); }
     public string CategoriesLabel { get; }
     public string EmptyLabel { get; }
     public string UnsavedLabel { get; }
@@ -244,6 +393,48 @@ public sealed class SettingsViewModel : ObservableViewModel
     public bool HasNoResults => VisibleCount == 0;
     public IReadOnlyDictionary<string, JsonElement> DraftValues => draft.Values;
     public event Action<SettingsResultsChange>? ResultsChanged;
+
+    /// <summary>Attaches real save groups only after the normal composition selected an explicit data root.</summary>
+    public void AttachPersistence(ConfigurationWorkspaceViewModel configuration,
+        DesktopPreferencesViewModel preferences, string configurationPath)
+    {
+        Configuration = configuration;
+        Preferences = preferences;
+        ConfigurationPath = configurationPath;
+        configuration.DraftReplaced += () => RefreshValues(draft.Values);
+        configuration.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ConfigurationStatusMessage));
+            OnPropertyChanged(nameof(ConfigurationReloadLabel));
+            OnPropertyChanged(nameof(MigrationSummaryMessage));
+            OnPropertyChanged(nameof(IsOptionEditorAvailable));
+        };
+        OnPropertyChanged(nameof(Configuration));
+        OnPropertyChanged(nameof(Preferences));
+        OnPropertyChanged(nameof(ConfigurationStatusMessage));
+        OnPropertyChanged(nameof(IsOptionEditorAvailable));
+    }
+
+    /// <summary>Keeps visible help aligned with the last committed local command binding.</summary>
+    public void SetActiveShortcutHelp(string gesture)
+    {
+        ShortcutHelp = gesture.Length == 0
+            ? text.Get("settings.shortcut.unbound")
+            : $"{gesture}: {text.Get(SettingsShortcuts.FocusSearchHelpKey)}";
+    }
+
+    /// <summary>Loads a detached persisted snapshot without changing the active search or category.</summary>
+    public void RefreshValues(IReadOnlyDictionary<string, JsonElement> values)
+    {
+        draft.Replace(values);
+
+        foreach (OptionRowViewModel row in allRows)
+        {
+            row.LoadValue();
+        }
+
+        Validate();
+    }
 
     public string SearchText
     {

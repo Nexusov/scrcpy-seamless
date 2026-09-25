@@ -2,11 +2,10 @@
 
 Phase 3 provides a headless C# foundation. The current WinForms/PowerShell
 launcher and canonical 1.x package do not consume these classes yet; no user
-configuration is migrated merely by building or testing the solution. The
-Phase 5A replaces the Avalonia placeholder with a shell and an explicitly
-simulated preview; neither normal nor preview composition reads configuration,
-performs migration, or writes a stored option. Phase 5B must choose the storage
-mode and explicitly invoke migration before using v2 state.
+configuration is migrated merely by building or testing the solution. Phase 5A
+introduced the Avalonia shell and an explicitly simulated preview. Phase 5B
+adds an opt-in normal settings composition with real local files; preview still
+constructs no persistent, ADB or native adapters.
 
 ## Storage and authority
 
@@ -15,6 +14,65 @@ mode and explicitly invoke migration before using v2 state.
 `%LOCALAPPDATA%/scrcpy-seamless/`. The path resolver does not probe for a
 `portable.flag`; callers select a mode explicitly. Tests use synthetic roots
 and isolated temporary directories, never the owner's portable installation.
+Desktop normal startup requires exactly one of `--portable`, `--installed`, or
+`--dev-data-dir=<absolute directory>`. The development override uses its exact
+directory without appending `data`. Paths derive from the executable directory
+or an explicit selected root, never the current working directory. A missing
+document stays absent until Apply. Malformed or ambiguous launch arguments are
+rejected. `--preview` accepts no storage selection and remains in memory even
+when a real configuration exists nearby.
+
+## Phase 5B editing and Desktop preferences
+
+`ConfigurationEditSession` loads the exact v2 byte revision and deep-clones the
+baseline and working draft. A valid v2 file is authoritative; invalid or
+inaccessible v2 remains an error, not an empty session or a migration trigger.
+Apply validates the changed known options, captures an immutable candidate and
+commits it against the loaded revision on a worker thread. A semantic no-op
+does not rewrite JSON or rotate its backup. A conflict, busy writer, invalid
+draft or I/O error leaves the draft for review; a failed reload blocks stale
+edits and writes until a successful explicit retry. Cancel restores the latest
+loaded or applied baseline without file I/O. Resetting an option removes only
+that draft override. Unknown stored options and raw string spelling remain in
+the complete dictionary, even when the visible editor is filtered.
+
+Saved profiles share the configuration draft and keep stable `ProfileId` values.
+The editor stages changes before Apply; a profile's displayed fields are saved
+identities, not evidence of an available phone. Global mirroring options do
+not become per-profile preferences. Explicit `--legacy-dev-dir=<absolute app
+directory>` enables inspection of synthetic/selected DEV legacy files; the UI
+shows counts for a prepared proposal and requires confirmation. Migration uses
+`LegacyMigrationCoordinator`, rechecks v1 snapshots under its established lock
+order and reloads committed v2 before further editing. It never rewrites v1.
+Preparation and confirmation both refuse an unstaged profile edit, including
+invalid input. A prepared proposal remains available while that edit is
+pending; after the edit is explicitly cancelled, confirmation may proceed.
+
+The separate profile editor keeps unstaged input across page navigation and
+blocks profile switching until that input is staged or cancelled. Settings
+Apply cannot omit an unstaged profile edit, and Settings Reload is unavailable
+while either the configuration draft or profile editor has pending changes.
+After a failed authority reload, a clearly labelled "Discard edits and reload"
+retry remains available so repaired files can be reopened. Apply or Cancel the
+relevant edit before an ordinary reload. Closing the normal window
+asks about both dirty save groups; a successful save advances each group's
+baseline independently. If the second save fails, the first remains committed
+and the failed draft stays open for review. Save and close owns editing across
+both sequential writes: configuration, profile, preference and sidebar theme
+edits stay unavailable until both writes settle. The window rechecks its dirty
+and busy state before closing; a failed save releases edit ownership. Closing
+the confirmation dialog with Escape or its title-bar close keeps the drafts.
+
+Appearance and supported control-center shortcuts live in separate versioned
+`desktop-preferences.json` in the selected data directory. Its read and atomic
+write use a separate exact-byte revision and mutex. There is no cross-file
+transaction. Missing preferences use in-memory defaults; invalid or future
+versions keep their original bytes and render safe defaults until explicitly
+reloaded. Appearance can preview before Apply and Cancel restores the committed
+rendering; shortcut edits become active only after successful Apply. The
+requested font remains saved even when the local font is unavailable and a
+system font renders instead. Only implemented local command IDs can be bound;
+disabled shortcuts have an explicit empty binding.
 
 The v2 document has `SchemaVersion: 2`, a list of `Profiles`, and global
 `Mirroring` preferences (`Reconnect` and `Options`). A profile has a stable

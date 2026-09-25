@@ -60,12 +60,10 @@ $sdk = powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/bootstr
 For a machine-wide exact SDK, replace `& $sdk` with `dotnet`. The solution
 contains three projects under `src/desktop/`: Core (headless domain/application
 policy), Infrastructure (ADB/filesystem effects, referencing Core), and Desktop
-(Avalonia presentation, currently referencing Core only). Phase 5A intentionally
-does not compose Infrastructure: the normal Desktop starts with an honest empty
-state and the explicit preview uses fixed in-memory scenarios. `tests/desktop/`
-contains Core and Infrastructure suites plus Avalonia.Headless shell, layout,
-scenario and settings tests. These require no Android device, ADB/native child,
-or personal configuration.
+(Avalonia presentation). Phase 5B composes Infrastructure only for an explicit
+normal data-root mode; preview remains a fixed in-memory scenario. `tests/desktop/`
+contains Core, Infrastructure and Avalonia.Headless suites. These require no
+Android device, ADB/native child, or personal configuration.
 
 `Directory.Build.props` enables nullable analysis, SDK analyzers,
 warnings-as-errors, deterministic compilation and package lock files.
@@ -82,14 +80,14 @@ Avalonia.Headless.XUnit 12.1.3, test discovery failed with a
 real compatibility check.
 
 The Desktop project declares the `win-x64` runtime identifier, so the locked
-restore above prepares a self-contained Windows publish graph. Build the
-reviewable Phase 5A DEV preview from a committed source state with:
+restore above prepares a self-contained Windows publish graph. Build a
+reviewable Phase 5B DEV application from a committed source state with:
 
 ```powershell
 $sourceSha = (git rev-parse --short=8 HEAD).Trim()
-$previewDirectory = "./dist/dev/scrcpy-seamless-desktop-p05a-g$sourceSha"
-& $sdk publish ./src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $previewDirectory
-& "$previewDirectory/ScrcpySeamless.Desktop.exe" --preview --scenario=fallback
+$developmentDirectory = "./dist/dev/scrcpy-seamless-desktop-p05b-g$sourceSha"
+& $sdk publish ./src/desktop/ScrcpySeamless.Desktop/ScrcpySeamless.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $developmentDirectory
+& "$developmentDirectory/ScrcpySeamless.Desktop.exe" --preview --scenario=fallback
 ```
 
 The explicit `--preview` mode is visibly marked as simulated. Scenarios are
@@ -104,9 +102,22 @@ example, use `--preview --page=settings --search=audio-output-buffer`. Settings
 categories use a compact selector at narrow widths. Ctrl+F focuses option
 search while Settings is active. Preview mode
 does not discover or pair devices, start the native child, read/migrate user
-configuration, or send activation to the personal installation. Without
-`--preview`, the application shows an empty/not-yet-connected state; real
-integration belongs to later Phase 5 slices. The self-contained directory is
-a local development artifact, not a release or replacement for a legacy DEV
-package. Runtime/package integration and distribution-license review remain
-later work.
+configuration, or send activation to the personal installation.
+
+Normal settings mode requires exactly one explicit storage switch. For isolated
+local validation use `--dev-data-dir=<absolute directory>` and optionally
+`--legacy-dev-dir=<absolute legacy app directory>` for explicit migration
+inspection. `--portable` writes under the executable's `data/`; `--installed`
+uses the current user's local application data directory. No mode falls back
+to another root after an I/O error. A selected DEV root can contain real saved
+settings and is **not** a side-effect-free preview. For the Phase 5B test root:
+
+```powershell
+& "$developmentDirectory/ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p05b' --page=settings
+```
+
+The normal Desktop saves profiles and preferences only on Apply; it does not
+discover a phone, run ADB, start native mirroring or infer online availability.
+The self-contained directory is a local development artifact, not a release or
+replacement for a legacy DEV package. Device/native integration and
+distribution-license review remain later work.

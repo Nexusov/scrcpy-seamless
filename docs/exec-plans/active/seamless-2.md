@@ -1,10 +1,11 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5A PR gate: Phases 0–4 are integrated into
-`seamless-2.0`; Phase 4 merged through PR #5 at
-`d9617610388668715934083edfe9589ce15463ac`. Phase 5A is implemented
-and ready for PR review; overall Phase 5 remains incomplete. Phase 5B–5D
-and Phases 6–13 have not started.
+Status at the 2026-09-25 Phase 5B PR preparation gate: Phase 5A merged
+through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
+the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
+commits. Phase 5B is being prepared for independent PR review; overall Phase 5
+remains incomplete.
+Phase 5C–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -15,10 +16,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The accepted Phase 4 merge is the base for local branch `2.0/p05-desktop`.
-The current authorization covers the complete Phase 5A working-branch push
-and a PR into `seamless-2.0`; merging, tags, releases and repository-settings
-changes remain separate decisions. Keep the current
+The accepted Phase 5A merge is the base for branch `2.0/p05b-settings`.
+Only publication of that branch as a PR into `seamless-2.0` is authorized at
+this gate; merge, tag, release and Phase 5C remain unapproved. Keep the current
 launcher and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
@@ -271,8 +271,8 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
-| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Implemented; ready for PR review |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Not started |
+| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | PR preparation; independent review pending |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
@@ -291,8 +291,8 @@ and capture real Windows screenshots. This is still Phase 5A, not Phase 5B.
 | 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Complete locally |
 | 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete for PR review; hardware/accessibility follow-up remains 5D |
 
-The Phase 5A UI correction pass is ready for PR review; it does not complete
-overall Phase 5 or open Phase 5B. At small heights the category
+The Phase 5A UI correction pass was prepared for PR review before its accepted
+integration; it did not complete overall Phase 5. At small heights the category
 ListBox previously inherited unbounded StackPanel measurement, and at 150%
 preview metrics the Settings header and status block could leave the option
 viewport at zero height. A bounded category Grid, compact selector, reflowing
@@ -350,8 +350,8 @@ The intended local commit sequence is: (1) research/plan and boundary decisions,
 and (4) scenario/test and DEV documentation. Keep each checkpoint buildable where
 practical; a test stays with the behavior it protects. Preview composition may
 not create or call ADB, native-host, migration or production configuration
-adapters. Normal startup shows an empty/not-yet-connected state until real
-integration exists.
+adapters. At the Phase 5A gate, normal startup showed an empty/not-yet-connected
+state before the explicit Phase 5B storage mode was added.
 
 The implementation kept the coupled shell, Views/ViewModels, preview sources
 and their tests in one buildable UI commit. Later local commits added the
@@ -389,6 +389,45 @@ preferences; per-profile overrides are not implemented. Before enabling a
 validated `port` editor, test `N[:N]` components, ranges and effective values
 against the actual native parser.
 
+### Phase 5B edit-session and storage contract
+
+Normal startup selects exactly one explicit storage mode: portable
+`<application>/data/`, installed per-user data, or a named development data
+directory. Preview composition is selected first and uses only in-memory
+sources; it cannot read, create, migrate or write configuration. A missing v2
+document creates an empty edit session in memory; malformed, unsupported or
+inaccessible data is an explicit error and never silently becomes an empty
+session. Legacy migration is prepared from an explicitly selected DEV source,
+reviewed, and committed separately; an existing valid v2 remains authoritative.
+Migration preparation and confirmation require the separate profile editor to
+be clean, so their reload cannot replace unstaged valid or invalid input.
+
+The device/profile/mirroring document and Desktop preferences are independent
+save groups. Each group tracks its last loaded or applied snapshot, exact byte
+revision, and detached draft. Apply validates and compares against that revision,
+then advances the baseline only after a successful atomic commit; an unchanged
+draft performs no write. Cancel restores the current baseline without I/O.
+Reset removes only a selected draft override, or resets an explicitly scoped
+preference group, and remains unsaved until Apply. Conflicts retain the draft
+and require a deliberate reload/discard; write failures retain the draft and
+expose a diagnostic. Navigation retains drafts. Settings Apply waits for an
+unstaged profile editor, and ordinary Settings Reload waits for pending
+configuration or profile edits to be applied or cancelled. Failed-authority
+recovery offers an explicitly labelled discard-and-reload retry. Closing with
+dirty groups asks to Save and close, Discard and close, or Keep editing, and
+reports any partial two-document save outcome. Save and close reserves both
+edit groups through the sequential writes, releases that ownership on success
+or failure, and rechecks for pending edits before shutdown. Escape and the
+confirmation dialog's title-bar close retain drafts. A successful first write
+remains committed if the second fails; no cross-file transaction is implied.
+
+Desktop preferences live in versioned `desktop-preferences.json` alongside but
+separate from `configuration.v2.json`. Appearance edits may preview live and
+Cancel restores committed rendering; command shortcuts take effect only after
+Apply. No transaction is implied across the two files. Profiles are saved
+identities, not discovered or online devices, and mirroring preferences remain
+global. No Phase 5B path launches ADB or native mirroring.
+
 Phase 5B also owns persistent application appearance preferences, separate from
 phone profiles and scrcpy option metadata: System/Light/Dark selection, a
 selectable accent, system/default or installed UI font with safe fallback, and
@@ -403,6 +442,48 @@ options. Shortcut help and tooltips must use the effective bindings. Native
 mirror/input remapping belongs to the Phase 7 input architecture and its
 Phase 10 product UI, where Desktop shortcuts and keys forwarded to Android
 remain distinct; Desktop key events or global hooks are not a substitute.
+
+### Phase 5B local validation
+
+Code source `190b37c2953c1822869c4a1c5f8971274c2d9389` produced the
+self-contained `dist/dev/scrcpy-seamless-desktop-p05b-g190b37c2/` Windows x64
+DEV application. An earlier source build at `17116ca07c623b2175f52015e80fc0d92738e51a`
+performed the initial write/restart UI exercise; the final source adds only a
+safe close-time discard for stale drafts and was run against those saved files.
+Normal-mode writes were exercised only under the ignored
+`.dev-data/p05b/` directory, which was absent at first launch and remained
+absent until Apply. A real first process saved a synthetic profile, raw
+`max-size=1024`, accent `#3B82F6` and 110% interface scale. A second process
+loaded those values; editing `max-size` to `2048` and selecting Cancel returned
+the visible value to `1024`; the final build repeated that Cancel check. A
+separate synthetic invalid-v2 root remained unchanged and disabled editing.
+Actual running-window captures of final preview, dirty/saved settings, saved
+profile and invalid-v2 state are under ignored
+`work/phase5b/screenshots/g190b37c2/`. These are Desktop-only observations; no
+phone, discovery, native mirroring or hardware outcome is claimed.
+The final Windows build also displayed the group-specific Apply/Discard/Stay
+close prompt for an unsaved option; selecting Stay kept the draft open, and
+normal Cancel restored the committed value before closing.
+
+The PR preparation gate added focused headless checks of the actual window
+Closing decision path, sequential partial-save behavior and pending profile
+buffers. A previously unguarded Settings Reload could replace unstaged profile
+input; Settings Apply could also report success while omitting that input.
+Both commands now wait for the separate editor to be staged or cancelled.
+The invalid-v2 diagnostic retains its complete path in the status tooltip and
+accessibility help text; its visual ellipsis does not truncate those values.
+
+Locked restore, zero-warning Release build, 272/272 .NET tests, 28/28 legacy
+PowerShell suites, native Meson 16/16 tests including port-parser endpoints,
+SpecGen verify (109 native entries and six outputs), DocsCheck and build
+metadata checks passed. After the close-time correction, the warning-free
+Release build and all 39 Desktop tests passed again. Headless tests cover detached drafts, raw values,
+profile identity, migration authority, preference conflict/fallback,
+shortcuts, preview isolation and enlarged-metrics reachability. Real Windows
+screen-reader and multi-monitor behavior remain unverified for the later
+Phase 5D acceptance boundary. The Android server is unchanged in this slice;
+the accepted Phase 5A/earlier build evidence is reused rather than described
+as a new server build.
 
 After one-way migration, v2 is canonical; legacy files are not a second writer
 and are not automatically reimported over v2. Phase 5C may introduce a

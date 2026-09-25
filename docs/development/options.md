@@ -26,11 +26,16 @@ fields; Core bypasses those regexes only for this native scalar family.
 
 For `flex-display`, an explicitly configured zero window width or height still
 means automatic sizing, so only a nonzero effective dimension conflicts. The
-structured `port` option has its own `N[:N]` grammar and remains outside this
-scalar correction; its leading-zero component parity requires separate work.
-Before Phase 5 presents an editor for `port` as fully validated, define the
-component grammar and test it against the native parser, including base-zero
-spelling and component ranges.
+structured `port` option uses one or two colon-separated base-zero integer
+components in the native range 0–65535. A single component selects one port;
+for two components, native sorts the effective endpoints, so `27199:27183`
+selects 27183–27199. Core validates this grammar before execution while
+preserving the exact stored spelling and emitted argument. Native and Core tests
+cover decimal, octal, hexadecimal, zero, signs, reversed ranges, malformed
+components, missing components, extra components, and out-of-range values.
+As with scalar integers, Core intentionally rejects leading whitespace even
+though native `strtol` accepts it. The legacy catalogue's decimal regex remains
+unchanged for compatibility and is bypassed only by modern Core validation.
 
 ## Regeneration and verification
 

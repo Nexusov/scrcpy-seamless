@@ -10,6 +10,9 @@ public enum ApplicationDataMode
 /// <summary>Paths for a single application installation, without accessing the filesystem.</summary>
 public sealed record ApplicationDataPaths(string Directory, string ConfigurationFile)
 {
+    /// <summary>Separate Desktop-owned preferences in this selected application data root.</summary>
+    public string DesktopPreferencesFile => Path.Combine(Directory, "desktop-preferences.json");
+
     /// <summary>Resolves portable or per-user installed storage from explicit roots.</summary>
     public static ApplicationDataPaths Resolve(
         ApplicationDataMode mode,

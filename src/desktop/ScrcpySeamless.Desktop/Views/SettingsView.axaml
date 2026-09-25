@@ -4,7 +4,7 @@
              xmlns:views="using:ScrcpySeamless.Desktop.Views"
              x:Class="ScrcpySeamless.Desktop.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
-  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource PageInset}" RowSpacing="{DynamicResource SectionGap}">
+  <Grid Name="SettingsRoot" RowDefinitions="Auto,Auto,*" Margin="{DynamicResource PageInset}" RowSpacing="{DynamicResource SectionGap}">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Spacing="5">
         <TextBlock Name="SettingsEyebrow" Classes="eyebrow" Text="{Binding Eyebrow}" />
@@ -12,18 +12,87 @@
         <TextBlock Name="SettingsSubtitle" Classes="muted" Text="{Binding Subtitle}" />
       </StackPanel>
       <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
+              IsVisible="{Binding IsPreview}"
               VerticalAlignment="Bottom" AutomationProperties.AutomationId="settings.resetDraft"
               AutomationProperties.Name="{Binding ResetLabel}" />
     </Grid>
-    <Border Grid.Row="1" Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8"
+    <Border Name="SettingsStatusBlock" Grid.Row="1" Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8"
             Padding="16,11">
       <StackPanel Spacing="4">
         <TextBlock Name="SettingsGlobalLabel" Text="{Binding GlobalLabel}" FontWeight="SemiBold"
                    Foreground="{DynamicResource TextPrimaryBrush}" />
-        <TextBlock Text="{Binding UnsavedLabel}" Classes="muted" FontSize="{DynamicResource SmallFontSize}" />
+        <TextBlock Name="SettingsUnsavedLabel" Text="{Binding UnsavedLabel}" Classes="muted"
+                   FontSize="{DynamicResource SmallFontSize}" />
+        <!-- Configuration actions apply only to the selected normal-mode data root. -->
+        <TextBlock Name="SettingsConfigurationStatus" Text="{Binding ConfigurationStatusMessage}"
+                   IsVisible="{Binding IsPersistent}" TextWrapping="NoWrap"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ConfigurationStatusMessage}"
+                   AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}"
+                   AutomationProperties.AutomationId="configuration.status" />
+        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8" LineSpacing="8">
+          <Button Name="ConfigurationApplyButton" Content="{Binding ConfigurationApplyLabel}" Command="{Binding Configuration.ApplyCommand}"
+                  AutomationProperties.AutomationId="configuration.apply" />
+          <Button Name="ConfigurationCancelButton" Content="{Binding ConfigurationCancelLabel}" Command="{Binding Configuration.CancelCommand}"
+                  AutomationProperties.AutomationId="configuration.cancel" />
+          <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
+                  AutomationProperties.AutomationId="configuration.reload" />
+        </WrapPanel>
+        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8" LineSpacing="8">
+          <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
+                  IsVisible="{Binding Configuration.CanPrepareMigration}"
+                  AutomationProperties.AutomationId="configuration.migration.prepare" />
+          <TextBlock Text="{Binding MigrationSummaryMessage}" IsVisible="{Binding Configuration.HasPreparedMigration}"
+                     TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
+                  IsVisible="{Binding Configuration.HasPreparedMigration}"
+                  AutomationProperties.AutomationId="configuration.migration.commit" />
+          <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
+                  IsVisible="{Binding Configuration.HasPreparedMigration}"
+                  AutomationProperties.AutomationId="configuration.migration.cancel" />
+        </WrapPanel>
+        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8">
+          <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}"
+                  AutomationProperties.AutomationId="settings.section.mirroring" />
+          <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}"
+                  AutomationProperties.AutomationId="settings.section.desktop" />
+        </WrapPanel>
       </StackPanel>
     </Border>
-    <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18">
+    <!-- Compact normal-mode actions preserve an option viewport at enlarged laptop metrics. -->
+    <Border Name="CompactSettingsToolbar" Grid.Row="1" IsVisible="False"
+            Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8" Padding="8">
+      <StackPanel Spacing="4" ToolTip.Tip="{Binding ConfigurationStatusMessage}"
+                  AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}">
+        <TextBlock Text="{Binding ConfigurationStatusMessage}" TextWrapping="NoWrap"
+                   TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="configuration.compactStatus" />
+        <WrapPanel ItemSpacing="6">
+          <Button Name="CompactConfigurationApplyButton" Content="{Binding ConfigurationApplyLabel}" Command="{Binding Configuration.ApplyCommand}"
+                  AutomationProperties.AutomationId="configuration.compactApply" />
+          <Button Name="CompactConfigurationCancelButton" Content="{Binding ConfigurationCancelLabel}" Command="{Binding Configuration.CancelCommand}"
+                  AutomationProperties.AutomationId="configuration.compactCancel" />
+          <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
+                  AutomationProperties.AutomationId="configuration.compactReload" />
+          <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
+                  IsVisible="{Binding Configuration.CanPrepareMigration}"
+                  AutomationProperties.AutomationId="configuration.compactMigration" />
+        </WrapPanel>
+        <WrapPanel ItemSpacing="6">
+          <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
+          <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
+        </WrapPanel>
+        <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
+          <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
+                     TextWrapping="NoWrap" MaxWidth="220" VerticalAlignment="Center"
+                     ToolTip.Tip="{Binding MigrationSummaryMessage}" />
+          <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
+                  AutomationProperties.AutomationId="configuration.compactMigrationCommit" />
+          <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
+                  AutomationProperties.AutomationId="configuration.compactMigrationCancel" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+    <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18"
+          IsVisible="{Binding IsMirroringSection}" IsEnabled="{Binding IsOptionEditorAvailable}">
       <Grid Name="CategoryNavigation" Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
         <TextBlock Grid.Row="0" Text="{Binding CategoriesLabel}" Classes="eyebrow" />
         <ListBox Name="CategoryList" ItemsSource="{Binding Categories}"
@@ -54,7 +123,7 @@
                    PlaceholderText="{Binding SearchWatermark}"
                    AutomationProperties.AutomationId="settings.search"
                    AutomationProperties.Name="{Binding SearchLabel}" />
-          <TextBlock Grid.Row="1" Text="{Binding ShortcutHelp}" Classes="muted" />
+          <TextBlock Name="SettingsShortcutHelp" Grid.Row="1" Text="{Binding ShortcutHelp}" Classes="muted" />
         </Grid>
         <ScrollViewer Name="OptionScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="12">
@@ -71,5 +140,7 @@
         </ScrollViewer>
       </Grid>
     </Grid>
+    <ContentControl Grid.Row="2" Content="{Binding Preferences}"
+                    IsVisible="{Binding IsDesktopSection}" />
   </Grid>
 </UserControl>
