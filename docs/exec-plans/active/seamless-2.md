@@ -450,6 +450,9 @@ Actual running-window captures of final preview, dirty/saved settings, saved
 profile and invalid-v2 state are under ignored
 `work/phase5b/screenshots/g190b37c2/`. These are Desktop-only observations; no
 phone, discovery, native mirroring or hardware outcome is claimed.
+The final Windows build also displayed the group-specific Apply/Discard/Stay
+close prompt for an unsaved option; selecting Stay kept the draft open, and
+normal Cancel restored the committed value before closing.
 
 Locked restore, zero-warning Release build, 272/272 .NET tests, 28/28 legacy
 PowerShell suites, native Meson 16/16 tests including port-parser endpoints,
