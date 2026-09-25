@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -372,6 +373,57 @@ public sealed class NormalCompositionTests
         Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
     }
 
+    /// <summary>Dismissing the real close dialog with its title-bar close retains both drafts.</summary>
+    [AvaloniaFact]
+    public async Task RealCloseDialogTitleBarDismissalKeepsDraft()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        MainWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.Show();
+
+        window.Close();
+        Window dialog = Assert.Single(window.OwnedWindows);
+        dialog.Close();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { },
+            Avalonia.Threading.DispatcherPriority.Loaded);
+
+        Assert.True(window.IsVisible);
+        Assert.True(composition.Preferences.IsDirty);
+        Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
+        composition.Preferences.CancelChanges();
+        window.Close();
+    }
+
+    /// <summary>The real close dialog's Escape path retains drafts when the platform handles it.</summary>
+    [AvaloniaFact]
+    public async Task RealCloseDialogEscapeKeepsDraft()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        MainWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.Show();
+
+        window.Close();
+        Window dialog = Assert.Single(window.OwnedWindows);
+        dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { },
+            Avalonia.Threading.DispatcherPriority.Loaded);
+
+        Assert.True(window.IsVisible);
+        Assert.True(composition.Preferences.IsDirty);
+        Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
+        Assert.False(dialog.IsVisible);
+        composition.Preferences.CancelChanges();
+        window.Close();
+    }
+
     /// <summary>Sequential close saves advance only the successful group's baseline after a preference conflict.</summary>
     [AvaloniaFact]
     public async Task PartialCloseSaveKeepsFailedPreferenceDraft()
@@ -425,6 +477,112 @@ public sealed class NormalCompositionTests
         Assert.Equal(1, window.PromptCount);
     }
 
+    /// <summary>Close-time ownership rejects edits between the two independent commits.</summary>
+    [AvaloniaFact]
+    public async Task WindowCloseOwnsEditorsAcrossSequentialSaves()
+    {
+        using TemporaryDataRoot root = new();
+        TaskCompletionSource preferencesReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releasePreferences = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int preferencesCommitAttempts = 0;
+        NormalDesktopComposition composition = Create(root.Path, beforePreferencesCommit: async _ =>
+        {
+            Interlocked.Increment(ref preferencesCommitAttempts);
+            preferencesReached.TrySetResult();
+            await releasePreferences.Task;
+        });
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Settings.SearchText = "max-size";
+        Assert.Single(composition.Settings.VisibleRows).TextValue = "1024";
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.NextDecision = ScriptedCloseWindow.Decision.SaveAndClose;
+        TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Show();
+
+        window.Close();
+        await preferencesReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            Assert.False(composition.Configuration.IsDirty);
+            Assert.True(composition.Preferences.IsBusy);
+            Assert.True(window.IsVisible);
+            Assert.False(composition.Configuration.CanEdit);
+            Assert.False(composition.Profiles.CanEdit);
+            Assert.False(composition.Preferences.CanEdit);
+            Assert.False(composition.Shell.CanEditTheme);
+            Assert.Equal("1024", composition.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
+            Assert.Single(composition.Settings.VisibleRows).TextValue = "2048";
+            composition.Profiles.BeginNewProfile();
+            composition.Profiles.Alias = "Late profile";
+            composition.Shell.SelectedTheme = Assert.Single(composition.Shell.Themes,
+                choice => choice.Theme == AppTheme.Light);
+            window.Close();
+
+            Assert.False(composition.Configuration.IsDirty);
+            Assert.False(composition.Profiles.HasUnstagedChanges);
+            Assert.True(composition.Preferences.IsDirty);
+            Assert.Equal("1024", Assert.Single(composition.Settings.VisibleRows).TextValue);
+            Assert.Equal(DesktopTheme.Dark, composition.Preferences.Theme);
+            Assert.Equal(1, window.PromptCount);
+            Assert.Equal(1, preferencesCommitAttempts);
+        }
+        finally
+        {
+            releasePreferences.TrySetResult();
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        NormalDesktopComposition restarted = Create(root.Path);
+        await restarted.InitializeAsync(CancellationToken.None);
+        Assert.Equal("1024", restarted.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
+        Assert.Empty(restarted.Configuration.Draft.Profiles);
+        Assert.Equal(DesktopTheme.Dark, restarted.Preferences.Theme);
+    }
+
+    /// <summary>A close requested during ordinary Apply leaves its in-flight write and window intact.</summary>
+    [AvaloniaFact]
+    public async Task WindowCloseDuringOrdinaryApplyDoesNotStartAnotherSave()
+    {
+        using TemporaryDataRoot root = new();
+        TaskCompletionSource preferencesReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releasePreferences = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        NormalDesktopComposition composition = Create(root.Path, beforePreferencesCommit: async _ =>
+        {
+            preferencesReached.TrySetResult();
+            await releasePreferences.Task;
+        });
+        await composition.InitializeAsync(CancellationToken.None);
+        composition.Preferences.Theme = DesktopTheme.Dark;
+        ScriptedCloseWindow window = new(composition.Shell);
+        window.AttachNormalComposition(composition);
+        window.Show();
+        Task<bool> apply = composition.Preferences.ApplyAsync(CancellationToken.None);
+        await preferencesReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            window.Close();
+            window.Close();
+            Assert.True(window.IsVisible);
+            Assert.Equal(0, window.PromptCount);
+            Assert.True(composition.Preferences.IsBusy);
+        }
+        finally
+        {
+            releasePreferences.TrySetResult();
+        }
+
+        Assert.True(await apply.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.True(window.IsVisible);
+        Assert.False(composition.Preferences.IsDirty);
+        window.Close();
+        Assert.False(window.IsVisible);
+    }
+
     /// <summary>A failed second write keeps the actual close request open and retains its draft.</summary>
     [AvaloniaFact]
     public async Task WindowCloseStaysOpenAfterPartialSave()
@@ -448,6 +606,9 @@ public sealed class NormalCompositionTests
         Assert.True(window.IsVisible);
         Assert.False(composition.Configuration.IsDirty);
         Assert.True(composition.Preferences.IsDirty);
+        Assert.True(composition.Configuration.CanEdit);
+        Assert.True(composition.Profiles.CanEdit);
+        Assert.True(composition.Preferences.CanEdit);
         Assert.Equal(1, window.PromptCount);
         window.NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose;
         window.Close();
@@ -564,12 +725,14 @@ public sealed class NormalCompositionTests
     }
 
     /// <summary>Builds a real local settings shell with no native or network adapters.</summary>
-    private static NormalDesktopComposition Create(string directory, string? legacyDirectory = null)
+    private static NormalDesktopComposition Create(string directory, string? legacyDirectory = null,
+        Func<CancellationToken, Task>? beforePreferencesCommit = null)
     {
         DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
             StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: directory,
             LegacyDevelopmentDirectory: legacyDirectory);
-        return NormalDesktopFactory.Create(options, _ => { }, _ => { }, requested => requested);
+        return NormalDesktopFactory.Create(options, _ => { }, _ => { }, requested => requested,
+            beforePreferencesCommit);
     }
 
     /// <summary>Creates only the synthetic legacy input used by migration-boundary tests.</summary>

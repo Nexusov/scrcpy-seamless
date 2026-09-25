@@ -7,6 +7,7 @@ namespace ScrcpySeamless.Desktop;
 public sealed class ShellViewModel : ObservableViewModel
 {
     private readonly Action<AppTheme> setTheme;
+    private Func<bool>? canEditTheme;
     private object currentPage;
     private ThemeChoice selectedTheme;
     private readonly object? profiles;
@@ -61,11 +62,17 @@ public sealed class ShellViewModel : ObservableViewModel
     public string UnavailableHint { get; }
     public string ThemeLabel { get; }
     public IReadOnlyList<ThemeChoice> Themes { get; }
+    public bool CanEditTheme => canEditTheme?.Invoke() ?? true;
     public ThemeChoice SelectedTheme
     {
         get => selectedTheme;
         set
         {
+            if (canEditTheme?.Invoke() == false)
+            {
+                return;
+            }
+
             if (!SetProperty(ref selectedTheme, value))
             {
                 return;
@@ -74,6 +81,12 @@ public sealed class ShellViewModel : ObservableViewModel
             setTheme(value.Theme);
         }
     }
+
+    /// <summary>Prevents sidebar theme edits during an owned close-time save.</summary>
+    public void AttachThemeEditGuard(Func<bool> canEdit) => canEditTheme = canEdit;
+
+    /// <summary>Updates the sidebar theme control when save ownership changes.</summary>
+    public void RefreshThemeEditState() => OnPropertyChanged(nameof(CanEditTheme));
     public bool IsDevicesSelected => ReferenceEquals(CurrentPage, Devices);
     public bool IsSettingsSelected => ReferenceEquals(CurrentPage, Settings);
     public bool IsProfilesSelected => profiles is not null && ReferenceEquals(CurrentPage, profiles);

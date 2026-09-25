@@ -8,6 +8,7 @@ namespace ScrcpySeamless.Desktop;
 public sealed class NormalDesktopComposition
 {
     private readonly PresentationText text;
+    private bool closeSaveActive;
 
     public NormalDesktopComposition(
         ShellViewModel shell,
@@ -25,6 +26,9 @@ public sealed class NormalDesktopComposition
         Preferences = preferences;
         DataPaths = dataPaths;
         this.text = text;
+        Configuration.AttachCloseSaveGuard(() => closeSaveActive);
+        Preferences.AttachCloseSaveGuard(() => closeSaveActive);
+        Shell.AttachThemeEditGuard(() => !closeSaveActive);
     }
 
     public ShellViewModel Shell { get; }
@@ -35,6 +39,7 @@ public sealed class NormalDesktopComposition
     public ApplicationDataPaths DataPaths { get; }
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
+    public bool IsCloseSaveActive => closeSaveActive;
     public string DirtyGroupsLabel => string.Join(" and ", new[]
     {
         Configuration.IsDirty || Profiles.HasUnstagedChanges ? text.Get("close.configurationGroup") : null,
@@ -83,6 +88,54 @@ public sealed class NormalDesktopComposition
         return true;
     }
 
+    /// <summary>Owns both close-time writes while keeping every editor unavailable until settlement.</summary>
+    public async Task<bool> SaveAndCloseAsync(CancellationToken cancellationToken)
+    {
+        if (closeSaveActive || IsBusy)
+        {
+            return false;
+        }
+
+        if (Profiles.HasUnstagedChanges && !Profiles.TrySaveToDraft())
+        {
+            return false;
+        }
+
+        closeSaveActive = true;
+        Configuration.RefreshCloseSaveState();
+        Preferences.RefreshCloseSaveState();
+        Shell.RefreshThemeEditState();
+
+        try
+        {
+            if (Configuration.IsDirty)
+            {
+                ConfigurationSessionApplyResult applied = await Configuration.ApplyForCloseAsync(cancellationToken);
+
+                if (applied.Status is not (ConfigurationSessionApplyStatus.Applied or ConfigurationSessionApplyStatus.NoChanges))
+                {
+                    return false;
+                }
+
+                Profiles.RefreshFromDraft();
+            }
+
+            if (Preferences.IsDirty && !await Preferences.ApplyForCloseAsync(cancellationToken))
+            {
+                return false;
+            }
+
+            return !HasDirtyGroups;
+        }
+        finally
+        {
+            closeSaveActive = false;
+            Configuration.RefreshCloseSaveState();
+            Preferences.RefreshCloseSaveState();
+            Shell.RefreshThemeEditState();
+        }
+    }
+
 }
 
 /// <summary>Constructs real adapters only after normal mode selects one explicit root.</summary>
@@ -93,7 +146,8 @@ public static class NormalDesktopFactory
         DesktopLaunchOptions options,
         Action<DesktopAppearancePreferences> applyAppearance,
         Action<DesktopShortcutPreferences> activateShortcuts,
-        Func<string?, string?> resolveEffectiveFont)
+        Func<string?, string?> resolveEffectiveFont,
+        Func<CancellationToken, Task>? beforePreferencesCommit = null)
     {
         if (options.Preview || options.StorageMode == DesktopStorageMode.None)
         {
@@ -131,7 +185,7 @@ public static class NormalDesktopFactory
             {
                 activateShortcuts(shortcuts);
                 settings.SetActiveShortcutHelp(shortcuts.EffectiveBinding(DesktopCommandIds.FocusSettingsSearch));
-            }, resolveEffectiveFont);
+            }, resolveEffectiveFont, beforePreferencesCommit);
         settings.AttachPersistence(configuration, preferences, paths.ConfigurationFile);
         shell = new ShellViewModel(devices, settings, text, false, AppTheme.System,
             theme => preferences.Theme = theme switch

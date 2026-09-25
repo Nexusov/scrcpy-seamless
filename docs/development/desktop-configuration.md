@@ -57,7 +57,11 @@ retry remains available so repaired files can be reopened. Apply or Cancel the
 relevant edit before an ordinary reload. Closing the normal window
 asks about both dirty save groups; a successful save advances each group's
 baseline independently. If the second save fails, the first remains committed
-and the failed draft stays open for review.
+and the failed draft stays open for review. Save and close owns editing across
+both sequential writes: configuration, profile, preference and sidebar theme
+edits stay unavailable until both writes settle. The window rechecks its dirty
+and busy state before closing; a failed save releases edit ownership. Closing
+the confirmation dialog with Escape or its title-bar close keeps the drafts.
 
 Appearance and supported control-center shortcuts live in separate versioned
 `desktop-preferences.json` in the selected data directory. Its read and atomic

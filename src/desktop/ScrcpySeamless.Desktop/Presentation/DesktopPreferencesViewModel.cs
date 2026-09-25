@@ -12,6 +12,8 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
     private readonly Action<DesktopAppearancePreferences> previewAppearance;
     private readonly Action<DesktopShortcutPreferences> activateShortcuts;
     private readonly Func<string?, string?> resolveEffectiveFont;
+    private readonly Func<CancellationToken, Task>? beforeCommit;
+    private Func<bool>? closeSaveActive;
     private DesktopPreferences? baseline;
     private string? revision;
     private DesktopTheme theme = DesktopTheme.System;
@@ -32,13 +34,15 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         VersionedDesktopPreferencesStore store,
         Action<DesktopAppearancePreferences> previewAppearance,
         Action<DesktopShortcutPreferences> activateShortcuts,
-        Func<string?, string?>? resolveEffectiveFont = null)
+        Func<string?, string?>? resolveEffectiveFont = null,
+        Func<CancellationToken, Task>? beforeCommit = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         this.store = store ?? throw new ArgumentNullException(nameof(store));
         this.previewAppearance = previewAppearance ?? throw new ArgumentNullException(nameof(previewAppearance));
         this.activateShortcuts = activateShortcuts ?? throw new ArgumentNullException(nameof(activateShortcuts));
         this.resolveEffectiveFont = resolveEffectiveFont ?? (requested => requested);
+        this.beforeCommit = beforeCommit;
         Title = text.Get("preferences.title");
         Subtitle = text.Get("preferences.subtitle");
         AppearanceLabel = text.Get("preferences.appearance");
@@ -85,11 +89,17 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
     public ICommand ResetCommand { get; }
     public bool IsBusy => isBusy;
     public bool IsReady => isReady;
-    public bool CanEdit => IsReady && !IsBusy;
-    public bool CanReload => !IsBusy;
+    public bool CanEdit => IsReady && !IsBusy && closeSaveActive?.Invoke() != true;
+    public bool CanReload => !IsBusy && closeSaveActive?.Invoke() != true;
     public bool IsDirty => isReady && !MatchesBaseline();
-    public bool CanApply => IsReady && !IsBusy && IsDirty && ValidationMessage.Length == 0;
-    public bool CanCancel => IsReady && !IsBusy && IsDirty;
+    public bool CanApply => CanEdit && IsDirty && ValidationMessage.Length == 0;
+    public bool CanCancel => CanEdit && IsDirty;
+
+    /// <summary>Shares close-time edit ownership with the preference editor.</summary>
+    public void AttachCloseSaveGuard(Func<bool> isActive) => closeSaveActive = isActive;
+
+    /// <summary>Refreshes edit commands when the close workflow takes or releases ownership.</summary>
+    public void RefreshCloseSaveState() => NotifyDraftState();
     public bool HasStatus => StatusMessage.Length > 0;
     public bool HasValidation => ValidationMessage.Length > 0;
     public bool HasFontSubstitution => FontSubstitutionMessage.Length > 0;
@@ -99,7 +109,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => theme;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -116,7 +126,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => accentColor;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -133,7 +143,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => fontFamily;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -150,7 +160,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => scalePercent;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -167,7 +177,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => focusSearchBinding;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -184,7 +194,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => showDevicesBinding;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -201,7 +211,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
         get => showSettingsBinding;
         set
         {
-            if (IsBusy)
+            if (!CanEdit)
             {
                 return;
             }
@@ -253,7 +263,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
     /// <summary>Loads the selected document without creating it and activates only validated saved bindings.</summary>
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy)
+        if (!CanReload)
         {
             return;
         }
@@ -307,8 +317,16 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
 
     /// <summary>Validates and atomically saves one captured preferences candidate away from the UI thread.</summary>
     public async Task<bool> ApplyAsync(CancellationToken cancellationToken)
+        => await ApplyCoreAsync(cancellationToken, closeOwned: false);
+
+    /// <summary>Commits preferences while the close workflow owns both save groups.</summary>
+    internal Task<bool> ApplyForCloseAsync(CancellationToken cancellationToken)
+        => ApplyCoreAsync(cancellationToken, closeOwned: true);
+
+    /// <summary>Validates and commits one immutable preference candidate.</summary>
+    private async Task<bool> ApplyCoreAsync(CancellationToken cancellationToken, bool closeOwned)
     {
-        if (IsBusy || !IsReady)
+        if (IsBusy || !IsReady || (!closeOwned && closeSaveActive?.Invoke() == true))
         {
             return false;
         }
@@ -332,6 +350,11 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
 
         try
         {
+            if (beforeCommit is not null)
+            {
+                await beforeCommit(cancellationToken);
+            }
+
             DesktopPreferencesCommitResult result = await Task.Run(
                 () => store.Commit(revision, candidate, cancellationToken), cancellationToken);
             return await OnUiThreadAsync(() => HandleCommit(result, candidate));
@@ -355,7 +378,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
     /// <summary>Discards only the Desktop draft and restores the most recently committed appearance.</summary>
     public void CancelChanges()
     {
-        if (!IsReady || IsBusy)
+        if (!CanEdit)
         {
             return;
         }
@@ -373,7 +396,7 @@ public sealed class DesktopPreferencesViewModel : ObservableViewModel
     /// <summary>Places safe defaults in the draft; persistence still requires Apply.</summary>
     public void ResetToDefaults()
     {
-        if (!IsReady || IsBusy)
+        if (!CanEdit)
         {
             return;
         }

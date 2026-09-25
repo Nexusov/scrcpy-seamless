@@ -116,7 +116,8 @@ public sealed class ProfilesViewModel : ObservableViewModel
     public ICommand ConfirmDeleteCommand { get; }
     public ICommand KeepCommand { get; }
     public bool IsPreview => session is null;
-    public bool CanEdit => session is null || session.Draft is not null && !session.IsBusy && !session.RequiresReload;
+    public bool CanEdit => session is null || session.Draft is not null && !session.IsBusy &&
+        !session.RequiresReload && (workspace?.CanEdit ?? true);
     public bool IsEditing => editingId.HasValue;
     public bool HasNoProfiles => Profiles.Count == 0;
     public bool HasValidation => ValidationMessage is not null;
@@ -153,6 +154,11 @@ public sealed class ProfilesViewModel : ObservableViewModel
         get => selectedProfile;
         set
         {
+            if (!CanEdit)
+            {
+                return;
+            }
+
             if (selectedProfile == value)
             {
                 return;
@@ -181,6 +187,11 @@ public sealed class ProfilesViewModel : ObservableViewModel
         get => selectedTransport;
         set
         {
+            if (!CanEdit)
+            {
+                return;
+            }
+
             if (value is not null && SetProperty(ref selectedTransport, value))
             {
                 ValidateEditor();
@@ -193,6 +204,11 @@ public sealed class ProfilesViewModel : ObservableViewModel
         get => allowFallback;
         set
         {
+            if (!CanEdit)
+            {
+                return;
+            }
+
             if (SetProperty(ref allowFallback, value))
             {
                 ValidateEditor();
@@ -390,6 +406,11 @@ public sealed class ProfilesViewModel : ObservableViewModel
     /// <summary>Discards only visible editor input while retaining other staged draft edits.</summary>
     public void CancelEditorChanges()
     {
+        if (!CanEdit)
+        {
+            return;
+        }
+
         if (selectedBaseline is null)
         {
             RefreshFromDraft();
@@ -537,6 +558,11 @@ public sealed class ProfilesViewModel : ObservableViewModel
     /// <summary>Updates one editor field without discarding invalid raw input.</summary>
     private void ChangeText(ref string field, string? value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {
+        if (!CanEdit)
+        {
+            return;
+        }
+
         if (SetProperty(ref field, value ?? string.Empty, name))
         {
             ValidateEditor();

@@ -57,7 +57,7 @@
         </StackPanel>
         <StackPanel Spacing="6">
           <TextBlock Text="{Binding ThemeLabel}" Classes="muted" />
-          <ComboBox Name="ThemePicker" ItemsSource="{Binding Themes}"
+          <ComboBox Name="ThemePicker" ItemsSource="{Binding Themes}" IsEnabled="{Binding CanEditTheme}"
                     SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
                     AutomationProperties.AutomationId="theme.choice"
                     AutomationProperties.Name="{Binding ThemeLabel}">

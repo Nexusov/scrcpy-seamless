@@ -45,6 +45,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     private int operationActive;
     private string? lastCommandErrorKind;
     private ProfilesViewModel? profileEditor;
+    private Func<bool>? closeSaveActive;
 
     /// <summary>Constructs an in-memory workspace; the caller selects persistent adapters explicitly.</summary>
     public ConfigurationWorkspaceViewModel(
@@ -70,15 +71,17 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
             ReportCommandError);
         CommitMigrationCommand = new AsyncActionCommand(
             async () => { await CommitMigrationAsync(CancellationToken.None); },
-            () => HasPreparedMigration && !IsDirty && !HasPendingProfileEdit && !IsBusy,
+            () => HasPreparedMigration && !IsDirty && !HasPendingProfileEdit && !IsBusy &&
+                closeSaveActive?.Invoke() != true,
             ReportCommandError);
         CancelMigrationCommand = new AsyncActionCommand(
             () => { CancelMigration(); return Task.CompletedTask; },
-            () => HasPreparedMigration && !IsBusy,
+            () => HasPreparedMigration && !IsBusy && closeSaveActive?.Invoke() != true,
             ReportCommandError);
         ReloadCommand = new AsyncActionCommand(
             async () => { await LoadAsync(CancellationToken.None); },
-            () => !IsBusy && (!ReloadBlockedByUnsavedChanges || RequiresReload),
+            () => !IsBusy && closeSaveActive?.Invoke() != true &&
+                (!ReloadBlockedByUnsavedChanges || RequiresReload),
             ReportCommandError);
     }
 
@@ -109,9 +112,9 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     public bool RequiresReload => session.RequiresReload;
     public bool HasPreparedMigration => preparedMigration is not null;
     public bool CanPrepareMigration => migration is not null && Status == ConfigurationWorkspaceStatus.Missing &&
-        !IsDirty && !HasPendingProfileEdit && !IsBusy;
+        !IsDirty && !HasPendingProfileEdit && !IsBusy && closeSaveActive?.Invoke() != true;
     public bool CanEdit => Status is ConfigurationWorkspaceStatus.Ready or ConfigurationWorkspaceStatus.Missing &&
-        !IsBusy && !RequiresReload;
+        !IsBusy && !RequiresReload && closeSaveActive?.Invoke() != true;
     public bool HasError => Status is ConfigurationWorkspaceStatus.Invalid or ConfigurationWorkspaceStatus.Inaccessible ||
         LastApplyResult?.Status is ConfigurationSessionApplyStatus.Invalid or ConfigurationSessionApplyStatus.RevisionConflict or
             ConfigurationSessionApplyStatus.Busy or ConfigurationSessionApplyStatus.IoError ||
@@ -124,6 +127,17 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     public ICommand CancelMigrationCommand { get; }
     public event Action? DraftReplaced;
     public ICommand ReloadCommand { get; }
+
+    /// <summary>Shares close-time edit ownership with the configuration editor.</summary>
+    public void AttachCloseSaveGuard(Func<bool> isActive) => closeSaveActive = isActive;
+
+    /// <summary>Refreshes editor and command availability when close ownership changes.</summary>
+    public void RefreshCloseSaveState()
+    {
+        OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(CanPrepareMigration));
+        NotifyCommands();
+    }
 
     /// <summary>Keeps Settings actions from omitting or replacing a separate profile editor buffer.</summary>
     public void AttachProfileEditor(ProfilesViewModel editor)
@@ -152,7 +166,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Loads selected v2 authority and hydrates the detached option editor on success.</summary>
     public async Task<ConfigurationSessionLoadResult> LoadAsync(CancellationToken cancellationToken)
     {
-        if (!TryBegin())
+        if (closeSaveActive?.Invoke() == true || !TryBegin())
         {
             return new ConfigurationSessionLoadResult(ConfigurationSessionLoadStatus.Busy, []);
         }
@@ -187,8 +201,16 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
 
     /// <summary>Applies an immutable candidate and retains the draft and diagnostics after failure.</summary>
     public async Task<ConfigurationSessionApplyResult> ApplyAsync(CancellationToken cancellationToken)
+        => await ApplyCoreAsync(cancellationToken, closeOwned: false);
+
+    /// <summary>Applies the configuration group while the close workflow owns editing.</summary>
+    internal Task<ConfigurationSessionApplyResult> ApplyForCloseAsync(CancellationToken cancellationToken)
+        => ApplyCoreAsync(cancellationToken, closeOwned: true);
+
+    /// <summary>Runs one owned configuration commit without admitting concurrent editor actions.</summary>
+    private async Task<ConfigurationSessionApplyResult> ApplyCoreAsync(CancellationToken cancellationToken, bool closeOwned)
     {
-        if (!TryBegin())
+        if ((!closeOwned && closeSaveActive?.Invoke() == true) || !TryBegin())
         {
             return new ConfigurationSessionApplyResult(ConfigurationSessionApplyStatus.Busy, session.Revision, [], []);
         }
@@ -216,7 +238,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Restores the last loaded or applied baseline without writing or clearing saved overrides.</summary>
     public void CancelChanges()
     {
-        if (IsBusy)
+        if (IsBusy || closeSaveActive?.Invoke() == true)
         {
             throw new InvalidOperationException("Configuration cannot be cancelled during another operation.");
         }
@@ -232,6 +254,11 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Inspects selected synthetic or user-chosen legacy input without creating v2 state.</summary>
     public async Task<ConfigurationWorkspaceMigrationResult> PrepareMigrationAsync(CancellationToken cancellationToken)
     {
+        if (closeSaveActive?.Invoke() == true)
+        {
+            throw new InvalidOperationException("Migration cannot replace a close-time save.");
+        }
+
         if (!TryBegin())
         {
             return new ConfigurationWorkspaceMigrationResult(LegacyMigrationStatus.Busy, []);
@@ -271,6 +298,11 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Confirms the prepared proposal through the migration coordinator and reloads committed v2.</summary>
     public async Task<ConfigurationWorkspaceMigrationResult> CommitMigrationAsync(CancellationToken cancellationToken)
     {
+        if (closeSaveActive?.Invoke() == true)
+        {
+            throw new InvalidOperationException("Migration cannot replace a close-time save.");
+        }
+
         if (!TryBegin())
         {
             return new ConfigurationWorkspaceMigrationResult(LegacyMigrationStatus.Busy, []);
@@ -342,6 +374,11 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Discards only the uncommitted migration proposal.</summary>
     public void CancelMigration()
     {
+        if (closeSaveActive?.Invoke() == true)
+        {
+            return;
+        }
+
         if (IsBusy)
         {
             throw new InvalidOperationException("Migration cannot be cancelled during another operation.");

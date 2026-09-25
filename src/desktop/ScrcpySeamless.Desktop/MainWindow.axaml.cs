@@ -106,7 +106,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (composition.IsBusy)
+        if (composition.IsBusy || composition.IsCloseSaveActive)
         {
             eventArgs.Cancel = true;
             Title = "scrcpy Seamless — save in progress; close again when complete";
@@ -138,9 +138,15 @@ public partial class MainWindow : Window
 
             if (decision == CloseDecision.Apply)
             {
-                bool applied = await composition.ApplyDirtyGroupsAsync(CancellationToken.None);
+                bool applied = await composition.SaveAndCloseAsync(CancellationToken.None);
 
                 if (!applied)
+                {
+                    await ShowCloseFailureAsync();
+                    return;
+                }
+
+                if (composition.HasDirtyGroups || composition.IsBusy || composition.IsCloseSaveActive)
                 {
                     await ShowCloseFailureAsync();
                     return;
@@ -167,6 +173,16 @@ public partial class MainWindow : Window
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
+        };
+        dialog.KeyDown += (_, keyEventArgs) =>
+        {
+            if (keyEventArgs.Key != Key.Escape)
+            {
+                return;
+            }
+
+            keyEventArgs.Handled = true;
+            dialog.Close(CloseDecision.Stay);
         };
         StackPanel content = new() { Margin = new Avalonia.Thickness(20), Spacing = 14 };
         content.Children.Add(new TextBlock

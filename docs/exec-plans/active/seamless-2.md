@@ -415,7 +415,11 @@ unstaged profile editor, and ordinary Settings Reload waits for pending
 configuration or profile edits to be applied or cancelled. Failed-authority
 recovery offers an explicitly labelled discard-and-reload retry. Closing with
 dirty groups asks to Save and close, Discard and close, or Keep editing, and
-reports any partial two-document save outcome.
+reports any partial two-document save outcome. Save and close reserves both
+edit groups through the sequential writes, releases that ownership on success
+or failure, and rechecks for pending edits before shutdown. Escape and the
+confirmation dialog's title-bar close retain drafts. A successful first write
+remains committed if the second fails; no cross-file transaction is implied.
 
 Desktop preferences live in versioned `desktop-preferences.json` alongside but
 separate from `configuration.v2.json`. Appearance edits may preview live and
