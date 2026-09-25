@@ -1,9 +1,9 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5B local implementation gate: Phase 5A merged
+Status at the 2026-09-25 Phase 5B local review gate: Phase 5A merged
 through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
 the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
-commits. Phase 5B is in local development; overall Phase 5 remains incomplete.
+commits. Phase 5B is locally complete and awaiting review; overall Phase 5 remains incomplete.
 Phase 5C–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -15,10 +15,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The accepted Phase 4 merge is the base for local branch `2.0/p05-desktop`.
-The current authorization covers the complete Phase 5A working-branch push
-and a PR into `seamless-2.0`; merging, tags, releases and repository-settings
-changes remain separate decisions. Keep the current
+The accepted Phase 5A merge is the base for local branch `2.0/p05b-settings`.
+Phase 5B remains local; no push, PR, merge, tag or release is authorized for
+that branch. Keep the current
 launcher and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
@@ -272,7 +271,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | In local implementation; not published |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Complete locally; awaiting review, not published |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
@@ -291,8 +290,8 @@ and capture real Windows screenshots. This is still Phase 5A, not Phase 5B.
 | 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Complete locally |
 | 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete for PR review; hardware/accessibility follow-up remains 5D |
 
-The Phase 5A UI correction pass is ready for PR review; it does not complete
-overall Phase 5 or open Phase 5B. At small heights the category
+The Phase 5A UI correction pass was prepared for PR review before its accepted
+integration; it did not complete overall Phase 5. At small heights the category
 ListBox previously inherited unbounded StackPanel measurement, and at 150%
 preview metrics the Settings header and status block could leave the option
 viewport at zero height. A bounded category Grid, compact selector, reflowing
@@ -350,8 +349,8 @@ The intended local commit sequence is: (1) research/plan and boundary decisions,
 and (4) scenario/test and DEV documentation. Keep each checkpoint buildable where
 practical; a test stays with the behavior it protects. Preview composition may
 not create or call ADB, native-host, migration or production configuration
-adapters. Normal startup shows an empty/not-yet-connected state until real
-integration exists.
+adapters. At the Phase 5A gate, normal startup showed an empty/not-yet-connected
+state before the explicit Phase 5B storage mode was added.
 
 The implementation kept the coupled shell, Views/ViewModels, preview sources
 and their tests in one buildable UI commit. Later local commits added the
@@ -432,6 +431,32 @@ options. Shortcut help and tooltips must use the effective bindings. Native
 mirror/input remapping belongs to the Phase 7 input architecture and its
 Phase 10 product UI, where Desktop shortcuts and keys forwarded to Android
 remain distinct; Desktop key events or global hooks are not a substitute.
+
+### Phase 5B local validation
+
+Code source `17116ca07c623b2175f52015e80fc0d92738e51a` produced the
+self-contained `dist/dev/scrcpy-seamless-desktop-p05b-g17116ca/` Windows x64
+DEV application. Normal-mode writes were exercised only under the ignored
+`.dev-data/p05b/` directory, which was absent at first launch and remained
+absent until Apply. A real first process saved a synthetic profile, raw
+`max-size=1024`, accent `#3B82F6` and 110% interface scale. A second process
+loaded those values; editing `max-size` to `2048` and selecting Cancel returned
+the visible value to `1024`. A separate synthetic invalid-v2 root remained
+unchanged and disabled editing. Actual running-window captures of preview,
+dirty/saved settings, profile editing/restart and invalid-v2 state are under
+ignored `work/phase5b/screenshots/`. These are Desktop-only observations; no
+phone, discovery, native mirroring or hardware outcome is claimed.
+
+Locked restore, zero-warning Release build, 272/272 .NET tests, 28/28 legacy
+PowerShell suites, native Meson 16/16 tests including port-parser endpoints,
+SpecGen verify (109 native entries and six outputs), DocsCheck and build
+metadata checks passed. Headless tests cover detached drafts, raw values,
+profile identity, migration authority, preference conflict/fallback,
+shortcuts, preview isolation and enlarged-metrics reachability. Real Windows
+screen-reader and multi-monitor behavior remain unverified for the later
+Phase 5D acceptance boundary. The Android server is unchanged in this slice;
+the accepted Phase 5A/earlier build evidence is reused rather than described
+as a new server build.
 
 After one-way migration, v2 is canonical; legacy files are not a second writer
 and are not automatically reimported over v2. Phase 5C may introduce a
