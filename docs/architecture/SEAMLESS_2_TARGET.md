@@ -1,9 +1,10 @@
 # Seamless 2.0 target architecture
 
-Status: accepted target with Phase 2 build foundations and Phase 3 headless
-Core/Infrastructure contracts integrated into `seamless-2.0`. Phase 4 option
-metadata and scalar validation are in PR #5. The 2.0 product UI, IPC, native
-lifetime and ConnectionManager remain future phases. See the
+Status: accepted target with Phases 0–4 integrated into `seamless-2.0` through
+PR #5 (`d9617610388668715934083edfe9589ce15463ac`). Phase 5A develops the
+bounded UI foundation; real application effects and complete workflow parity
+remain later Phase 5 slices. IPC, native lifetime and ConnectionManager remain
+future phases. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 

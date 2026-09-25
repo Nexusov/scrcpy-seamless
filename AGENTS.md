@@ -51,8 +51,9 @@ For Seamless 2.0 work, read the active execution plan under
 
 - `launcher/` — current 1.x PowerShell/WinForms application and VBS wrappers.
 - `src/scrcpy/` — current native scrcpy-derived client and Android server tree.
-- `src/desktop/` — .NET/Avalonia scaffold and Phase 3 headless Core/Infrastructure
-  contracts; product UI and native IPC belong to later approved phases.
+- `src/desktop/` — .NET/Avalonia Desktop with Phase 3 headless
+  Core/Infrastructure contracts; the bounded Phase 5 UI foundation is in
+  progress, while native IPC remains a later approved Phase.
 - `spec/options/` — canonical static option data and its generated schema;
   read `spec/AGENTS.md` before changing the specification.
 - `tools/ScrcpySeamless.SpecGen/` — deterministic option metadata generator

@@ -1,10 +1,9 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 review gate: Phases 0–3 are integrated through PRs
-#1–#4. Phase 3 merged into `seamless-2.0` as
-`3207892ddd37cdd6b20bafc7c770a8470b6cb81f`, preserving all 11 Phase 3
-commits. Phase 4 is complete on `2.0/p04-options`; PR #5 awaits its final
-documentation and hosted checks before integration. Phase 5 has not started.
+Status at the 2026-09-25 Phase 5A start: Phases 0–4 are integrated into
+`seamless-2.0`; Phase 4 merged through PR #5 at
+`d9617610388668715934083edfe9589ce15463ac`. Phase 5A is the active,
+bounded UI-foundation slice. Phase 5B–5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -15,13 +14,11 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-PR #4 passed all four hosted jobs and integrated Phase 3 by merge commit;
-ancestry and short-lived branch cleanup were verified. Maintainer approval for
-PR #5 permits a merge commit only after its documentation follow-up, final
-hosted checks and review gates pass. That approval does not extend to Phase 5.
-Do not modify `main`, create tags/releases, change repository settings or
-force-push. Keep the current launcher and imported runtime fallback functional;
-native lifecycle and product UI belong later.
+The accepted Phase 4 merge is the base for local branch `2.0/p05-desktop`.
+The current authorization covers only Phase 5A. Do not push, open a PR, merge,
+tag, release or change repository settings in this slice. Keep the current
+launcher and imported runtime fallback functional. Phase 6 machine IPC,
+Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
 
@@ -263,6 +260,56 @@ diff checks. Structured `port` component syntax remains a separate parity
 limitation; no Phase 5 work or hardware claim is included. Before Phase 5
 presents a `port` editor as fully validated, define its `N[:N]` component
 grammar and test it independently against the native parser.
+
+## Phase 5 — Desktop application, in bounded slices
+
+Phase 5 keeps the existing Desktop project and Core/Infrastructure dependency
+direction. A focused three-project UX reference review informs the initial
+interface here; broad competitive feature completion remains Phase 10.
+
+| Slice | Dependency | Acceptance boundary | Status |
+| --- | --- | --- | --- |
+| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | In progress |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Not started |
+| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
+| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
+
+### Phase 5A dependency-ordered checkpoints
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 5A.1 | Pin bounded reference revisions and record interaction decisions; update current Phase 5 guidance and 5B/5C contracts | In progress |
+| 5A.2 | Replace placeholder with a typed shell, resource boundary and reusable design tokens/components; normal startup remains truthful | Not started |
+| 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Not started |
+| 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Not started |
+
+The intended local commit sequence is: (1) research/plan and boundary decisions,
+(2) UI shell and resource foundation, (3) Devices and Settings preview behavior,
+and (4) scenario/test and DEV documentation. Keep each checkpoint buildable where
+practical; a test stays with the behavior it protects. Preview composition may
+not create or call ADB, native-host, migration or production configuration
+adapters. Normal startup shows an empty/not-yet-connected state until real
+integration exists.
+
+Phase 5B opens a detached draft of canonical v2 state. Opening or searching
+Settings cannot mutate stored values. Omitted, false, zero and an empty optional
+argument remain distinct; raw numeric spelling such as `010` survives a no-op
+round trip. Ordinary numeric-editor formatting does not silently replace native
+base-zero parsing. Unknown stored options remain recoverable. Apply/Save
+validates and commits against a revision; Cancel discards the draft. Unsupported
+options cannot become launch arguments. The current schema has global mirroring
+preferences; per-profile overrides are not implemented. Before enabling a
+validated `port` editor, test `N[:N]` components, ranges and effective values
+against the actual native parser.
+
+After one-way migration, v2 is canonical; legacy files are not a second writer
+and are not automatically reimported over v2. Phase 5C may introduce a
+temporary Infrastructure compatibility adapter consuming an isolated v2 view.
+Legacy environment variables, process/window inspection and log-derived
+signals remain inside that adapter. Process existence is not proof of video,
+audio or control readiness; unknown readiness must stay visible as unknown.
+The native runtime retains reconnect execution until Phases 7–8; Desktop does
+not add another reconnect state machine. Phase 6 owns versioned machine IPC.
 
 ## Validation boundaries
 
