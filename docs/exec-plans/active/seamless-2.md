@@ -399,6 +399,8 @@ document creates an empty edit session in memory; malformed, unsupported or
 inaccessible data is an explicit error and never silently becomes an empty
 session. Legacy migration is prepared from an explicitly selected DEV source,
 reviewed, and committed separately; an existing valid v2 remains authoritative.
+Migration preparation and confirmation require the separate profile editor to
+be clean, so their reload cannot replace unstaged valid or invalid input.
 
 The device/profile/mirroring document and Desktop preferences are independent
 save groups. Each group tracks its last loaded or applied snapshot, exact byte

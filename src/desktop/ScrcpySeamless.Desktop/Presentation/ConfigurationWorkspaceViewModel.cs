@@ -66,11 +66,11 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
             ReportCommandError);
         PrepareMigrationCommand = new AsyncActionCommand(
             async () => { await PrepareMigrationAsync(CancellationToken.None); },
-            () => migration is not null && Status == ConfigurationWorkspaceStatus.Missing && !IsDirty && !IsBusy,
+            () => CanPrepareMigration,
             ReportCommandError);
         CommitMigrationCommand = new AsyncActionCommand(
             async () => { await CommitMigrationAsync(CancellationToken.None); },
-            () => HasPreparedMigration && !IsBusy,
+            () => HasPreparedMigration && !IsDirty && !HasPendingProfileEdit && !IsBusy,
             ReportCommandError);
         CancelMigrationCommand = new AsyncActionCommand(
             () => { CancelMigration(); return Task.CompletedTask; },
@@ -109,7 +109,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     public bool RequiresReload => session.RequiresReload;
     public bool HasPreparedMigration => preparedMigration is not null;
     public bool CanPrepareMigration => migration is not null && Status == ConfigurationWorkspaceStatus.Missing &&
-        !IsDirty && !IsBusy;
+        !IsDirty && !HasPendingProfileEdit && !IsBusy;
     public bool CanEdit => Status is ConfigurationWorkspaceStatus.Ready or ConfigurationWorkspaceStatus.Missing &&
         !IsBusy && !RequiresReload;
     public bool HasError => Status is ConfigurationWorkspaceStatus.Invalid or ConfigurationWorkspaceStatus.Inaccessible ||
@@ -145,6 +145,7 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
         OnPropertyChanged(nameof(HasPendingProfileEdit));
         OnPropertyChanged(nameof(ReloadBlockedByUnsavedChanges));
         OnPropertyChanged(nameof(ReloadRequiresDiscard));
+        OnPropertyChanged(nameof(CanPrepareMigration));
         NotifyCommands();
     }
 
@@ -382,7 +383,8 @@ public sealed class ConfigurationWorkspaceViewModel : ObservableViewModel
     /// <summary>Limits migration to explicit missing-v2 state with no unsaved configuration draft.</summary>
     private void EnsureMigrationAllowed()
     {
-        if (migration is null || Status != ConfigurationWorkspaceStatus.Missing || session.IsDirty || session.RequiresReload)
+        if (migration is null || Status != ConfigurationWorkspaceStatus.Missing || session.IsDirty ||
+            HasPendingProfileEdit || session.RequiresReload)
         {
             throw new InvalidOperationException("Migration requires an unchanged missing-v2 configuration state.");
         }

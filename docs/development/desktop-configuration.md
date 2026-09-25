@@ -44,6 +44,9 @@ directory>` enables inspection of synthetic/selected DEV legacy files; the UI
 shows counts for a prepared proposal and requires confirmation. Migration uses
 `LegacyMigrationCoordinator`, rechecks v1 snapshots under its established lock
 order and reloads committed v2 before further editing. It never rewrites v1.
+Preparation and confirmation both refuse an unstaged profile edit, including
+invalid input. A prepared proposal remains available while that edit is
+pending; after the edit is explicitly cancelled, confirmation may proceed.
 
 The separate profile editor keeps unstaged input across page navigation and
 blocks profile switching until that input is staged or cancelled. Settings

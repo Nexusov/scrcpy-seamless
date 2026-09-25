@@ -167,6 +167,100 @@ public sealed class NormalCompositionTests
         Assert.Equal("1024", composition.Configuration.Draft!.Mirroring.Options["max-size"].GetString());
     }
 
+    /// <summary>Migration preparation refuses valid and invalid unstaged profile work.</summary>
+    [AvaloniaFact]
+    public async Task MigrationPreparationPreservesPendingProfileEditor()
+    {
+        using TemporaryDataRoot root = new();
+        string legacyDirectory = CreateSyntheticLegacySource(root.Path);
+        string legacyFile = Path.Combine(legacyDirectory, "phone.json");
+        byte[] legacyBytes = await File.ReadAllBytesAsync(legacyFile);
+        NormalDesktopComposition composition = Create(root.Path, legacyDirectory);
+        await composition.InitializeAsync(CancellationToken.None);
+        ScriptedCloseWindow window = new(composition.Shell)
+        {
+            NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose,
+        };
+        window.AttachNormalComposition(composition);
+        window.Show();
+
+        try
+        {
+            composition.Shell.ShowProfiles();
+            composition.Profiles.BeginNewProfile();
+            composition.Profiles.Alias = "Pending synthetic profile";
+            composition.Profiles.UsbSerial = "SYNTHETIC_PENDING";
+            await AssertMigrationPreparationBlocked(composition, legacyFile, legacyBytes);
+            composition.Profiles.CancelEditorChanges();
+
+            composition.Profiles.BeginNewProfile();
+            composition.Profiles.ConnectionEndpoint = "invalid-endpoint";
+            Assert.True(composition.Profiles.HasValidation);
+            await AssertMigrationPreparationBlocked(composition, legacyFile, legacyBytes);
+            composition.Profiles.CancelEditorChanges();
+
+            Assert.True(composition.Configuration.PrepareMigrationCommand.CanExecute(null));
+            Assert.Equal(LegacyMigrationStatus.Ready,
+                (await composition.Configuration.PrepareMigrationAsync(CancellationToken.None)).Status);
+            Assert.Equal(LegacyMigrationStatus.Migrated,
+                (await composition.Configuration.CommitMigrationAsync(CancellationToken.None)).Status);
+            Assert.Equal(legacyBytes, await File.ReadAllBytesAsync(legacyFile));
+            Assert.True(File.Exists(composition.DataPaths.ConfigurationFile));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A prepared migration cannot replace a later valid or invalid profile editor buffer.</summary>
+    [AvaloniaFact]
+    public async Task MigrationConfirmationPreservesPendingProfileEditor()
+    {
+        using TemporaryDataRoot root = new();
+        string legacyDirectory = CreateSyntheticLegacySource(root.Path);
+        string legacyFile = Path.Combine(legacyDirectory, "phone.json");
+        byte[] legacyBytes = await File.ReadAllBytesAsync(legacyFile);
+        NormalDesktopComposition composition = Create(root.Path, legacyDirectory);
+        await composition.InitializeAsync(CancellationToken.None);
+        ScriptedCloseWindow window = new(composition.Shell)
+        {
+            NextDecision = ScriptedCloseWindow.Decision.DiscardAndClose,
+        };
+        window.AttachNormalComposition(composition);
+        window.Show();
+
+        try
+        {
+            Assert.Equal(LegacyMigrationStatus.Ready,
+                (await composition.Configuration.PrepareMigrationAsync(CancellationToken.None)).Status);
+            Assert.True(composition.Configuration.HasPreparedMigration);
+            composition.Shell.ShowProfiles();
+
+            composition.Profiles.BeginNewProfile();
+            composition.Profiles.Alias = "Pending synthetic profile";
+            composition.Profiles.UsbSerial = "SYNTHETIC_PENDING";
+            await AssertMigrationConfirmationBlocked(composition, legacyFile, legacyBytes);
+            composition.Profiles.CancelEditorChanges();
+
+            composition.Profiles.BeginNewProfile();
+            composition.Profiles.ConnectionEndpoint = "invalid-endpoint";
+            Assert.True(composition.Profiles.HasValidation);
+            await AssertMigrationConfirmationBlocked(composition, legacyFile, legacyBytes);
+            composition.Profiles.CancelEditorChanges();
+
+            Assert.True(composition.Configuration.CommitMigrationCommand.CanExecute(null));
+            Assert.Equal(LegacyMigrationStatus.Migrated,
+                (await composition.Configuration.CommitMigrationAsync(CancellationToken.None)).Status);
+            Assert.Equal(legacyBytes, await File.ReadAllBytesAsync(legacyFile));
+            Assert.True(File.Exists(composition.DataPaths.ConfigurationFile));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     /// <summary>Settings actions cannot replace or omit an unstaged profile editor buffer.</summary>
     [AvaloniaFact]
     public async Task SettingsCommandsPreservePendingProfileEdits()
@@ -470,11 +564,62 @@ public sealed class NormalCompositionTests
     }
 
     /// <summary>Builds a real local settings shell with no native or network adapters.</summary>
-    private static NormalDesktopComposition Create(string directory)
+    private static NormalDesktopComposition Create(string directory, string? legacyDirectory = null)
     {
         DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
-            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: directory);
+            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: directory,
+            LegacyDevelopmentDirectory: legacyDirectory);
         return NormalDesktopFactory.Create(options, _ => { }, _ => { }, requested => requested);
+    }
+
+    /// <summary>Creates only the synthetic legacy input used by migration-boundary tests.</summary>
+    private static string CreateSyntheticLegacySource(string dataDirectory)
+    {
+        string legacyDirectory = Path.Combine(dataDirectory, "synthetic-legacy");
+        Directory.CreateDirectory(legacyDirectory);
+        File.WriteAllText(Path.Combine(legacyDirectory, "phone.json"),
+            """{"UsbSerial":"SYNTHETIC_USB","ConnectionMode":"usb"}""");
+        return legacyDirectory;
+    }
+
+    /// <summary>Proves a blocked preparation retains raw editor and disk state.</summary>
+    private static async Task AssertMigrationPreparationBlocked(
+        NormalDesktopComposition composition, string legacyFile, byte[] legacyBytes)
+    {
+        string profileId = composition.Profiles.EditingId!;
+        string alias = composition.Profiles.Alias;
+        string endpoint = composition.Profiles.ConnectionEndpoint;
+        Assert.True(composition.Profiles.HasUnstagedChanges);
+        Assert.False(composition.Configuration.CanPrepareMigration);
+        Assert.False(composition.Configuration.PrepareMigrationCommand.CanExecute(null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            composition.Configuration.PrepareMigrationAsync(CancellationToken.None));
+        Assert.Equal(profileId, composition.Profiles.EditingId);
+        Assert.Equal(alias, composition.Profiles.Alias);
+        Assert.Equal(endpoint, composition.Profiles.ConnectionEndpoint);
+        Assert.Empty(composition.Configuration.Draft!.Profiles);
+        Assert.Equal(legacyBytes, await File.ReadAllBytesAsync(legacyFile));
+        Assert.False(File.Exists(composition.DataPaths.ConfigurationFile));
+    }
+
+    /// <summary>Proves a blocked confirmation keeps its proposal and editor intact.</summary>
+    private static async Task AssertMigrationConfirmationBlocked(
+        NormalDesktopComposition composition, string legacyFile, byte[] legacyBytes)
+    {
+        string profileId = composition.Profiles.EditingId!;
+        string alias = composition.Profiles.Alias;
+        string endpoint = composition.Profiles.ConnectionEndpoint;
+        Assert.True(composition.Profiles.HasUnstagedChanges);
+        Assert.False(composition.Configuration.CommitMigrationCommand.CanExecute(null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            composition.Configuration.CommitMigrationAsync(CancellationToken.None));
+        Assert.True(composition.Configuration.HasPreparedMigration);
+        Assert.Equal(profileId, composition.Profiles.EditingId);
+        Assert.Equal(alias, composition.Profiles.Alias);
+        Assert.Equal(endpoint, composition.Profiles.ConnectionEndpoint);
+        Assert.Empty(composition.Configuration.Draft!.Profiles);
+        Assert.Equal(legacyBytes, await File.ReadAllBytesAsync(legacyFile));
+        Assert.False(File.Exists(composition.DataPaths.ConfigurationFile));
     }
 
     /// <summary>Feeds deterministic confirmation results through the actual window Closing handler.</summary>
