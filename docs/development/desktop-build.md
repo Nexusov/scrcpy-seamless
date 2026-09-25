@@ -94,9 +94,15 @@ $previewDirectory = "./dist/dev/scrcpy-seamless-desktop-p05a-g$sourceSha"
 
 The explicit `--preview` mode is visibly marked as simulated. Scenarios are
 `empty`, `usb`, `fallback`, `unauthorized`, `offline`, `failure`, and `reconnect`;
-select them in the UI or pass `--scenario=<id>`. `--theme=light` and
-`--theme=dark` select a presentation variant. For a filtered Settings example,
-use `--preview --page=settings --search=audio-output-buffer`. Preview mode
+select them in the UI or pass `--scenario=<id>`. The default theme choice is
+System and follows Avalonia's system theme inheritance; `--theme=light` and
+`--theme=dark` override it only in memory. `--details=expanded` opens the
+synthetic device's Connection details. The preview-only `--ui-scale=1.5`
+exercises shared typography and layout metrics without writing a preference;
+supported values are `1`, `1.1`, `1.25`, and `1.5`. For a filtered Settings
+example, use `--preview --page=settings --search=audio-output-buffer`. Settings
+categories use a compact selector at narrow widths. Ctrl+F focuses option
+search while Settings is active. Preview mode
 does not discover or pair devices, start the native child, read/migrate user
 configuration, or send activation to the personal installation. Without
 `--preview`, the application shows an empty/not-yet-connected state; real

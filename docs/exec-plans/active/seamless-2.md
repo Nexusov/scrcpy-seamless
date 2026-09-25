@@ -277,12 +277,50 @@ interface here; broad competitive feature completion remains Phase 10.
 
 ### Phase 5A dependency-ordered checkpoints
 
+The UI review correction pass proceeds in this order: reproduce and test
+scroll/resize behavior; repair layout and scroll ownership; add System theme
+behavior and shared appearance tokens; improve Devices/Settings presentation;
+validate the UI and record future contracts; then build a new runnable preview
+and capture real Windows screenshots. This is still Phase 5A, not Phase 5B.
+
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
 | 5A.1 | Pin bounded reference revisions and record interaction decisions; update current Phase 5 guidance and 5B/5C contracts | Complete locally |
 | 5A.2 | Replace placeholder with a typed shell, resource boundary and reusable design tokens/components; normal startup remains truthful | Complete locally |
 | 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Complete locally |
 | 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete locally; hardware/accessibility follow-up remains 5D |
+
+The Phase 5A UI correction pass is complete locally and awaits visual review;
+it does not accept Phase 5A or open Phase 5B. At small heights the category
+ListBox previously inherited unbounded StackPanel measurement, and at 150%
+preview metrics the Settings header and status block could leave the option
+viewport at zero height. A bounded category Grid, compact selector, reflowing
+option editor and short-window presentation now keep the content scrollable.
+Category/search result changes reset only the actual option ScrollViewer;
+editing, theme changes and resizing retain its offset and detached draft.
+The in-memory theme choice defaults to System through Avalonia's inherited
+theme variant; explicit Light/Dark, neutral charcoal surfaces, semantic
+palette roles, compact device summaries with expandable evidence, specific
+metadata-derived range feedback and one implemented Ctrl+F search shortcut
+remain preview-only behavior. No configuration, ADB, native, download or
+update path was added.
+
+The code source at `95d9ca5e` produced
+`dist/dev/scrcpy-seamless-desktop-p05a-g95d9ca5e/`. Actual running-window
+captures are under ignored `work/phase5a/screenshots/g95d9ca5e/`:
+`settings-small-light.png` has an 800×500 logical client and 1222×806
+physical window capture; `settings-enlarged-dark.png` and
+`devices-details-dark.png` have 900×620 logical clients and 1372×986
+captures; `devices-standard-light.png` has a 1080×720 logical client and
+1642×1136 capture. All used the current display's 144 DPI / 150% scale;
+the enlarged case also applied preview UI metrics at 150%. These are own-window
+captures, not phone or system-theme-switch evidence. Headless tests covered
+the actual scroll control, last-item reachability, 800×500 through 1440×900
+reference layouts, enlarged metrics, focus/shortcut, theme inheritance,
+unknown device evidence and long text. Locked restore, zero-warning Release
+build and 210 .NET tests passed; 28/28 legacy suites, SpecGen verify,
+DocsCheck and build metadata checks passed. Native/server and hardware tests
+were not rerun for this presentation-only correction.
 
 The intended local commit sequence is: (1) research/plan and boundary decisions,
 (2) UI shell and resource foundation, (3) Devices and Settings preview behavior,
@@ -328,6 +366,21 @@ preferences; per-profile overrides are not implemented. Before enabling a
 validated `port` editor, test `N[:N]` components, ranges and effective values
 against the actual native parser.
 
+Phase 5B also owns persistent application appearance preferences, separate from
+phone profiles and scrcpy option metadata: System/Light/Dark selection, a
+selectable accent, system/default or installed UI font with safe fallback, and
+an interface-scale preference with reset to defaults. Start with a small
+documented scale set (for example 100%, 110%, 125%, 150%); scale typography and
+layout metrics without multiplying display DPI or applying a post-layout
+transform. This choice does not change Android text or the separate native
+mirror. No font downloads or bundled copies of installed fonts are required.
+Phase 5B also owns remapping of supported control-center commands with
+overlapping-scope collision detection, reset and persistence outside mirroring
+options. Shortcut help and tooltips must use the effective bindings. Native
+mirror/input remapping belongs to the Phase 7 input architecture and its
+Phase 10 product UI, where Desktop shortcuts and keys forwarded to Android
+remain distinct; Desktop key events or global hooks are not a substitute.
+
 After one-way migration, v2 is canonical; legacy files are not a second writer
 and are not automatically reimported over v2. Phase 5C may introduce a
 temporary Infrastructure compatibility adapter consuming an isolated v2 view.
@@ -372,7 +425,7 @@ and pins them; planning-date observations are not installation instructions.
 | 7 | 6 | Separate native app/session/presentation/input/dispatcher lifetimes; generation-aware lifecycle diagnostics and deterministic reconnect harness |
 | 8 | 7 | ConnectionManager, resolver, retry/failure policy, hysteresis, degradation, recording/headless/deadline semantics; timed transport decisions and readiness; next alpha eligibility |
 | 9 | 8 | Recheck latest stable upstream; selective documented ports with attribution and tests |
-| 10 | 9 | Evidence-based competitive completion with licensing decisions; no generic Android-management expansion |
+| 10 | 9 | Evidence-based competitive completion with licensing decisions; native-input shortcut remapping UI after Phase 7; manual release check/notification; no generic Android-management expansion |
 | 11 | 10 | Remove legacy production paths/adapters/imported native baseline only after parity; beta eligibility |
 | 12 | 11 | Fuzz/sanitizers/fault/soak/performance/UI/accessibility/hardware/security/package hardening; diagnostic bundle, metrics, privacy and rotation validation; RC eligibility |
 | 13 | Accepted 12 RC | Minimal blocker fixes and repeated RC acceptance; exact approved stable source, immutable v2.0.0 only after remote authorization |
@@ -421,10 +474,36 @@ aggregated packet/sample/drop, underflow/overflow and Windows output-state
 diagnostics in repeated hardware/soak tests. This does not add Phase 2 product
 code or broaden those later Phases.
 
-Future 3.0 directions remain plans: runtime language switching, embedded
-mirroring, Linux/macOS, Windows ARM64, automation API, extensions/transports,
-secure updates, a measured Meson-vs-CMake review and Native AOT benchmarking.
-No speculative production scaffolding is authorized by this list.
+Phase 10's manual release check/notification should default to user initiation;
+any later background checks require explicit opt-in. Compare semantic versions
+and stable/prerelease channels. Checking, downloading and automatically
+installing are separate capabilities; a notice must not imply that an update
+was downloaded or installed.
+
+Future 3.0 directions remain plans: advanced public semantic-palette overrides
+with separate light/dark values, live preview, contrast feedback, reset and
+optional data-only theme import/export; runtime language switching; embedded
+mirroring; Linux/macOS; Windows ARM64; automation API; extensions/transports;
+secure updates; a measured Meson-vs-CMake review; and Native AOT benchmarking.
+Theme imports cannot execute XAML, scripts or assemblies, and invalid or
+missing roles fall back to readable built-in values. Always bundle complete
+English localization as an offline fallback. An optional selected-language
+download/cache policy needs measured compressed resource sizes before adoption:
+do not infer memory use from the number of bundled strings. Language packs
+need a versioned data-only schema, locale and compatible resource-key/app
+versions, bounded input and authenticated release metadata/packs. Failure must
+keep the previous usable locale, and missing keys fall back safely. Cached
+languages work offline. Automatic update installation likewise waits for a
+release/update security design: authenticated metadata and artifacts, compatible
+Desktop/native/server/dependency packages, safe staging, rollback/recovery,
+data preservation and no replacement of active binaries during mirroring or
+recording. Do not add networking or speculative loaders to Phase 5A.
+
+The request for an “ico from adb” is ambiguous between the Windows Seamless
+executable icon and Android application/device icons. Reuse only an existing
+approved Seamless asset with established provenance if one is available; do not
+extract ADB or other third-party branding. Clarify the intended target before
+planning device-side icon enumeration or APK extraction.
 
 ## Decisions and progress log
 
