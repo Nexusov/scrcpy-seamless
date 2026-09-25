@@ -1,0 +1,549 @@
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+using ScrcpySeamless.Core;
+using ScrcpySeamless.Core.Adb;
+
+namespace ScrcpySeamless.Desktop.Presentation;
+
+/// <summary>One observed ADB transport, independent of any saved profile identity.</summary>
+public sealed record ObservedDeviceChoice(AdbDevice Device, string Label);
+
+/// <summary>One advertised endpoint with a distinct pairing or connection purpose.</summary>
+public sealed record ObservedServiceChoice(AdbMdnsService Service, string Label);
+
+/// <summary>Current authority of the displayed ADB observation.</summary>
+public enum LiveDiscoveryState
+{
+    Initial,
+    Loading,
+    Ready,
+    Empty,
+    Error,
+}
+
+/// <summary>Explicit ADB discovery and guided pairing, attached only in device-enabled composition.</summary>
+public sealed partial class DevicesViewModel
+{
+    private AdbDiscoveryService? discovery;
+    private AdbPairingService? pairing;
+    private Action<Action>? dispatch;
+    private CancellationTokenSource? discoveryCancellation;
+    private CancellationTokenSource? pairingCancellation;
+    private long discoveryGeneration;
+    private long pairingGeneration;
+    private bool liveDisposed;
+    private LiveDiscoveryState discoveryState = LiveDiscoveryState.Initial;
+    private ObservedDeviceChoice? selectedObservedDevice;
+    private ObservedServiceChoice? selectedPairingService;
+    private ObservedServiceChoice? selectedConnectionService;
+    private string manualPairingEndpoint = string.Empty;
+    private string manualConnectionEndpoint = string.Empty;
+    private string pairingCode = string.Empty;
+    private bool isPairing;
+    private string? discoveryMessage;
+    private string? serviceMessage;
+    private string? pairingMessage;
+    private AdbPairingOutcome? pairingOutcome;
+    private bool pairingServicesFresh;
+    private bool connectionServicesFresh;
+
+    public ObservableCollection<ObservedDeviceChoice> ObservedDevices { get; } = [];
+    public ObservableCollection<ObservedServiceChoice> PairingServices { get; } = [];
+    public ObservableCollection<ObservedServiceChoice> ConnectionServices { get; } = [];
+    public ICommand RefreshCommand => refreshCommand ??= new ActionCommand(() => _ = RefreshAsync());
+    public ICommand CancelRefreshCommand => cancelRefreshCommand ??= new ActionCommand(CancelRefresh);
+    public ICommand PairCommand => pairCommand ??= new ActionCommand(() => _ = PairAsync());
+    public ICommand CancelPairCommand => cancelPairCommand ??= new ActionCommand(CancelPair);
+    private ICommand? refreshCommand;
+    private ICommand? cancelRefreshCommand;
+    private ICommand? pairCommand;
+    private ICommand? cancelPairCommand;
+
+    public bool IsLiveEnabled => discovery is not null && !liveDisposed;
+    public LiveDiscoveryState DiscoveryState => discoveryState;
+    public bool IsDiscovering => discoveryState == LiveDiscoveryState.Loading;
+    public bool HasObservedDevices => ObservedDevices.Count > 0;
+    public bool IsObservationStale => discoveryState is LiveDiscoveryState.Error or LiveDiscoveryState.Loading;
+    public string? DiscoveryMessage { get => discoveryMessage; private set => SetProperty(ref discoveryMessage, value); }
+    public string? ServiceMessage { get => serviceMessage; private set => SetProperty(ref serviceMessage, value); }
+    public string? PairingMessage { get => pairingMessage; private set => SetProperty(ref pairingMessage, value); }
+    public bool IsPairing => isPairing;
+    public string LiveDiscoveryTitle => text.Get("devices.live.discoveryTitle");
+    public string RefreshLabel => text.Get("devices.live.refresh");
+    public string CancelRefreshLabel => text.Get("devices.live.cancelRefresh");
+    public string StaleMessage => text.Get("devices.live.stale");
+    public string LivePairingTitle => text.Get("devices.live.pairingTitle");
+    public string PairingDescription => text.Get("devices.live.pairingDescription");
+    public string PairingServiceLabel => text.Get("devices.live.pairingService");
+    public string ConnectionServiceLabel => text.Get("devices.live.connectionService");
+    public string ManualPairingLabel => text.Get("devices.live.manualPairing");
+    public string ManualConnectionLabel => text.Get("devices.live.manualConnection");
+    public string PairCodeLabel => text.Get("devices.live.pairCode");
+    public string PairLabel => text.Get("devices.live.pair");
+    public string CancelPairLabel => text.Get("devices.live.cancelPair");
+    public string DiscoveryStatusLabel => text.Get(discoveryState switch
+    {
+        LiveDiscoveryState.Loading => "devices.live.loading",
+        LiveDiscoveryState.Ready => "devices.live.ready",
+        LiveDiscoveryState.Empty => "devices.live.empty",
+        LiveDiscoveryState.Error => "devices.live.error",
+        _ => "devices.live.initial",
+    });
+    public AdbPairingOutcome? PairingOutcome
+    {
+        get => pairingOutcome;
+        private set
+        {
+            if (SetProperty(ref pairingOutcome, value))
+            {
+                OnPropertyChanged(nameof(ConnectedEndpointLabel));
+            }
+        }
+    }
+    public string? ConnectedEndpointLabel => PairingOutcome?.ConnectedEndpoint is { } endpoint
+        ? $"{text.Get("devices.live.connectedEndpoint")}: {endpoint}"
+        : null;
+    public DeviceSessionViewModel? SessionActions { get; private set; }
+    public bool HasSessionActions => SessionActions is not null;
+    public bool CanRefresh => IsLiveEnabled && !IsDiscovering;
+    public bool CanCancelRefresh => IsLiveEnabled && IsDiscovering;
+    public bool CanCancelPair => IsLiveEnabled && IsPairing;
+    public bool CanPair => IsLiveEnabled && !IsPairing && ResolvePairingEndpoint() is not null &&
+        pairingCode.Length == PairingCodeLength && pairingCode.All(char.IsAsciiDigit);
+    private const int PairingCodeLength = 6;
+
+    /// <summary>Hosts session actions supplied by the application composition without starting them.</summary>
+    public void AttachSessionActions(DeviceSessionViewModel actions)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+
+        if (IsPreview || SessionActions is not null)
+        {
+            throw new InvalidOperationException("Session actions require an unattached normal Devices workspace.");
+        }
+
+        SessionActions = actions;
+        OnPropertyChanged(nameof(SessionActions));
+        OnPropertyChanged(nameof(HasSessionActions));
+    }
+
+    /// <summary>Exposes a fresh, explicit transport choice for launch preflight.</summary>
+    public AdbDevice? SelectedObservedDevice =>
+        (discoveryState is LiveDiscoveryState.Ready or LiveDiscoveryState.Empty)
+        && selectedObservedDevice is not null && ObservedDevices.Contains(selectedObservedDevice)
+            ? selectedObservedDevice.Device : null;
+
+    /// <summary>Exposes only an explicitly selected or manually entered connection endpoint.</summary>
+    public NetworkEndpoint? SelectedConnectionEndpoint => ResolveConnectionEndpoint();
+
+    public ObservedDeviceChoice? SelectedDeviceChoice
+    {
+        get => selectedObservedDevice;
+        set
+        {
+            if (SetProperty(ref selectedObservedDevice, value))
+            {
+                OnPropertyChanged(nameof(SelectedObservedDevice));
+            }
+        }
+    }
+
+    public ObservedServiceChoice? SelectedPairingService
+    {
+        get => selectedPairingService;
+        set
+        {
+            if (SetProperty(ref selectedPairingService, value))
+            {
+                OnPropertyChanged(nameof(CanPair));
+            }
+        }
+    }
+
+    public ObservedServiceChoice? SelectedConnectionService
+    {
+        get => selectedConnectionService;
+        set
+        {
+            if (SetProperty(ref selectedConnectionService, value))
+            {
+                OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+            }
+        }
+    }
+
+    public string ManualPairingEndpoint
+    {
+        get => manualPairingEndpoint;
+        set
+        {
+            if (SetProperty(ref manualPairingEndpoint, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CanPair));
+            }
+        }
+    }
+
+    public string ManualConnectionEndpoint
+    {
+        get => manualConnectionEndpoint;
+        set
+        {
+            if (SetProperty(ref manualConnectionEndpoint, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+            }
+        }
+    }
+
+    public string PairingCode
+    {
+        get => pairingCode;
+        set
+        {
+            if (SetProperty(ref pairingCode, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CanPair));
+            }
+        }
+    }
+
+    /// <summary>Attaches existing Core operations without contacting a device on construction.</summary>
+    public void AttachLiveServices(AdbDiscoveryService discoveryService, AdbPairingService pairingService,
+        Action<Action> publishOnUiThread)
+    {
+        ArgumentNullException.ThrowIfNull(discoveryService);
+        ArgumentNullException.ThrowIfNull(pairingService);
+        ArgumentNullException.ThrowIfNull(publishOnUiThread);
+
+        if (IsPreview || discovery is not null || liveDisposed)
+        {
+            throw new InvalidOperationException("Live ADB services require an unattached normal Devices workspace.");
+        }
+
+        discovery = discoveryService;
+        pairing = pairingService;
+        dispatch = publishOnUiThread;
+        OnPropertyChanged(nameof(IsLiveEnabled));
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(CanRefresh));
+        OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Refreshes only when explicitly requested, retaining failed observations as stale.</summary>
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsLiveEnabled)
+        {
+            return;
+        }
+
+        CancelRefresh();
+        long generation = ++discoveryGeneration;
+        CancellationTokenSource ownedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        discoveryCancellation = ownedCancellation;
+        pairingServicesFresh = false;
+        connectionServicesFresh = false;
+        DiscoveryStateChanged(LiveDiscoveryState.Loading, null);
+        OnPropertyChanged(nameof(SelectedObservedDevice));
+        OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+        OnPropertyChanged(nameof(CanPair));
+
+        try
+        {
+            AdbResult<IReadOnlyList<AdbDevice>> devices = await discovery!.GetDevicesAsync(ownedCancellation.Token);
+            AdbResult<IReadOnlyList<AdbMdnsService>> pairingServices = await discovery.GetServicesAsync(
+                AdbServiceKind.Pairing, ownedCancellation.Token);
+            AdbResult<IReadOnlyList<AdbMdnsService>> connectionServices = await discovery.GetServicesAsync(
+                AdbServiceKind.Connection, ownedCancellation.Token);
+            dispatch!(() => PublishDiscovery(generation, devices, pairingServices, connectionServices));
+        }
+        catch (OperationCanceledException) when (ownedCancellation.IsCancellationRequested)
+        {
+            dispatch!(() => PublishCancelledDiscovery(generation));
+        }
+        catch (Exception)
+        {
+            dispatch!(() => PublishDiscoveryFailure(generation));
+        }
+        finally
+        {
+            if (ReferenceEquals(discoveryCancellation, ownedCancellation))
+            {
+                discoveryCancellation = null;
+            }
+
+            ownedCancellation.Dispose();
+        }
+    }
+
+    /// <summary>Cancels the owned refresh without asserting that ADB state has changed.</summary>
+    public void CancelRefresh()
+    {
+        if (!IsDiscovering)
+        {
+            return;
+        }
+
+        discoveryGeneration++;
+        discoveryCancellation?.Cancel();
+        pairingServicesFresh = false;
+        connectionServicesFresh = false;
+        DiscoveryStateChanged(LiveDiscoveryState.Error, text.Get("devices.live.cancelled"));
+        OnPropertyChanged(nameof(SelectedObservedDevice));
+        OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+        OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Pairs explicitly and optionally connects a separately chosen endpoint.</summary>
+    public async Task PairAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanPair)
+        {
+            PairingMessage = text.Get("devices.live.pairInvalid");
+            return;
+        }
+
+        NetworkEndpoint endpoint = ResolvePairingEndpoint()!;
+        NetworkEndpoint? connectionEndpoint = ResolveConnectionEndpoint();
+        string code = PairingCode;
+        PairingCode = string.Empty;
+        long generation = ++pairingGeneration;
+        CancellationTokenSource ownedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        pairingCancellation = ownedCancellation;
+        isPairing = true;
+        PairingOutcome = null;
+        PairingMessage = text.Get("devices.live.pairing");
+        OnPropertyChanged(nameof(IsPairing));
+        OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanCancelPair));
+
+        try
+        {
+            AdbResult<AdbPairingOutcome> result = await pairing!.PairAsync(endpoint, code, connectionEndpoint,
+                null, ownedCancellation.Token);
+            dispatch!(() => PublishPairing(generation, result));
+        }
+        catch (OperationCanceledException) when (ownedCancellation.IsCancellationRequested)
+        {
+            dispatch!(() => PublishPairingCancellation(generation));
+        }
+        catch (Exception)
+        {
+            dispatch!(() => PublishPairingFailure(generation));
+        }
+        finally
+        {
+            if (ReferenceEquals(pairingCancellation, ownedCancellation))
+            {
+                pairingCancellation = null;
+            }
+
+            ownedCancellation.Dispose();
+            code = string.Empty;
+        }
+    }
+
+    /// <summary>Stops waiting for the current pairing attempt; remote pairing may already have succeeded.</summary>
+    public void CancelPair()
+    {
+        if (!isPairing)
+        {
+            return;
+        }
+
+        pairingCancellation?.Cancel();
+        pairingGeneration++;
+        isPairing = false;
+        PairingCode = string.Empty;
+        PairingMessage = text.Get("devices.live.pairCancelled");
+        OnPropertyChanged(nameof(IsPairing));
+        OnPropertyChanged(nameof(CanCancelPair));
+        OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Invalidates late results when this workspace leaves the application lifetime.</summary>
+    public void DisposeLive()
+    {
+        liveDisposed = true;
+        discoveryGeneration++;
+        pairingGeneration++;
+        discoveryCancellation?.Cancel();
+        pairingCancellation?.Cancel();
+        PairingCode = string.Empty;
+        OnPropertyChanged(nameof(IsLiveEnabled));
+        OnPropertyChanged(nameof(CanRefresh));
+        OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Publishes a current ADB result without guessing profile or device equivalence.</summary>
+    private void PublishDiscovery(long generation, AdbResult<IReadOnlyList<AdbDevice>> devices,
+        AdbResult<IReadOnlyList<AdbMdnsService>> pairingServices,
+        AdbResult<IReadOnlyList<AdbMdnsService>> connectionServices)
+    {
+        if (liveDisposed || generation != discoveryGeneration)
+        {
+            return;
+        }
+
+        if (!devices.IsSuccess || devices.Value is null)
+        {
+            PublishDiscoveryFailure(generation);
+            return;
+        }
+
+        string? selectedSerial = selectedObservedDevice?.Device.Serial;
+        ObservedDevices.Clear();
+
+        foreach (AdbDevice device in devices.Value)
+        {
+            ObservedDevices.Add(new ObservedDeviceChoice(device,
+                $"{device.Model ?? device.Serial} · {device.Serial} · {device.State}"));
+        }
+
+        SelectedDeviceChoice = ObservedDevices.FirstOrDefault(choice => choice.Device.Serial == selectedSerial);
+        ReplaceServices(PairingServices, pairingServices, AdbServiceKind.Pairing, ref selectedPairingService,
+            nameof(SelectedPairingService));
+        ReplaceServices(ConnectionServices, connectionServices, AdbServiceKind.Connection,
+            ref selectedConnectionService, nameof(SelectedConnectionService));
+        pairingServicesFresh = pairingServices.IsSuccess;
+        connectionServicesFresh = connectionServices.IsSuccess;
+        ServiceMessage = pairingServices.IsSuccess && connectionServices.IsSuccess
+            ? null : text.Get("devices.live.serviceFailed");
+        DiscoveryStateChanged(ObservedDevices.Count == 0 ? LiveDiscoveryState.Empty : LiveDiscoveryState.Ready,
+            null);
+        OnPropertyChanged(nameof(HasObservedDevices));
+        OnPropertyChanged(nameof(SelectedObservedDevice));
+        OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+        OnPropertyChanged(nameof(CanPair));
+    }
+
+    /// <summary>Preserves a previously observed list on failure and marks it non-authoritative.</summary>
+    private void PublishDiscoveryFailure(long generation)
+    {
+        if (liveDisposed || generation != discoveryGeneration)
+        {
+            return;
+        }
+
+        DiscoveryStateChanged(LiveDiscoveryState.Error, text.Get("devices.live.error"));
+        OnPropertyChanged(nameof(SelectedObservedDevice));
+    }
+
+    /// <summary>Restores the prior observation authority after an explicit cancellation.</summary>
+    private void PublishCancelledDiscovery(long generation)
+    {
+        if (liveDisposed || generation != discoveryGeneration)
+        {
+            return;
+        }
+
+        DiscoveryStateChanged(LiveDiscoveryState.Error, text.Get("devices.live.cancelled"));
+        OnPropertyChanged(nameof(SelectedObservedDevice));
+    }
+
+    /// <summary>Accepts only the latest pairing result and keeps persistence explicit.</summary>
+    private void PublishPairing(long generation, AdbResult<AdbPairingOutcome> result)
+    {
+        if (liveDisposed || generation != pairingGeneration)
+        {
+            return;
+        }
+
+        PairingOutcome = result.Value;
+        PairingMessage = result.Value?.Paired == true
+            ? result.IsSuccess
+                ? result.Value.ConnectedEndpoint is null
+                    ? text.Get("devices.live.paired")
+                    : text.Get("devices.live.connected")
+                : text.Get("devices.live.partial")
+            : text.Get("devices.live.pairFailed");
+        FinishPairing();
+        if (result.IsSuccess || result.Value?.Paired == true)
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    /// <summary>Reports cancellation without claiming to reverse remote ADB pairing.</summary>
+    private void PublishPairingCancellation(long generation)
+    {
+        if (liveDisposed || generation != pairingGeneration)
+        {
+            return;
+        }
+
+        PairingMessage = text.Get("devices.live.pairCancelled");
+        FinishPairing();
+    }
+
+    /// <summary>Reports a sanitized failure without displaying exception or secret text.</summary>
+    private void PublishPairingFailure(long generation)
+    {
+        if (liveDisposed || generation != pairingGeneration)
+        {
+            return;
+        }
+
+        PairingMessage = text.Get("devices.live.pairFailed");
+        FinishPairing();
+    }
+
+    /// <summary>Settles only presentation state for one pairing operation.</summary>
+    private void FinishPairing()
+    {
+        isPairing = false;
+        PairingCode = string.Empty;
+        OnPropertyChanged(nameof(IsPairing));
+        OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanCancelPair));
+    }
+
+    /// <summary>Updates labeled status without creating an authoritative empty result on failure.</summary>
+    private void DiscoveryStateChanged(LiveDiscoveryState state, string? message)
+    {
+        discoveryState = state;
+        DiscoveryMessage = message;
+        OnPropertyChanged(nameof(DiscoveryState));
+        OnPropertyChanged(nameof(DiscoveryStatusLabel));
+        OnPropertyChanged(nameof(IsDiscovering));
+        OnPropertyChanged(nameof(IsObservationStale));
+        OnPropertyChanged(nameof(CanRefresh));
+        OnPropertyChanged(nameof(CanCancelRefresh));
+    }
+
+    /// <summary>Maps distinct mDNS service purposes and preserves a matching explicit choice.</summary>
+    private void ReplaceServices(ObservableCollection<ObservedServiceChoice> destination,
+        AdbResult<IReadOnlyList<AdbMdnsService>> result, AdbServiceKind kind,
+        ref ObservedServiceChoice? selected, string selectedProperty)
+    {
+        if (!result.IsSuccess || result.Value is null)
+        {
+            return;
+        }
+
+        AdbMdnsService? previous = selected?.Service;
+        destination.Clear();
+
+        foreach (AdbMdnsService service in result.Value.Where(item => item.Kind == kind))
+        {
+            destination.Add(new ObservedServiceChoice(service, $"{service.InstanceName} · {service.Endpoint}"));
+        }
+
+        selected = destination.FirstOrDefault(choice => choice.Service.InstanceName == previous?.InstanceName &&
+            choice.Service.Endpoint == previous.Endpoint);
+        OnPropertyChanged(selectedProperty);
+    }
+
+    /// <summary>Resolves a manually typed endpoint first, without guessing a service port.</summary>
+    private NetworkEndpoint? ResolvePairingEndpoint() =>
+        manualPairingEndpoint.Length > 0
+            ? AdbDiscoveryService.ResolveManualEndpoint(manualPairingEndpoint).Value
+            : pairingServicesFresh ? selectedPairingService?.Service.Endpoint : null;
+
+    /// <summary>Resolves the independent connection endpoint only after explicit entry or choice.</summary>
+    private NetworkEndpoint? ResolveConnectionEndpoint() =>
+        manualConnectionEndpoint.Length > 0
+            ? AdbDiscoveryService.ResolveManualEndpoint(manualConnectionEndpoint).Value
+            : connectionServicesFresh ? selectedConnectionService?.Service.Endpoint : null;
+}
