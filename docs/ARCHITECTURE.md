@@ -77,9 +77,11 @@ pairing, logs, and desktop shortcuts.
 
 Mirroring preferences live separately in `scrcpy-settings.json`, with an explicit
 schema version, an options dictionary, and the reconnection policy. The catalogue
-in `launcher/option-catalog.json` describes all native long options; its coverage
-test detects additions or removals in `cli.c`. The small catalogue loader returns
-fresh metadata, while `options-store.ps1` owns validation, atomic persistence,
+in `launcher/option-catalog.json` describes all native long options. Phase 4
+generates it from the canonical [option spec](../spec/options/options.yaml)
+alongside the native option table and Core descriptors; SpecGen verification
+detects drift. The small catalogue loader returns fresh metadata, while
+`options-store.ps1` owns legacy validation, atomic persistence,
 concurrency checks, and Windows argument quoting. No user text is evaluated as
 shell code. Device reset does not delete these preferences.
 
@@ -102,7 +104,8 @@ seconds and logs any forced fallback; only its own child is affected.
 | Mode inference, configuration validation, locking, save/reset | `configuration-store.ps1` |
 | ADB arguments, timeout, cancellation, and child cleanup | `adb-process.ps1` |
 | Connection selection and status hints | `connection-core.ps1` |
-| Option labels, native flags, types and availability | `option-catalog.json` |
+| Canonical static option metadata | `spec/options/options.yaml`; generated native/Core/legacy outputs |
+| Legacy option editing and persistence | Generated `option-catalog.json`, `options-view.ps1`, `options-store.ps1` |
 | Mirroring validation, persistence and argument encoding | `options-store.ps1` |
 | Discovery and pairing protocol | `launcher-core.ps1` |
 | Release labels and reviewed native/runtime hashes | `release-manifest.json` |

@@ -28,7 +28,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
 ```
 
 The CI documentation step runs the same command. It does not check external
-websites or validate future package/spec metadata.
+websites. For option specification or generated-output changes, also run the
+read-only SpecGen `verify` command documented in
+[option development](docs/development/options.md); CI runs it with the pinned
+.NET SDK after locked restore.
 
 ## Find the right module
 

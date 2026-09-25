@@ -18,6 +18,7 @@ user-facing product; plans and research do not imply implemented behavior.
 - [Architecture decision records](adr/README.md)
 - [Research and competitive audit](research/README.md)
 - [Upstream baseline and early port decisions](upstream/BASELINE.md)
+- [Generated option reference](reference/options.md) and [option metadata guide](development/options.md)
 
 ## Development policy
 

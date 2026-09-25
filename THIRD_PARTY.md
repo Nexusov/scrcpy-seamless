@@ -20,6 +20,17 @@ The third-party components retain their own licenses. They are not relicensed
 under the scrcpy Apache-2.0 license. The GCC GPL text accompanies its runtime
 exception; it does not change the stated scrcpy or FFmpeg license.
 
+## Development tools
+
+| Component | Version | License / notices |
+| --- | --- | --- |
+| YamlDotNet, used only by the .NET option specification generator | 18.1.0 | MIT, `licenses/YamlDotNet-LICENSE.txt` |
+
+The option specification imports static native CLI help from Genymobile/scrcpy
+v4.0 (`9c0c299ea2628d858012f66371eb2fc70988ba07`) under Apache-2.0.
+The generator preserves that attribution; the imported text is not claimed as
+original Seamless authorship.
+
 ## Binary provenance
 
 The SDL and FFmpeg DLLs and Android server were verified byte-for-byte against

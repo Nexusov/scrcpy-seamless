@@ -13,4 +13,10 @@
     <ProjectReference Include="../ScrcpySeamless.Core/ScrcpySeamless.Core.csproj" />
     <ProjectReference Include="../ScrcpySeamless.Infrastructure/ScrcpySeamless.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/Options/GeneratedOptionResources.en.json">
+      <WithCulture>false</WithCulture>
+      <LogicalName>ScrcpySeamless.Desktop.Resources.Options.GeneratedOptionResources.en.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

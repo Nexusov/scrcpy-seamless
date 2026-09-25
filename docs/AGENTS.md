@@ -13,6 +13,25 @@ Canonical developer/repository documentation is English.
 Keep `AGENTS.md` files short and navigational. Detailed knowledge belongs in
 structured `docs/` files.
 
+## Documentation voice
+
+Describe architecture and behavior with concrete technical subjects, decisions
+with their reasons, and validation with its actual evidence and limits. Address
+contributors directly for instructions. Keep progress records factual; avoid
+retelling maintainer–assistant conversations or replacing an approver with an
+ambiguous "I" or "we". Preserve material approval roles, attribution, and the
+distinction between automated tests, manual observations, reported symptoms,
+and unresolved hypotheses.
+
+Use "we" only when it clearly states an established project decision; do not
+invent a team or consensus. Prefer active voice without banning useful passive
+constructions.
+
+Historical approvals are evidence, not standing permission. Obtain explicit
+authorization from the requesting maintainer before a push, merge, release-tag
+creation, release publication, destructive Git operation, repository-settings
+change, or licensing change.
+
 Do not duplicate volatile facts in prose when they can come from a canonical
 manifest/spec and be generated or mechanically checked.
 
@@ -64,8 +83,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\docs-check.ps1
 ```
 
 It checks local links and Markdown heading anchors in tracked Markdown files.
-Package/config/spec consistency checks remain future extensions, not current
-DocsCheck coverage.
+The pinned SpecGen `verify` command checks canonical option-spec semantics and
+generated native, Core, legacy, resource and reference-document bytes. It runs
+separately from DocsCheck; package/config consistency is not DocsCheck coverage.
 
 When documentation paths are moved, update AGENTS references in the same
 change.

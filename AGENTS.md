@@ -22,6 +22,8 @@ documents, ADRs, specifications, contribution docs, and release docs.
 
 When the repository owner speaks Russian in chat, answer the owner in Russian
 unless asked otherwise. Do not translate established identifiers.
+For README, CONTRIBUTING and repository documents, follow the
+[documentation voice guidance](docs/AGENTS.md#documentation-voice).
 
 ## Read before changing code
 
@@ -51,6 +53,10 @@ For Seamless 2.0 work, read the active execution plan under
 - `src/scrcpy/` — current native scrcpy-derived client and Android server tree.
 - `src/desktop/` — .NET/Avalonia scaffold and Phase 3 headless Core/Infrastructure
   contracts; product UI and native IPC belong to later approved phases.
+- `spec/options/` — canonical static option data and its generated schema;
+  read `spec/AGENTS.md` before changing the specification.
+- `tools/ScrcpySeamless.SpecGen/` — deterministic option metadata generator
+  and read-only drift verification.
 - `scripts/` — tests, build, package, provenance, and publication tooling.
 - `tests/` — PowerShell regression/integration and .NET headless tests.
 - `docs/` — architecture, build, packaging, and development knowledge.
@@ -143,8 +149,8 @@ same change. If no update is needed, state that explicitly in the task report.
 ## Generated code and sources of truth
 
 Never edit generated output when a canonical spec/generator owns it. Change the
-source of truth and regenerate. Phase 4 of Seamless 2.0 will formalize option
-metadata and related generation rules.
+source of truth and regenerate. Phase 4 option metadata is owned by
+`spec/options/options.yaml`; run SpecGen verification after regeneration.
 
 ## Bug fixes
 

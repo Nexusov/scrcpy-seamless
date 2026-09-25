@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "options.h"
 
@@ -28,6 +29,21 @@ bool
 scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]);
 
 #ifdef SC_TEST
+struct sc_cli_option_test_info {
+    const char *longopt;
+    char shortopt;
+    bool has_arg;
+    bool optional_arg;
+    bool documented;
+};
+
+// Expose compiled generated declarations to native parity tests.
+size_t
+sc_cli_option_count(void);
+
+bool
+sc_cli_option_get_test_info(size_t index, struct sc_cli_option_test_info *info);
+
 bool
 sc_parse_shortcut_mods(const char *s, uint8_t *shortcut_mods);
 #endif

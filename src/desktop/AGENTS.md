@@ -12,6 +12,17 @@ placeholder; do not wire Phase 5 UI or Phase 6 native IPC here. Read the
 [configuration and boundary guide](../../docs/development/desktop-configuration.md)
 before changing v2 persistence, migration, ADB, activation or native-host APIs.
 
+Phase 4 option descriptors under Core are generated from
+`spec/options/options.yaml`. Change the spec and run SpecGen; do not hand-edit
+generated descriptors. Core owns stable option IDs and resource keys but must
+not embed or load localized strings. Generated English option text belongs to
+`ScrcpySeamless.Desktop/Resources/Options/` for future presentation use. Keep
+conditional option validators as named typed Core rules, and preserve unknown
+v2 option values while reporting them as unsupported for execution.
+For editable native scalar integers and bitrates, validate the parsed base-zero
+value shared by ranges and conditional rules while preserving stored spelling.
+Keep the legacy catalogue's projected regex fields unchanged.
+
 Keep direct NuGet versions in `Directory.Packages.props`, the exact SDK in
 `global.json`, and transitive dependency graphs in project lock files. Use
 compiled bindings for typed Avalonia views. Verify locked restore, Release build

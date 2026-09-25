@@ -1,8 +1,9 @@
 # Seamless 2.0 target architecture
 
 Status: accepted target with Phase 2 build foundations and Phase 3 headless
-Core/Infrastructure contracts implemented locally. The 2.0 product UI, IPC,
-native lifetime and ConnectionManager remain future phases. See the
+Core/Infrastructure contracts integrated into `seamless-2.0`. Phase 4 option
+metadata and scalar validation are in PR #5. The 2.0 product UI, IPC, native
+lifetime and ConnectionManager remain future phases. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
@@ -10,8 +11,8 @@ The owner adopted `SCRCPY_SEAMLESS_2_MASTER_PROMPT.md` on 2026-09-23. Its comple
 input SHA-256 is `fcf6f46017b943535d24f2aad60980b484951c1f42a2ed8b5c1f51dbbd82068e`.
 This document records the architecture decisions and boundaries; operational
 rules remain in the existing [development policies](../development/README.md).
-No framework selection, dependency upgrade or production migration is performed
-by this documentation change.
+This target does not authorize a framework switch, dependency upgrade or
+production migration.
 
 ## Product and fixed decisions
 
@@ -195,13 +196,18 @@ Target reconnect semantics intentionally improve 1.x restrictions:
 
 ## Options and Android protocol
 
-Phase 4 owns `spec/options/options.yaml`, schema and SpecGen. Canonical basic
+Phase 4 owns canonical option data in `spec/options/options.yaml`, its SpecGen
+typed interpretation/validator and the generated schema artifact. Canonical basic
 metadata includes names/aliases, type/shape/default, enum/range, category/help ID,
 CLI form, availability, requires/conflicts, deprecation and UI hints. Generate or
 parity-check C#/native/UI/docs metadata with CI drift detection. Generated output
 identifies its source. Complex compatibility stays typed code with named RuleIds;
 YAML must not become a programming language. Native remains the final authority
-for actual device capabilities.
+for actual device capabilities. The [option development guide](../development/options.md)
+records the Phase 4 ownership, generation and legacy-compatibility boundary.
+Core owns stable semantic string IDs and locale-independent resource keys;
+Desktop owns localized option text. Native generated enum numbers only dispatch
+inside one compiled client and must not become Phase 6 IPC or persisted IDs.
 
 Audit client/server channels, ownership, message IDs, byte order, lengths, error
 behavior and negotiation under `spec/device-protocol`. Add C-to-Java and
