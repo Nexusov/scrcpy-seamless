@@ -1,10 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5A local review gate: Phases 0–4 are integrated into
+Status at the 2026-09-25 Phase 5A PR gate: Phases 0–4 are integrated into
 `seamless-2.0`; Phase 4 merged through PR #5 at
 `d9617610388668715934083edfe9589ce15463ac`. Phase 5A is implemented
-locally for visual and architectural review; it is not yet accepted as all of
-Phase 5. Phase 5B–5D and Phases 6–13 have not started.
+and ready for PR review; overall Phase 5 remains incomplete. Phase 5B–5D
+and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,8 +16,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [release](../../development/release-process.md) policies remaining canonical.
 
 The accepted Phase 4 merge is the base for local branch `2.0/p05-desktop`.
-The current authorization covers only Phase 5A. Do not push, open a PR, merge,
-tag, release or change repository settings in this slice. Keep the current
+The current authorization covers the complete Phase 5A working-branch push
+and a PR into `seamless-2.0`; merging, tags, releases and repository-settings
+changes remain separate decisions. Keep the current
 launcher and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
@@ -270,7 +271,7 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
-| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Implemented locally; awaiting review |
+| 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Implemented; ready for PR review |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Not started |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
@@ -288,10 +289,10 @@ and capture real Windows screenshots. This is still Phase 5A, not Phase 5B.
 | 5A.1 | Pin bounded reference revisions and record interaction decisions; update current Phase 5 guidance and 5B/5C contracts | Complete locally |
 | 5A.2 | Replace placeholder with a typed shell, resource boundary and reusable design tokens/components; normal startup remains truthful | Complete locally |
 | 5A.3 | Add Devices and Settings ViewModels/Views with deterministic, visibly simulated scenarios and isolated in-memory option drafts | Complete locally |
-| 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete locally; hardware/accessibility follow-up remains 5D |
+| 5A.4 | Add headless behavior/layout tests, validate locked build and legacy checks, publish and smoke a self-contained DEV preview, review visual evidence | Complete for PR review; hardware/accessibility follow-up remains 5D |
 
-The Phase 5A UI correction pass is complete locally and awaits visual review;
-it does not accept Phase 5A or open Phase 5B. At small heights the category
+The Phase 5A UI correction pass is ready for PR review; it does not complete
+overall Phase 5 or open Phase 5B. At small heights the category
 ListBox previously inherited unbounded StackPanel measurement, and at 150%
 preview metrics the Settings header and status block could leave the option
 viewport at zero height. A bounded category Grid, compact selector, reflowing
@@ -321,6 +322,28 @@ unknown device evidence and long text. Locked restore, zero-warning Release
 build and 210 .NET tests passed; 28/28 legacy suites, SpecGen verify,
 DocsCheck and build metadata checks passed. Native/server and hardware tests
 were not rerun for this presentation-only correction.
+
+The final visible correction at code source `40634406fd5ba566cc6775753acbeb418e54bdcf`
+wraps the complete product name within the constrained sidebar and gives its
+accessible name the full title. The Devices summary labels the selected route
+as `Selected transport`; Wi-Fi recovery describes its target instead of
+presenting that same route as an additional fallback. USB selection still
+reports prepared Wi-Fi fallback. No preview effects or Core state changed.
+The self-contained `win-x64` preview at
+`dist/dev/scrcpy-seamless-desktop-p05a-g40634406/` was launched only with
+explicit `--preview` scenarios. Its new own-window captures under ignored
+`work/phase5a/screenshots/g40634406/` include 800×500 logical / 1222×806
+physical Settings, 900×620 / 1372×986 enlarged Settings and expanded Devices,
+and 1080×720 / 1642×1136 standard Devices. Windows reported 144 DPI / 150%
+display scaling; the enlarged Settings capture also used `--ui-scale=1.5`
+application metrics, without multiplying the two scales. The captured
+expanded details continue below the initial viewport and remain reachable by
+normal scrolling. Focused headless coverage checks brand wrapping, option
+editor/validation/reset/help reachability and expanded Connection details.
+Locked restore, warning-free Release build, 214/214 .NET tests, SpecGen verify,
+DocsCheck, build metadata and 28/28 legacy PowerShell suites passed for this
+source. The new captures do not establish real Windows theme switching,
+other monitor/DPI combinations, screen-reader behavior or hardware outcomes.
 
 The intended local commit sequence is: (1) research/plan and boundary decisions,
 (2) UI shell and resource foundation, (3) Devices and Settings preview behavior,
