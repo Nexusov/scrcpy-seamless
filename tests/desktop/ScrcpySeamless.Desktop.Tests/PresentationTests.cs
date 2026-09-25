@@ -9,13 +9,10 @@ namespace ScrcpySeamless.Desktop.Tests;
 /// <summary>Protects deterministic preview data and isolated option editing.</summary>
 public sealed class PresentationTests
 {
-    /// <summary>Preview is explicit and Desktop has no Infrastructure adapter reference in this slice.</summary>
+    /// <summary>Preview remains detached even when normal composition may use Infrastructure.</summary>
     [Fact]
     public void PreviewCompositionCannotConstructExternalAdapters()
     {
-        var references = typeof(App).Assembly.GetReferencedAssemblies();
-        Assert.DoesNotContain(references, reference => reference.Name == "ScrcpySeamless.Infrastructure");
-
         var normal = DesktopComposition.Create(new DesktopLaunchOptions(false, AppTheme.System, null, false), _ => { });
         Assert.False(normal.IsPreview);
         Assert.Empty(normal.Devices.Cards);
@@ -26,6 +23,26 @@ public sealed class PresentationTests
         Assert.True(preview.IsPreview);
         Assert.Single(preview.Devices.Cards);
         Assert.Equal("preview-device-7a31", preview.Devices.Cards[0].StableId);
+    }
+
+    /// <summary>Normal startup requires one explicit root and preview rejects persistent adapters.</summary>
+    [Fact]
+    public void LaunchModesCannotSelectAmbiguousOrRelativeStorage()
+    {
+        DesktopLaunchOptions preview = DesktopLaunchOptions.Parse(["--preview", "--page=settings"]);
+        Assert.Equal(DesktopStorageMode.None, preview.StorageMode);
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--preview", "--portable"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--portable", "--installed"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(
+            ["--dev-data-dir=C:\\synthetic\\first", "--dev-data-dir=C:\\synthetic\\second"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--preview", "--page=profiles"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--dev-data-dir=relative"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--ui-scale=not-a-number", "--preview"]));
+
+        DesktopLaunchOptions development = DesktopLaunchOptions.Parse(
+            ["--dev-data-dir=C:\\synthetic\\data", "--page=profiles"]);
+        Assert.Equal(DesktopStorageMode.Development, development.StorageMode);
+        Assert.True(development.ProfilesPage);
     }
 
     /// <summary>Shows independent transport, process, stream and channel evidence.</summary>
@@ -153,7 +170,7 @@ public sealed class PresentationTests
         var settings = new SettingsViewModel(new PresentationText(), new InMemoryOptionDraft());
         settings.SearchText = "port";
         var port = Assert.Single(settings.VisibleRows, row => row.Id == "port");
-        Assert.False(port.CanEdit);
+        Assert.True(port.CanEdit);
     }
 
     /// <summary>Rejects preview-only scenarios during normal startup.</summary>

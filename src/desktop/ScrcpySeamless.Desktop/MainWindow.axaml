@@ -8,6 +8,7 @@
         Height="720"
         MinWidth="660"
         MinHeight="460"
+        FontFamily="{DynamicResource UiFontFamily}"
         Background="{DynamicResource CanvasBrush}">
   <Grid ColumnDefinitions="208,*">
     <Border Name="SidebarPanel" Grid.Column="0" Background="{DynamicResource SidebarBrush}"
@@ -33,7 +34,13 @@
                   AutomationProperties.AutomationId="nav.sessions">
             <TextBlock Text="{Binding SessionsLabel}" Classes="muted" Opacity="0.75" />
           </Border>
+          <Button Name="ProfilesNavigation" Classes="nav" Classes.active="{Binding IsProfilesSelected}"
+                  Content="{Binding ProfilesLabel}" Command="{Binding ShowProfilesCommand}"
+                  IsVisible="{Binding IsProfilesAvailable}"
+                  AutomationProperties.AutomationId="nav.profiles"
+                  AutomationProperties.Name="{Binding ProfilesLabel}" />
           <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  IsVisible="{Binding IsProfilesUnavailable}"
                   AutomationProperties.HelpText="{Binding UnavailableHint}"
                   AutomationProperties.AutomationId="nav.profiles">
             <TextBlock Text="{Binding ProfilesLabel}" Classes="muted" Opacity="0.75" />

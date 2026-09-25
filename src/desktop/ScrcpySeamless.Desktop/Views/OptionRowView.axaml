@@ -17,6 +17,9 @@
         </StackPanel>
         <StackPanel Name="OptionControls" Grid.Column="1" Spacing="5">
           <TextBlock Text="{Binding OriginLabel}" Classes="muted" />
+          <!-- A separate override control distinguishes inheritance from an explicit empty or false value. -->
+          <CheckBox Content="{Binding OverrideLabel}" IsChecked="{Binding IsOverrideSelected, Mode=TwoWay}"
+                    IsEnabled="{Binding CanEdit}" AutomationProperties.Name="{Binding OverrideLabel}" />
           <CheckBox IsVisible="{Binding IsBoolean}" IsEnabled="{Binding CanEdit}"
                     IsChecked="{Binding BooleanValue, Mode=TwoWay}"
                     Content="{Binding Label}" AutomationProperties.Name="{Binding Label}" />

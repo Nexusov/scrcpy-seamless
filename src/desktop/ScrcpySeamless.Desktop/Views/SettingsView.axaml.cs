@@ -13,6 +13,7 @@ namespace ScrcpySeamless.Desktop.Views;
 public partial class SettingsView : UserControl
 {
     private const double CompactCategoryWidth = 720;
+    private const double StackedCategoryWidth = 500;
     private SettingsViewModel? observedViewModel;
 
     /// <summary>Loads the typed Settings preview.</summary>
@@ -23,11 +24,6 @@ public partial class SettingsView : UserControl
         AttachedToVisualTree += (_, _) => BindResults();
         DetachedFromVisualTree += (_, _) => UnbindResults();
         SizeChanged += (_, _) => UpdateLayoutMode();
-        KeyBindings.Add(new KeyBinding
-        {
-            Gesture = SettingsShortcuts.FocusSearch,
-            Command = new ActionCommand(() => this.FindControl<TextBox>("OptionSearch")!.Focus()),
-        });
     }
 
     /// <summary>Subscribes only while this view is mounted.</summary>
@@ -39,6 +35,20 @@ public partial class SettingsView : UserControl
         if (observedViewModel is not null)
         {
             observedViewModel.ResultsChanged += OnResultsChanged;
+
+            // Preview retains the accepted local gesture; normal mode activates only saved bindings.
+            KeyBindings.Clear();
+
+            if (observedViewModel.IsPreview)
+            {
+                KeyBindings.Add(new KeyBinding
+                {
+                    Gesture = SettingsShortcuts.FocusSearch,
+                    Command = new ActionCommand(() => this.FindControl<TextBox>("OptionSearch")!.Focus()),
+                });
+            }
+
+            UpdateLayoutMode();
         }
     }
 
@@ -77,17 +87,24 @@ public partial class SettingsView : UserControl
         ComboBox picker = this.FindControl<ComboBox>("CompactCategoryPicker")!;
         Grid results = this.FindControl<Grid>("SettingsResults")!;
         bool compact = Bounds.Width < CompactCategoryWidth;
+        bool stacked = compact && (observedViewModel?.IsPreview == true || Bounds.Width < StackedCategoryWidth);
         bool shortWindow = Bounds.Height < 500;
+        bool compactPersistent = shortWindow && observedViewModel?.IsPersistent == true;
         this.FindControl<TextBlock>("SettingsEyebrow")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsSubtitle")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsGlobalLabel")!.IsVisible = !shortWindow;
+        this.FindControl<TextBlock>("SettingsUnsavedLabel")!.IsVisible = !shortWindow;
+        this.FindControl<TextBlock>("SettingsShortcutHelp")!.IsVisible = !shortWindow;
+        this.FindControl<Border>("SettingsStatusBlock")!.IsVisible = !compactPersistent;
+        this.FindControl<Border>("CompactSettingsToolbar")!.IsVisible = compactPersistent;
         navigation.IsVisible = !compact;
         picker.IsVisible = compact;
-        columns.ColumnDefinitions = compact ? new ColumnDefinitions("*") : new ColumnDefinitions("160,*");
-        columns.RowDefinitions = compact ? new RowDefinitions("Auto,*") : new RowDefinitions("*");
-        columns.ColumnSpacing = compact ? 0 : 18;
-        columns.RowSpacing = compact ? 10 : 0;
-        Grid.SetColumn(results, compact ? 0 : 1);
-        Grid.SetRow(results, compact ? 1 : 0);
+        columns.ColumnDefinitions = stacked ? new ColumnDefinitions("*") : new ColumnDefinitions("160,*");
+        columns.RowDefinitions = stacked ? new RowDefinitions("Auto,*") : new RowDefinitions("*");
+        columns.ColumnSpacing = stacked ? 0 : 12;
+        columns.RowSpacing = stacked ? 8 : 0;
+        Grid.SetColumn(results, stacked ? 0 : 1);
+        Grid.SetRow(results, stacked ? 1 : 0);
+        results.RowSpacing = shortWindow ? 6 : 12;
     }
 }

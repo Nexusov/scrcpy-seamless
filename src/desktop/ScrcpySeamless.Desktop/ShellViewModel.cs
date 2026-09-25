@@ -9,6 +9,7 @@ public sealed class ShellViewModel : ObservableViewModel
     private readonly Action<AppTheme> setTheme;
     private object currentPage;
     private ThemeChoice selectedTheme;
+    private readonly object? profiles;
 
     public ShellViewModel(
         DevicesViewModel devices,
@@ -16,11 +17,13 @@ public sealed class ShellViewModel : ObservableViewModel
         PresentationText text,
         bool isPreview,
         AppTheme initialTheme,
-        Action<AppTheme> setTheme)
+        Action<AppTheme> setTheme,
+        object? profiles = null)
     {
         Devices = devices;
         Settings = settings;
         this.setTheme = setTheme;
+        this.profiles = profiles;
         currentPage = devices;
         IsPreview = isPreview;
         ProductName = text.Get("app.title");
@@ -39,11 +42,14 @@ public sealed class ShellViewModel : ObservableViewModel
         selectedTheme = Themes.Single(choice => choice.Theme == initialTheme);
         ShowDevicesCommand = new ActionCommand(ShowDevices);
         ShowSettingsCommand = new ActionCommand(ShowSettings);
+        ShowProfilesCommand = new ActionCommand(ShowProfiles);
     }
 
     public DevicesViewModel Devices { get; }
     public SettingsViewModel Settings { get; }
     public bool IsPreview { get; }
+    public bool IsProfilesAvailable => profiles is not null;
+    public bool IsProfilesUnavailable => profiles is null;
     public string ProductName { get; }
     public string ProductSubtitle { get; }
     public string ModeLabel { get; }
@@ -70,8 +76,10 @@ public sealed class ShellViewModel : ObservableViewModel
     }
     public bool IsDevicesSelected => ReferenceEquals(CurrentPage, Devices);
     public bool IsSettingsSelected => ReferenceEquals(CurrentPage, Settings);
+    public bool IsProfilesSelected => profiles is not null && ReferenceEquals(CurrentPage, profiles);
     public ICommand ShowDevicesCommand { get; }
     public ICommand ShowSettingsCommand { get; }
+    public ICommand ShowProfilesCommand { get; }
 
     public object CurrentPage
     {
@@ -85,6 +93,7 @@ public sealed class ShellViewModel : ObservableViewModel
 
             OnPropertyChanged(nameof(IsDevicesSelected));
             OnPropertyChanged(nameof(IsSettingsSelected));
+            OnPropertyChanged(nameof(IsProfilesSelected));
         }
     }
 
@@ -93,6 +102,24 @@ public sealed class ShellViewModel : ObservableViewModel
 
     /// <summary>Navigates to the implemented Settings preview.</summary>
     public void ShowSettings() => CurrentPage = Settings;
+
+    /// <summary>Opens saved profiles only when the local configuration editor is available.</summary>
+    public void ShowProfiles()
+    {
+        if (profiles is null)
+        {
+            return;
+        }
+
+        CurrentPage = profiles;
+    }
+
+    /// <summary>Synchronizes the sidebar with a temporary or committed appearance selection.</summary>
+    public void SetRequestedTheme(AppTheme theme)
+    {
+        ThemeChoice choice = Themes.Single(item => item.Theme == theme);
+        SetProperty(ref selectedTheme, choice, nameof(SelectedTheme));
+    }
 
 }
 

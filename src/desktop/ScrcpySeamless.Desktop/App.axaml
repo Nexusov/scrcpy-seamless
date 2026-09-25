@@ -121,5 +121,11 @@
     <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
       <views:SettingsView />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:DesktopPreferencesViewModel}">
+      <views:DesktopPreferencesView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ProfilesViewModel}">
+      <views:ProfilesView />
+    </DataTemplate>
   </Application.DataTemplates>
 </Application>
