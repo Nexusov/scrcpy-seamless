@@ -162,6 +162,14 @@ public static class OptionSelectionValidator
             return new OptionDiagnostic(OptionDiagnosticCode.InvalidValue, descriptor.Id);
         }
 
+        // The native port option accepts base-zero components, not the legacy decimal regex.
+        if (descriptor.Id == "port")
+        {
+            return NativePortRangeSyntax.TryParse(text, out _, out _)
+                ? null
+                : new OptionDiagnostic(OptionDiagnosticCode.InvalidValue, descriptor.Id);
+        }
+
         bool nativeScalar = descriptor.ValueKind == OptionValueKind.UnsignedInteger ||
             descriptor.Id is "tunnel-port" or "window-x" or "window-y";
         bool nativeBitrate = descriptor.ValueKind == OptionValueKind.Bitrate;

@@ -317,6 +317,48 @@ static bool parse_numeric_option(char *option, char *value,
     return scrcpy_parse_args(args, ARRAY_LEN(argv), argv);
 }
 
+// Characterize the actual native port grammar and effective sorted endpoints.
+static void test_port_range_components(void) {
+    struct {
+        char *value;
+        bool accepted;
+        uint16_t first;
+        uint16_t last;
+    } cases[] = {
+        {"27183", true, 27183, 27183},
+        {"27183:27199", true, 27183, 27199},
+        {"27199:27183", true, 27183, 27199},
+        {"0", true, 0, 0},
+        {"0:65535", true, 0, 65535},
+        {"010:0x10", true, 8, 16},
+        {"+0X10:-0", true, 0, 16},
+        {"08", false, 0, 0},
+        {"0x", false, 0, 0},
+        {"-1", false, 0, 0},
+        {"65536", false, 0, 0},
+        {":27183", false, 0, 0},
+        {"27183:", false, 0, 0},
+        {"1:2:3", false, 0, 0},
+        {"1junk", false, 0, 0},
+        {"+", false, 0, 0},
+        {"", false, 0, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--port", cases[index].value,
+                                             &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.port_range.first == cases[index].first);
+            assert(args.opts.port_range.last == cases[index].last);
+        }
+    }
+}
+
 // Check the native audio output buffer boundaries and numeric spelling.
 static void test_audio_output_buffer_boundaries(void) {
     struct {
@@ -503,6 +545,7 @@ int main(int argc, char *argv[]) {
     test_options2();
     test_flex_display_window_dimensions();
     test_audio_output_buffer_boundaries();
+    test_port_range_components();
     test_max_size_boundaries();
     test_min_size_alignment_values();
     test_bit_rate_numeric_spelling();
