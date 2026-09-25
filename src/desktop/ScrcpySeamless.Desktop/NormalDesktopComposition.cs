@@ -1,6 +1,11 @@
 using ScrcpySeamless.Core.Configuration;
+using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Desktop.Presentation;
+using ScrcpySeamless.Infrastructure.Adb;
 using ScrcpySeamless.Infrastructure.Configuration;
+using ScrcpySeamless.Infrastructure.NativeHost;
+using ScrcpySeamless.Infrastructure.Runtime;
+using Avalonia.Threading;
 
 namespace ScrcpySeamless.Desktop;
 
@@ -9,6 +14,7 @@ public sealed class NormalDesktopComposition
 {
     private readonly PresentationText text;
     private bool closeSaveActive;
+    private bool exitReserved;
 
     public NormalDesktopComposition(
         ShellViewModel shell,
@@ -16,6 +22,8 @@ public sealed class NormalDesktopComposition
         ProfilesViewModel profiles,
         ConfigurationWorkspaceViewModel configuration,
         DesktopPreferencesViewModel preferences,
+        DevicesViewModel devices,
+        DeviceSessionViewModel? deviceSession,
         ApplicationDataPaths dataPaths,
         PresentationText text)
     {
@@ -24,11 +32,13 @@ public sealed class NormalDesktopComposition
         Profiles = profiles;
         Configuration = configuration;
         Preferences = preferences;
+        Devices = devices;
+        DeviceSession = deviceSession;
         DataPaths = dataPaths;
         this.text = text;
-        Configuration.AttachCloseSaveGuard(() => closeSaveActive);
-        Preferences.AttachCloseSaveGuard(() => closeSaveActive);
-        Shell.AttachThemeEditGuard(() => !closeSaveActive);
+        Configuration.AttachCloseSaveGuard(() => closeSaveActive || exitReserved);
+        Preferences.AttachCloseSaveGuard(() => closeSaveActive || exitReserved);
+        Shell.AttachThemeEditGuard(() => !closeSaveActive && !exitReserved);
     }
 
     public ShellViewModel Shell { get; }
@@ -36,10 +46,52 @@ public sealed class NormalDesktopComposition
     public ProfilesViewModel Profiles { get; }
     public ConfigurationWorkspaceViewModel Configuration { get; }
     public DesktopPreferencesViewModel Preferences { get; }
+    public DevicesViewModel Devices { get; }
+    public DeviceSessionViewModel? DeviceSession { get; }
     public ApplicationDataPaths DataPaths { get; }
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
-    public bool IsCloseSaveActive => closeSaveActive;
+    public bool IsCloseSaveActive => closeSaveActive || exitReserved;
+    public bool HasLiveOperations => DeviceSession is not null;
+
+    /// <summary>Stops the owned native child and settles explicit ADB operations after exit acceptance.</summary>
+    public async Task<bool> ShutdownLiveAsync()
+    {
+        if (DeviceSession is null)
+        {
+            return true;
+        }
+
+        exitReserved = true;
+        Configuration.RefreshCloseSaveState();
+        Preferences.RefreshCloseSaveState();
+        Shell.RefreshThemeEditState();
+        Devices.DisposeLive();
+        bool stopped = await DeviceSession.ShutdownAsync();
+
+        if (!stopped)
+        {
+            DeviceSession.ResumeAfterFailedShutdown();
+            exitReserved = false;
+            Configuration.RefreshCloseSaveState();
+            Preferences.RefreshCloseSaveState();
+            Shell.RefreshThemeEditState();
+            return false;
+        }
+
+        bool settled = await Devices.ShutdownLiveAsync();
+
+        if (!settled)
+        {
+            DeviceSession.ResumeAfterFailedShutdown();
+            exitReserved = false;
+            Configuration.RefreshCloseSaveState();
+            Preferences.RefreshCloseSaveState();
+            Shell.RefreshThemeEditState();
+        }
+
+        return settled;
+    }
     public string DirtyGroupsLabel => string.Join(" and ", new[]
     {
         Configuration.IsDirty || Profiles.HasUnstagedChanges ? text.Get("close.configurationGroup") : null,
@@ -205,11 +257,33 @@ public static class NormalDesktopFactory
             shell.ShowProfiles();
         }
 
-        return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences, paths, text);
+        DeviceSessionViewModel? deviceSession = null;
+
+        if (options.DeviceRuntimeDirectory is not null)
+        {
+            RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(options.DeviceRuntimeDirectory);
+            LegacyNativeHost? nativeHost = runtime.Bundle is { } bundle
+                ? new LegacyNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
+                    bundle.AdbExecutablePath, Path.Combine(paths.Directory, "native-sessions"))
+                : null;
+            deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
+                runtime, nativeHost, action => Dispatcher.UIThread.Post(action));
+            devices.AttachSessionActions(deviceSession);
+
+            if (runtime.Bundle is { } readyBundle)
+            {
+                AdbGateway gateway = new(new AdbProcessRunner(readyBundle.AdbExecutablePath));
+                devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
+                    action => Dispatcher.UIThread.Post(action));
+            }
+        }
+
+        return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences,
+            devices, deviceSession, paths, text);
     }
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>
-    private static ApplicationDataPaths ResolveDataPaths(DesktopLaunchOptions options)
+    public static ApplicationDataPaths ResolveDataPaths(DesktopLaunchOptions options)
     {
         string applicationDirectory = AppContext.BaseDirectory;
 

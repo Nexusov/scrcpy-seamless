@@ -20,7 +20,8 @@ public sealed record DesktopLaunchOptions(
     DesktopStorageMode StorageMode = DesktopStorageMode.None,
     string? DevelopmentDataDirectory = null,
     string? LegacyDevelopmentDirectory = null,
-    bool ProfilesPage = false)
+    bool ProfilesPage = false,
+    string? DeviceRuntimeDirectory = null)
 {
     /// <summary>Rejects ambiguous storage modes before any persistent adapter is built.</summary>
     public static DesktopLaunchOptions Parse(IReadOnlyList<string> arguments)
@@ -44,6 +45,8 @@ public sealed record DesktopLaunchOptions(
         string? developmentDirectory = developmentArgument?["--dev-data-dir=".Length..];
         string? legacyArgument = arguments.FirstOrDefault(argument => argument.StartsWith("--legacy-dev-dir=", StringComparison.Ordinal));
         string? legacyDirectory = legacyArgument?["--legacy-dev-dir=".Length..];
+        string? runtimeArgument = arguments.FirstOrDefault(argument => argument.StartsWith("--device-runtime=", StringComparison.Ordinal));
+        string? runtimeDirectory = runtimeArgument?["--device-runtime=".Length..];
         bool settingsPage = arguments.Contains("--page=settings", StringComparer.Ordinal);
         bool profilesPage = arguments.Contains("--page=profiles", StringComparer.Ordinal);
         bool invalidArgument = arguments.Any(argument => argument is not ("--preview" or "--portable" or "--installed" or
@@ -53,7 +56,8 @@ public sealed record DesktopLaunchOptions(
             !argument.StartsWith("--search=", StringComparison.Ordinal) &&
             !argument.StartsWith("--ui-scale=", StringComparison.Ordinal) &&
             !argument.StartsWith("--dev-data-dir=", StringComparison.Ordinal) &&
-            !argument.StartsWith("--legacy-dev-dir=", StringComparison.Ordinal));
+            !argument.StartsWith("--legacy-dev-dir=", StringComparison.Ordinal) &&
+            !argument.StartsWith("--device-runtime=", StringComparison.Ordinal));
         int selectedModes = arguments.Count(argument => argument is "--portable" or "--installed" ||
             argument.StartsWith("--dev-data-dir=", StringComparison.Ordinal));
         bool repeatedSelection = arguments.Count(argument => argument.StartsWith("--legacy-dev-dir=", StringComparison.Ordinal)) > 1 ||
@@ -61,9 +65,11 @@ public sealed record DesktopLaunchOptions(
             arguments.Count(argument => argument.StartsWith("--search=", StringComparison.Ordinal)) > 1 ||
             arguments.Count(argument => argument.StartsWith("--ui-scale=", StringComparison.Ordinal)) > 1 ||
             arguments.Count(argument => argument.StartsWith("--theme=", StringComparison.Ordinal)) > 1 ||
-            arguments.Count(argument => argument.StartsWith("--page=", StringComparison.Ordinal)) > 1;
+            arguments.Count(argument => argument.StartsWith("--page=", StringComparison.Ordinal)) > 1 ||
+            arguments.Count(argument => argument.StartsWith("--device-runtime=", StringComparison.Ordinal)) > 1;
         bool invalidPaths = developmentDirectory is not null && !Path.IsPathFullyQualified(developmentDirectory) ||
-            legacyDirectory is not null && !Path.IsPathFullyQualified(legacyDirectory);
+            legacyDirectory is not null && !Path.IsPathFullyQualified(legacyDirectory) ||
+            runtimeDirectory is not null && !Path.IsPathFullyQualified(runtimeDirectory);
         bool invalidPreview = preview && (selectedModes != 0 || legacyDirectory is not null || profilesPage);
         bool invalidNormal = !preview && (selectedModes != 1 || scenarioId is not null || optionSearch is not null ||
             expandedDetails || scaleArgument is not null || theme != AppTheme.System);
@@ -71,6 +77,7 @@ public sealed record DesktopLaunchOptions(
         if (invalidArgument || repeatedSelection || !validScale || invalidPaths || invalidPreview || invalidNormal ||
             (scaleArgument is not null && uiScale is not (1 or 1.1 or 1.25 or 1.5)) ||
             (legacyDirectory is not null && developmentDirectory is null) ||
+            (runtimeDirectory is not null && (preview || developmentDirectory is null)) ||
             (settingsPage && profilesPage))
         {
             throw new ArgumentException("Unsupported Desktop launch argument.", nameof(arguments));
@@ -79,7 +86,7 @@ public sealed record DesktopLaunchOptions(
         DesktopStorageMode storageMode = portable ? DesktopStorageMode.Portable : installed ? DesktopStorageMode.Installed :
             developmentDirectory is not null ? DesktopStorageMode.Development : DesktopStorageMode.None;
         return new DesktopLaunchOptions(preview, theme, scenarioId, settingsPage, optionSearch, expandedDetails,
-            uiScale, storageMode, developmentDirectory, legacyDirectory, profilesPage);
+            uiScale, storageMode, developmentDirectory, legacyDirectory, profilesPage, runtimeDirectory);
     }
 }
 

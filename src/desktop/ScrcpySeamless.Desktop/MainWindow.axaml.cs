@@ -113,7 +113,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!composition.HasDirtyGroups)
+        if (!composition.HasDirtyGroups && !composition.HasLiveOperations)
         {
             return;
         }
@@ -129,7 +129,9 @@ public partial class MainWindow : Window
 
         try
         {
-            CloseDecision decision = await AskCloseDecisionAsync(composition.DirtyGroupsLabel);
+            CloseDecision decision = composition.HasDirtyGroups
+                ? await AskCloseDecisionAsync(composition.DirtyGroupsLabel)
+                : CloseDecision.Discard;
 
             if (decision == CloseDecision.Stay)
             {
@@ -153,6 +155,12 @@ public partial class MainWindow : Window
                 }
             }
             // Closing discards in-memory drafts without touching a stale or invalid authority.
+
+            if (!await composition.ShutdownLiveAsync())
+            {
+                await ShowStopFailureAsync();
+                return;
+            }
 
             closeApproved = true;
             Close();
@@ -224,6 +232,25 @@ public partial class MainWindow : Window
                 Margin = new Avalonia.Thickness(20),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = closeText.Get("close.failureMessage"),
+            },
+        };
+        await dialog.ShowDialog(this);
+    }
+
+    /// <summary>Reports retained native ownership when bounded shutdown could not finish.</summary>
+    protected virtual async Task ShowStopFailureAsync()
+    {
+        Window dialog = new()
+        {
+            Title = "scrcpy Seamless — native session still active",
+            Width = 480,
+            Height = 160,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new TextBlock
+            {
+                Margin = new Avalonia.Thickness(20),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                Text = "The owned native process did not stop. The control center remains open; review the session status and retry Stop.",
             },
         };
         await dialog.ShowDialog(this);
