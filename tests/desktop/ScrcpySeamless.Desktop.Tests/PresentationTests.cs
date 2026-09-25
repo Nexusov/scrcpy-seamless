@@ -129,9 +129,12 @@ public sealed class PresentationTests
     public void LaunchArgumentsRequireExplicitPreview()
     {
         Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--scenario=fallback"]));
-        var options = DesktopLaunchOptions.Parse(["--preview", "--scenario=fallback", "--page=settings"]);
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--search=max-size"]));
+        var options = DesktopLaunchOptions.Parse(["--preview", "--scenario=fallback", "--page=settings",
+            "--search=audio-output-buffer"]);
         Assert.True(options.Preview);
         Assert.True(options.SettingsPage);
         Assert.Equal("fallback", options.ScenarioId);
+        Assert.Equal("audio-output-buffer", options.OptionSearch);
     }
 }
