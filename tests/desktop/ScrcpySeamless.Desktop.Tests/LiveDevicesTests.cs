@@ -1,6 +1,8 @@
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
+using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Desktop.Presentation;
+using ScrcpySeamless.Infrastructure.Configuration;
 using Xunit;
 
 namespace ScrcpySeamless.Desktop.Tests;
@@ -8,6 +10,130 @@ namespace ScrcpySeamless.Desktop.Tests;
 /// <summary>Protects explicit device selection and secret-free pairing presentation.</summary>
 public sealed class LiveDevicesTests
 {
+    /// <summary>A proven USB selector fills only the visible profile field until both save steps.</summary>
+    [Fact]
+    public async Task SelectedUsbTransportRequiresExplicitProfileDraftAndApply()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"seamless-association-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "configuration.v2.json");
+
+        try
+        {
+            ConfigurationEditSession session = new(new VersionedConfigurationStore(path));
+            await session.LoadAsync(TestContext.Current.CancellationToken);
+            ProfilesViewModel profiles = new(new PresentationText(), session);
+            profiles.BeginNewProfile();
+            profiles.Alias = "Friendly phone";
+            profiles.UsbSerial = "old-usb";
+            Assert.True(profiles.TrySaveToDraft());
+            Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+                (await profiles.ApplyAsync(TestContext.Current.CancellationToken))?.Status);
+            byte[] committed = File.ReadAllBytes(path);
+
+            FakeGateway gateway = new()
+            {
+                Devices = AdbResult<IReadOnlyList<AdbDevice>>.Success(
+                    [new AdbDevice("actual-usb", AdbDeviceState.Device, "Friendly phone", AdbTransportKind.Usb)]),
+            };
+            DevicesViewModel devices = CreateDevices(gateway);
+            await devices.RefreshAsync(TestContext.Current.CancellationToken);
+            devices.SelectedDeviceChoice = Assert.Single(devices.ObservedDevices);
+            Assert.Contains("Friendly phone · USB route · USB serial: actual-usb", devices.SelectedDeviceChoice.Label);
+            profiles.AttachObservedDevices(devices);
+
+            Assert.True(profiles.TryUseSelectedTransport());
+            Assert.Equal("actual-usb", profiles.UsbSerial);
+            Assert.Equal("Friendly phone", profiles.Alias);
+            Assert.Equal(string.Empty, profiles.ConnectionEndpoint);
+            Assert.Equal(string.Empty, profiles.PairingEndpoint);
+            Assert.True(profiles.HasUnstagedChanges);
+            Assert.Equal("old-usb", Assert.Single(session.Draft!.Profiles).UsbIdentity?.Value);
+            Assert.Equal(committed, File.ReadAllBytes(path));
+
+            Assert.True(profiles.TrySaveToDraft());
+            Assert.Equal(committed, File.ReadAllBytes(path));
+            Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+                (await profiles.ApplyAsync(TestContext.Current.CancellationToken))?.Status);
+            Assert.Equal("actual-usb", Assert.Single(session.Baseline!.Profiles).UsbIdentity?.Value);
+
+            profiles.BeginNewProfile();
+            Assert.True(profiles.TryUseSelectedTransport());
+            Assert.Equal("actual-usb", profiles.UsbSerial);
+            Assert.Single(session.Baseline.Profiles);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>Multiple, unknown, stale and dirty choices cannot silently replace profile input.</summary>
+    [Fact]
+    public async Task NetworkAssociationRequiresFreshExplicitRouteAndCleanEditor()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"seamless-association-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            ConfigurationEditSession session = new(new VersionedConfigurationStore(
+                Path.Combine(directory, "configuration.v2.json")));
+            await session.LoadAsync(TestContext.Current.CancellationToken);
+            ProfilesViewModel profiles = new(new PresentationText(), session);
+            profiles.BeginNewProfile();
+            profiles.Alias = "Friendly phone";
+            profiles.UsbSerial = "saved-usb";
+            profiles.PairingEndpoint = "192.0.2.8:37123";
+            profiles.ConnectionEndpoint = "192.0.2.8:5555";
+            Assert.True(profiles.TrySaveToDraft());
+            Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+                (await profiles.ApplyAsync(TestContext.Current.CancellationToken))?.Status);
+
+            FakeGateway gateway = new()
+            {
+                Devices = AdbResult<IReadOnlyList<AdbDevice>>.Success(
+                [
+                    new AdbDevice("192.0.2.9:5555", AdbDeviceState.Device, "Friendly phone", AdbTransportKind.Network),
+                    new AdbDevice("opaque-route", AdbDeviceState.Device, "Friendly phone", AdbTransportKind.Unknown),
+                    new AdbDevice("adb-synthetic._adb-tls-connect._tcp", AdbDeviceState.Device,
+                        "Friendly phone", AdbTransportKind.Network),
+                ]),
+            };
+            DevicesViewModel devices = CreateDevices(gateway);
+            await devices.RefreshAsync(TestContext.Current.CancellationToken);
+            profiles.AttachObservedDevices(devices);
+
+            Assert.False(profiles.TryUseSelectedTransport());
+            Assert.Equal("192.0.2.8:5555", profiles.ConnectionEndpoint);
+            devices.SelectedDeviceChoice = devices.ObservedDevices[1];
+            Assert.False(profiles.TryUseSelectedTransport());
+            devices.SelectedDeviceChoice = devices.ObservedDevices[2];
+            Assert.False(profiles.TryUseSelectedTransport());
+            Assert.Contains("connection host:port", profiles.StatusMessage);
+            devices.SelectedDeviceChoice = devices.ObservedDevices[0];
+            profiles.Alias = "Unstaged edit";
+            Assert.False(profiles.TryUseSelectedTransport());
+            Assert.Equal("Unstaged edit", profiles.Alias);
+            Assert.Equal("192.0.2.8:5555", profiles.ConnectionEndpoint);
+
+            profiles.CancelEditorChanges();
+            Assert.True(profiles.TryUseSelectedTransport());
+            Assert.Equal("192.0.2.9:5555", profiles.ConnectionEndpoint);
+            Assert.Equal("saved-usb", profiles.UsbSerial);
+            Assert.Equal("192.0.2.8:37123", profiles.PairingEndpoint);
+            profiles.CancelEditorChanges();
+            gateway.Devices = AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.Unavailable);
+            await devices.RefreshAsync(TestContext.Current.CancellationToken);
+            Assert.False(profiles.TryUseSelectedTransport());
+            Assert.Equal("192.0.2.8:5555", profiles.ConnectionEndpoint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     /// <summary>A manual connection endpoint works without mDNS or a new pairing operation.</summary>
     [Fact]
     public async Task ManualConnectKeepsProfilePersistenceExplicit()

@@ -75,6 +75,13 @@
                       IsChecked="{Binding AllowFallback, Mode=TwoWay}"
                       AutomationProperties.AutomationId="profiles.fallback" />
           </Grid>
+          <!-- The selected ADB route only edits this detached buffer; persistence stays explicit. -->
+          <StackPanel Spacing="6" IsVisible="{Binding HasObservedTransportSource}">
+            <TextBlock Text="{Binding ObservedTransportHint}" TextWrapping="Wrap" Classes="muted" />
+            <Button Content="{Binding UseObservedTransportLabel}" Command="{Binding UseObservedTransportCommand}"
+                    IsEnabled="{Binding CanEdit}" HorizontalAlignment="Left"
+                    AutomationProperties.AutomationId="profiles.useObservedTransport" />
+          </StackPanel>
           <TextBlock Text="{Binding ValidationMessage}" IsVisible="{Binding HasValidation}"
                      TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" />
           <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">

@@ -32,6 +32,27 @@ public sealed class AdbTests
         Assert.Equal("[2001:db8::8]:5555", parsed.Items[3].Serial);
     }
 
+    /// <summary>Transport association uses ADB route evidence and leaves ambiguous selectors unknown.</summary>
+    [Fact]
+    public void DevicesExposeOnlyProvenUsbOrEndpointRoutes()
+    {
+        const string output = """
+            List of devices attached
+            usb-selector device usb:1-2 product:synthetic model:Friendly_Phone transport_id:1
+            192.0.2.8:5555 device model:Friendly_Phone transport_id:2
+            adb-synthetic._adb-tls-connect._tcp device model:Friendly_Phone transport_id:3
+            other-selector offline usb:1-3 transport_id:4
+            """;
+
+        AdbParseResult<AdbDevice> parsed = AdbResponseParser.ParseDevices(output);
+
+        Assert.Equal(AdbTransportKind.Usb, parsed.Items[0].TransportKind);
+        Assert.Equal(AdbTransportKind.Network, parsed.Items[1].TransportKind);
+        Assert.Equal(AdbTransportKind.Network, parsed.Items[2].TransportKind);
+        Assert.Equal(AdbTransportKind.Usb, parsed.Items[3].TransportKind);
+        Assert.Equal("Friendly Phone", parsed.Items[0].Model);
+    }
+
     [Fact]
     public void MdnsServicesKeepPairingAndConnectionEndpointsSeparate()
     {
