@@ -15,29 +15,45 @@ environment lacks a required condition; **not run** means execution is reserved
 for manual acceptance. A headless test is never labelled a Windows UI Automation
 or audible-output observation.
 
+Frozen Phase 5D code/artifact: source `9a02818b35aa300a4625edcd97a8794f69149613`,
+`dist/dev/scrcpy-seamless-desktop-p05d-g9a02818b.zip` SHA-256
+`95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058`.
+Its reviewed runtime identities and hashes are in the package-relative
+`runtime/runtime-dev-manifest.json`; the source-built native/server bytes are
+reused from unchanged accepted source fingerprints. The ZIP was verified and
+launched from `work/phase5d/Final acceptance extraction with spaces/` with the
+process working directory outside the checkout. Local Windows screenshots and
+sanitized UI Automation samples are under `work/phase5d/final-visual-review/`.
+Final local validation passed locked restore, zero-warning Release build,
+400/400 .NET tests, 29/29 legacy suites, SpecGen verify, DocsCheck, metadata,
+the ZIP verifier and extracted Windows startup/activation checks. Native and
+Android server sources did not change in 5D, so their accepted tests are reused
+as earlier evidence, not reported as new runs. There are no failing executed
+final synthetic checks. Required physical-device checks remain outstanding.
+
 | Requirement / scenario | Layer and expected result | Actual result and status | Source/artifact | Remaining limit |
 | --- | --- | --- | --- | --- |
-| Preview opens without persistence, ADB, native launch or activation | Headless composition and extracted EXE; no external adapters/effects | **Passed**: integrated headless suite 399/399; extracted-package check pending | Phase 5D source through local fixes; final DEV pending | Process smoke alone cannot prove all absence of side effects |
-| Missing/malformed runtime leaves Settings usable | Headless composition and extracted EXE; structured unavailable state, unchanged files | **Passed**: integrated headless fixtures; extracted-package check pending | Phase 5D source through local fixes; final DEV pending | No real ADB required |
-| Settings/profile Apply, Cancel, restart and two save groups | Headless fixture; committed values persist and detached edits do not | **Passed**: integrated .NET suite 399/399 | Phase 5D source through local fixes | Manual Windows editing remains separate |
-| Unknown options and explicit false/zero/empty values | Core/Desktop fixtures; values remain recoverable and unsupported execution is explicit | **Passed**: integrated .NET suite 399/399 | Phase 5D source through local fixes | Native remains final runtime authority |
-| Profile association uses the selected transport, not model text | Headless + UI; explicit typed route fills only its corresponding draft field | **Passed**: USB/network/unknown/dirty-buffer fixtures; real UI check pending | Phase 5D source through local fixes; final DEV pending | Opaque mDNS selector needs manual endpoint entry |
-| Pending profile edit survives association, migration and navigation | Headless fixture; no unstaged overwrite or implicit save | **Passed**: association and prior migration/navigation tests in integrated suite | Phase 5D source through local fixes | Apply must still pass revision check |
-| Mirror uses committed snapshot and explicit selected target | Headless fixture; dirty/stale input blocks launch | **Passed**: integrated .NET suite 399/399 | Phase 5D source through local fixes | Process start does not prove channel readiness |
-| Disabled USB fallback and same-network retry | Core/host fixture; forbidden network target absent even when inherited | **Passed**: PR #8 focused regression cases rerun in integrated suite | Phase 5D source through local fixes | Physical disconnect behavior not yet tested on final build |
-| Pair/Connect cancellation and replacement lifetime | Controlled gateway tasks; shutdown waits for every unsettled operation | **Passed**: PR #8 regression cases rerun in integrated suite | Phase 5D source through local fixes | No shared ADB daemon is touched by fixture |
-| Same-scope activation and one mirror owner | Synthetic Windows processes; second launch routes to first scope | Earlier synthetic process test passed; final package check pending | PR #8 merge; final DEV pending | Real running-mirror activation pending |
-| Stop, spontaneous exit and failed Stop/close | Fake child/coordinator; no replacement launch, retained ownership and retry | **Passed**: PR #8 focused cases rerun in integrated suite | Phase 5D source through local fixes | Abnormal parent death remains Phase 6 |
-| Dirty close with Keep editing, partial save and live cleanup | Headless coordinator; drafts and child ownership remain truthful | **Passed**: existing coordinator cases plus enlarged dialog Escape/X checks | Phase 5D source through local fixes | Real-window running-mirror close pending |
-| Keyboard, focus, AutomationIds, reasons and dialogs | Headless and Windows UI Automation; controls reachable with visible focus | **Passed at headless layer**: validation ID/name and close-dialog Escape/X; Windows UI Automation pending | Phase 5D source through local fixes; final DEV pending | Screen-reader listening is a separate check |
-| 660×460 minimum and 150% application scale | Headless/Windows layout; errors/footer actions remain reachable | **Passed at headless layer**: Settings viewport/actions and wrapped dialog bounds | Phase 5D source through local fixes; final DEV pending | Display DPI and multi-monitor movement are separate |
-| Light/dark and stored font fallback | Headless/Windows presentation; no compounded scale | Existing headless tests passed; real-window matrix pending | PR #8 merge; final DEV pending | OS theme change not authorized here |
-| DEV ZIP provenance, privacy and clean extraction with spaces | Artifact audit; exact source/runtime hashes, no private data | Not run; final staging pending | Final DEV pending | Local DEV artifact is not a signed release |
-| Cold-start mDNS from absent shared ADB server | Physical Windows/phone; product starts server under reviewed process-local policy | **Blocked**: shared ADB server and port 5037 listener present during preparation | Final DEV pending | Requires separately authorized controlled stop or naturally absent server |
-| USB Mirror, Wi-Fi recovery, audio/video/control and Stop | Physical Android; independent channels and exact PID/start/HWND checkpoints | **Not run** on final Phase 5D artifact | Final DEV pending | Old `g2b902065` success is historical only |
-| Disabled cross-transport fallback after USB removal | Physical Android; session does not silently switch to saved Wi-Fi route | **Not run** on final Phase 5D artifact | Final DEV pending | Retain saved endpoint; inspect actual request evidence |
-| Multi-monitor DPI and screen-reader listening | Windows hardware/assistive technology | **Not run** | Final DEV pending | Do not infer from headless resize or accessibility tree |
+| Preview opens without persistence, ADB, native launch or activation | Headless composition and extracted EXE; no external adapters/effects | **Passed**: 400/400 .NET tests; real extracted preview opened/closed; `.dev-data/p05d` remained empty and shared ADB PID stayed 34800 | `g9a02818b` | Process smoke alone cannot prove every absent side effect; headless composition supplies adapter-level evidence |
+| Missing/malformed runtime leaves Settings usable | Headless composition and extracted EXE; structured unavailable state, unchanged files | **Passed**: missing-runtime Windows settings window and existing malformed-input fixtures | `g9a02818b` | No real ADB required |
+| Settings/profile Apply, Cancel, restart and two save groups | Headless fixture; committed values persist and detached edits do not | **Passed**: integrated 400/400 .NET suite | `g9a02818b` | Manual Windows editing remains separate |
+| Unknown options and explicit false/zero/empty values | Core/Desktop fixtures; values remain recoverable and unsupported execution is explicit | **Passed**: integrated .NET suite | `g9a02818b` | Native remains final runtime authority |
+| Profile association uses the selected transport, not model text | Headless + UI; explicit typed route fills only its corresponding draft field | **Passed**: USB/network/unknown/dirty-buffer fixtures; real Windows UI Automation found named/focusable action and separate fields | `g9a02818b` | Actual transfer from a physical selected transport is pending; opaque mDNS selector needs manual endpoint entry |
+| Pending profile edit survives association, migration and navigation | Headless fixture; no unstaged overwrite or implicit save | **Passed**: association and prior migration/navigation tests in integrated suite | `g9a02818b` | Apply must still pass revision check |
+| Mirror uses committed snapshot and explicit selected target | Headless fixture; dirty/stale input blocks launch | **Passed**: integrated .NET suite | `g9a02818b` | Process start does not prove channel readiness |
+| Disabled USB fallback and same-network retry | Core/host fixture; forbidden network target absent even when inherited | **Passed**: PR #8 focused regression cases rerun in integrated suite | `g9a02818b` | Physical disconnect behavior not yet tested on final build |
+| Pair/Connect cancellation and replacement lifetime | Controlled gateway tasks; shutdown waits for every unsettled operation | **Passed**: PR #8 regression cases rerun in integrated suite | `g9a02818b` | No shared ADB daemon is touched by fixture |
+| Same-scope activation and one mirror owner | Synthetic Windows processes; second launch routes to first scope | **Passed**: extracted same-root secondary exited 0 while primary PID 6764/window remained; single-mirror ownership remains fixture-tested | `g9a02818b` | Real running-mirror activation pending |
+| Stop, spontaneous exit and failed Stop/close | Fake child/coordinator; no replacement launch, retained ownership and retry | **Passed**: PR #8 focused cases rerun in integrated suite | `g9a02818b` | Abnormal parent death remains Phase 6 |
+| Dirty close with Keep editing, partial save and live cleanup | Headless coordinator; drafts and child ownership remain truthful | **Passed**: existing coordinator cases plus enlarged dialog Escape/X checks | `g9a02818b` | Real-window running-mirror close pending |
+| Keyboard, focus, AutomationIds, reasons and dialogs | Headless and Windows UI Automation; controls reachable with visible focus | **Passed at inspected layers**: validation ID/name and close-dialog Escape/X in headless; real Windows tree showed named, focusable profile fields/action with action focused | `g9a02818b` | Full Tab/Shift+Tab and real screen-reader listening remain manual checks |
+| 660×460 minimum and 150% application scale | Headless/Windows layout; errors/footer actions remain reachable | **Passed at inspected layers**: headless viewport/actions, wrapped dialog/title bounds; actual Windows light/150% screenshot shows distinct title and Reset | `g9a02818b` | The real window's reported minimum was 1012×746 pixels during this application-scale check; display DPI was not varied |
+| Light/dark and stored font fallback | Headless/Windows presentation; no compounded scale | **Passed at inspected layers**: actual dark Devices and light Settings preview; stored font/scale fixture passed | `g9a02818b` | OS theme switching not performed; no second monitor available |
+| DEV ZIP provenance, privacy and clean extraction with spaces | Artifact audit; exact source/runtime hashes, no private data | **Passed**: package fixture rejects private/tampered inputs; real 62 MB ZIP verified, extracted in a path with spaces and launched outside checkout | `g9a02818b` ZIP SHA above | Local DEV artifact is not signed or a public-release license attestation |
+| Cold-start mDNS from absent shared ADB server | Physical Windows/phone; product starts server under reviewed process-local policy | **Blocked**: existing shared ADB PID 34800 still listens on 127.0.0.1:5037 | `g9a02818b` not run | Requires separately authorized controlled stop or naturally absent server |
+| USB Mirror, Wi-Fi recovery, audio/video/control and Stop | Physical Android; independent channels and exact PID/start/HWND checkpoints | **Not run** on final Phase 5D artifact | `g9a02818b` | Old `g2b902065` success is historical only |
+| Disabled cross-transport fallback after USB removal | Physical Android; session does not silently switch to saved Wi-Fi route | **Not run** on final Phase 5D artifact | `g9a02818b` | Retain saved endpoint; inspect actual request evidence |
+| Multi-monitor DPI and screen-reader listening | Windows hardware/assistive technology | **Blocked / not run**: only one display was available; no screen-reader listening was requested | `g9a02818b` | Do not infer from headless resize or accessibility tree |
 
-The prepared [manual procedure](phase5d-manual-acceptance.md) will identify
-the exact final artifact and actions before any phone or shared-server test.
+The [manual procedure](phase5d-manual-acceptance.md) identifies the final
+artifact and actions before any phone or shared-server test.
 No Phase 5D or overall Phase 5 hardware acceptance is claimed here.

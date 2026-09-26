@@ -290,9 +290,9 @@ saving, physical-device identity inference or discarding pending edits.
 | --- | --- | --- |
 | 5D.1 | Reconcile implemented Phase 5 scope with existing synthetic and hardware evidence | Integrated matrix recorded; prior phone results remain artifact-specific |
 | 5D.2 | Make selected transport and saved-profile association explicit without transcribing the model as a serial | Implemented with typed route evidence, explicit draft action and passing focused tests |
-| 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected and passing; actual Windows and screen-reader limits remain to record |
-| 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | Pending code validation and staging |
-| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | Pending final artifact |
+| 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected; actual Windows preview/settings/profile screenshots and UI Automation inspected; full screen-reader/multi-monitor checks remain open |
+| 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | Source `9a02818b35aa300a4625edcd97a8794f69149613`; local `scrcpy-seamless-desktop-p05d-g9a02818b.zip` verified from extraction with spaces, SHA-256 `95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058` |
+| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | 400/400 .NET tests, 29/29 legacy suites and extracted Windows mode/activation checks passed; [manual procedure](../../development/phase5d-manual-acceptance.md) prepared; phone remains untested |
 | 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | Pending user participation; no hardware acceptance claimed |
 
 ### Phase 5C dependency-ordered checkpoints
