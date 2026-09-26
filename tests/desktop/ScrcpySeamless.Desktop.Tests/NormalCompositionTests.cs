@@ -56,6 +56,42 @@ public sealed class NormalCompositionTests
         Assert.Equal(preferenceBytes, await File.ReadAllBytesAsync(first.DataPaths.DesktopPreferencesFile));
     }
 
+    /// <summary>An invalid device runtime leaves the committed local Settings readable without attaching live services.</summary>
+    [AvaloniaFact]
+    public async Task InvalidRuntimeKeepsLocalSettingsAvailableAndBytesUnchanged()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition saved = Create(root.Path);
+        await saved.InitializeAsync(CancellationToken.None);
+        saved.Settings.SearchText = "max-size";
+        Assert.Single(saved.Settings.VisibleRows).TextValue = "1024";
+        Assert.Equal(ConfigurationSessionApplyStatus.Applied,
+            (await saved.Configuration.ApplyAsync(CancellationToken.None)).Status);
+        byte[] configurationBytes = await File.ReadAllBytesAsync(saved.DataPaths.ConfigurationFile);
+
+        string runtimeDirectory = Path.Combine(root.Path, "synthetic-runtime");
+        Directory.CreateDirectory(runtimeDirectory);
+        string manifestPath = Path.Combine(runtimeDirectory, "runtime-dev-manifest.json");
+        byte[] manifestBytes = System.Text.Encoding.UTF8.GetBytes(
+            """{"SchemaVersion":1,"SourceSha":null,"NativeSourceFingerprint":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","ServerSourceFingerprint":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","Files":{},"Origins":{}}""");
+        await File.WriteAllBytesAsync(manifestPath, manifestBytes);
+        DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
+            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: root.Path,
+            DeviceRuntimeDirectory: runtimeDirectory);
+
+        NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
+            _ => { }, _ => { }, requested => requested);
+        await composition.InitializeAsync(CancellationToken.None);
+
+        Assert.False(composition.Devices.IsLiveEnabled);
+        Assert.Contains("InvalidManifest", composition.DeviceSession!.Status);
+        Assert.Equal(ConfigurationWorkspaceStatus.Ready, composition.Configuration.Status);
+        composition.Settings.SearchText = "max-size";
+        Assert.Equal("1024", Assert.Single(composition.Settings.VisibleRows).TextValue);
+        Assert.Equal(configurationBytes, await File.ReadAllBytesAsync(saved.DataPaths.ConfigurationFile));
+        Assert.Equal(manifestBytes, await File.ReadAllBytesAsync(manifestPath));
+    }
+
     /// <summary>Two Desktop writers retain a stale draft instead of losing an earlier commit.</summary>
     [AvaloniaFact]
     public async Task NormalCompositionReportsRevisionConflict()

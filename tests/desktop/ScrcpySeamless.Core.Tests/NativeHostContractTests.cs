@@ -32,11 +32,15 @@ public sealed class NativeHostContractTests
                 Reconnect = true,
                 Options = new Dictionary<string, JsonElement> { ["video-codec"] = document.RootElement },
             };
-            request = new NativeStartRequest(SessionId.New(), plan, preferences);
+            request = new NativeStartRequest(SessionId.New(), plan, preferences,
+                "SERIAL_SYNTHETIC", TransportKind.Usb, null, "synthetic-revision");
             preferences.Options.Clear();
         }
 
         Assert.Equal(profile.Id, request.ProfileId);
+        Assert.Equal("SERIAL_SYNTHETIC", request.SelectedAdbSerial);
+        Assert.Equal(TransportKind.Usb, request.SelectedTransport);
+        Assert.Equal("synthetic-revision", request.ConfigurationRevision);
         Assert.Equal("synthetic", request.Mirroring.Options["video-codec"].GetString());
 
         request.Mirroring.Options.Clear();
@@ -56,6 +60,9 @@ public sealed class NativeHostContractTests
         Assert.True(ConnectionPlan.TryCreate(profile, ConnectionPolicy.Default, out ConnectionPlan? plan, out _));
         Assert.NotNull(plan);
 
-        Assert.Throws<ArgumentException>(() => new NativeStartRequest(default, plan, new MirroringPreferences()));
+        Assert.Throws<ArgumentException>(() => new NativeStartRequest(default, plan, new MirroringPreferences(),
+            "SERIAL_SYNTHETIC", TransportKind.Usb, null, null));
+        Assert.Throws<ArgumentException>(() => new NativeStartRequest(SessionId.New(), plan,
+            new MirroringPreferences(), "\n", TransportKind.Usb, null, null));
     }
 }

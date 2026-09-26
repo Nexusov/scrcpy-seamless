@@ -19,6 +19,7 @@ public enum AdbFailureKind
     None,
     InvalidInput,
     Unavailable,
+    MdnsUnavailable,
     TimedOut,
     ProcessFailed,
     MalformedResponse,

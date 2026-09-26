@@ -4,7 +4,11 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
+using ScrcpySeamless.Core.Application.Activation;
 using ScrcpySeamless.Core.Configuration;
+using ScrcpySeamless.Infrastructure.Activation;
+using ControlCenterActivationKind = ScrcpySeamless.Core.Application.Activation.ActivationKind;
 
 namespace ScrcpySeamless.Desktop;
 
@@ -57,6 +61,30 @@ public partial class App : Application
             }
             else
             {
+                WindowsControlCenterActivation activation = new(
+                    NormalDesktopFactory.ResolveDataPaths(options).Directory);
+                ActivationDisposition disposition;
+
+                try
+                {
+                    disposition = activation.AcquireOrForwardAsync(
+                        new ActivationRequest(ControlCenterActivationKind.ShowControlCenter), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    throw;
+                }
+
+                if (disposition == ActivationDisposition.ForwardedToPrimary)
+                {
+                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    Dispatcher.UIThread.Post(() => desktopLifetime.Shutdown());
+                    base.OnFrameworkInitializationCompleted();
+                    return;
+                }
+
                 MainWindow? normalWindow = null;
                 NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
                     ApplyAppearance,
@@ -65,6 +93,14 @@ public partial class App : Application
                 normalWindow = new MainWindow(composition.Shell);
                 normalWindow.AttachNormalComposition(composition);
                 desktopLifetime.MainWindow = normalWindow;
+                CancellationTokenSource activationCancellation = new();
+                _ = ObserveActivationAsync(activation, normalWindow, activationCancellation.Token);
+                desktopLifetime.Exit += (_, _) =>
+                {
+                    activationCancellation.Cancel();
+                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    activationCancellation.Dispose();
+                };
                 normalWindow.Opened += async (_, _) =>
                 {
                     try
@@ -80,6 +116,30 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Shows only this scope's window when its same-user owner receives activation.</summary>
+    private static async Task ObserveActivationAsync(WindowsControlCenterActivation activation,
+        MainWindow window, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (ActivationRequest request in activation.ObserveRequestsAsync(cancellationToken))
+            {
+                if (request.Kind == ControlCenterActivationKind.ShowControlCenter)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        window.WindowState = WindowState.Normal;
+                        window.Show();
+                        window.Activate();
+                    });
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     /// <summary>Maps the local choice onto Avalonia's inherited system theme.</summary>

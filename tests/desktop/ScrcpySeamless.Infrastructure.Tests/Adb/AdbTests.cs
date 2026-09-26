@@ -53,6 +53,20 @@ public sealed class AdbTests
         Assert.Equal(37124, parsed.Items[1].Endpoint.Port);
     }
 
+    /** ADB's mDNS health error can be returned on stdout with process exit zero. */
+    [Fact]
+    public void MdnsCheckDistinguishesUnavailableFromHealthyAndUnknown()
+    {
+        Assert.Equal(AdbMdnsCheckStatus.Unavailable,
+            AdbResponseParser.ParseMdnsCheck("ERROR: mdns daemon unavailable\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Unavailable,
+            AdbResponseParser.ParseMdnsCheck("ERROR: mdns discovery disabled\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Available,
+            AdbResponseParser.ParseMdnsCheck("mdns daemon version [Openscreen discovery 0.0.0]\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Unrecognized,
+            AdbResponseParser.ParseMdnsCheck("unexpected synthetic output\n"));
+    }
+
     [Fact]
     public void PairAndConnectRequireSuccessForTheExpectedEndpoint()
     {
@@ -64,6 +78,22 @@ public sealed class AdbTests
         Assert.True(AdbResponseParser.IsConnectSuccessful(0, "already connected to 192.0.2.8:5555", endpoint));
         Assert.False(AdbResponseParser.IsConnectSuccessful(0, "connected to 192.0.2.9:5555", endpoint));
         Assert.False(AdbResponseParser.IsConnectSuccessful(1, "connected to 192.0.2.8:5555", endpoint));
+    }
+
+    /** Accepts the success line after ADB's prompt, which has no newline. */
+    [Fact]
+    public void PairingSuccessMayFollowTheCodePromptOnTheSameLine()
+    {
+        const string output = "Enter pairing code: Successfully paired to 192.0.2.8:37123 [guid=synthetic]";
+
+        Assert.True(AdbResponseParser.IsPairingSuccessful(0, output));
+        Assert.True(AdbResponseParser.IsPairingSuccessful(0,
+            "Enter pairing code: \nSuccessfully paired to 192.0.2.8:37123"));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(1, output));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(0, "Enter pairing code: Failed to pair"));
+        Assert.True(AdbResponseParser.IsPairingRejected("Enter pairing code: Failed: Wrong password"));
+        Assert.True(AdbResponseParser.IsPairingRejected("Failed to pair: synthetic refusal"));
+        Assert.False(AdbResponseParser.IsPairingRejected("error: cannot contact ADB server"));
     }
 
     /** Error diagnostics remain detectable without treating daemon notices as failures. */
@@ -108,6 +138,21 @@ public sealed class AdbTests
         {
             Environment.SetEnvironmentVariable(backendVariable, previousBackend);
         }
+    }
+
+    /** An explicit runtime setting affects only the ADB child environment. */
+    [Fact]
+    public void ProcessInvocationAppliesProcessLocalRuntimeSetting()
+    {
+        const string backendVariable = "ADB_MDNS_OPENSCREEN";
+        string? previousBackend = Environment.GetEnvironmentVariable(backendVariable);
+        var runner = new AdbProcessRunner(@"C:\synthetic\adb.exe",
+            new Dictionary<string, string> { [backendVariable] = "1" });
+
+        ProcessStartInfo startInfo = runner.CreateStartInfo(["mdns", "services"]);
+
+        Assert.Equal("1", startInfo.Environment[backendVariable]);
+        Assert.Equal(previousBackend, Environment.GetEnvironmentVariable(backendVariable));
     }
 
     [Fact]

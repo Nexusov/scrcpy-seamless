@@ -113,7 +113,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!composition.HasDirtyGroups)
+        if (!composition.HasDirtyGroups && !composition.HasLiveOperations)
         {
             return;
         }
@@ -129,7 +129,9 @@ public partial class MainWindow : Window
 
         try
         {
-            CloseDecision decision = await AskCloseDecisionAsync(composition.DirtyGroupsLabel);
+            CloseDecision decision = composition.HasDirtyGroups
+                ? await AskCloseDecisionAsync(composition.DirtyGroupsLabel)
+                : CloseDecision.Discard;
 
             if (decision == CloseDecision.Stay)
             {
@@ -153,6 +155,12 @@ public partial class MainWindow : Window
                 }
             }
             // Closing discards in-memory drafts without touching a stale or invalid authority.
+
+            if (!await composition.ShutdownLiveAsync())
+            {
+                await ShowStopFailureAsync();
+                return;
+            }
 
             closeApproved = true;
             Close();
@@ -224,6 +232,30 @@ public partial class MainWindow : Window
                 Margin = new Avalonia.Thickness(20),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = closeText.Get("close.failureMessage"),
+            },
+        };
+        await dialog.ShowDialog(this);
+    }
+
+    /// <summary>Explains which owned cleanup remains incomplete after a failed close.</summary>
+    protected virtual async Task ShowStopFailureAsync()
+    {
+        bool awaitingAdbCleanup = normalComposition?.IsLiveShutdownPending == true;
+        Window dialog = new()
+        {
+            Title = awaitingAdbCleanup
+                ? "scrcpy Seamless — device cleanup still pending"
+                : "scrcpy Seamless — native cleanup incomplete",
+            Width = 480,
+            Height = 160,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new TextBlock
+            {
+                Margin = new Avalonia.Thickness(20),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                Text = awaitingAdbCleanup
+                    ? "Native stopped, but an owned ADB operation has not settled. Device actions remain disabled; wait for it to finish and retry Close. Drafts remain in memory."
+                    : "The owned native session could not be confirmed stopped and cleaned up. The control center remains open; review its status and retry Stop.",
             },
         };
         await dialog.ShowDialog(this);

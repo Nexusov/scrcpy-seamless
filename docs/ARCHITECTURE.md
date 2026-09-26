@@ -138,6 +138,7 @@ the accepted [2.0 target](architecture/SEAMLESS_2_TARGET.md),
 [execution plan](exec-plans/active/seamless-2.md). Phase 3 implements headless
 Core configuration, ADB and application contracts; its storage and migration
 semantics are in the [desktop configuration guide](development/desktop-configuration.md).
-The 2.0 product UI, machine IPC and native reconnect architecture remain later
-work. The accepted Phase 0 observations and later hardware
+The 2.0 product UI is integrated through Phase 5B. Phase 5C locally adds an
+explicit DEV device mode; machine IPC and native reconnect architecture remain
+later work. The accepted Phase 0 observations and later hardware
 validation gaps follow the [hardware baseline procedure](development/HARDWARE_BASELINE.md).

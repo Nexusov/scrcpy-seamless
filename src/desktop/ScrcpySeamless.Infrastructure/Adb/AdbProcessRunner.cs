@@ -6,17 +6,28 @@ namespace ScrcpySeamless.Infrastructure.Adb;
 
 public sealed record AdbProcessResult(int ExitCode, string StandardOutput, string StandardError, bool OutputTruncated);
 
+/** Executes one bounded ADB command so gateway responses can be tested without a daemon. */
+public interface IAdbProcessRunner
+{
+    Task<AdbProcessResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan timeout,
+        CancellationToken cancellationToken, string? standardInput = null);
+}
+
 /** Owns one ADB child process and bounds its lifetime and captured output. */
-public sealed class AdbProcessRunner
+public sealed class AdbProcessRunner : IAdbProcessRunner
 {
     private const int MaximumOutputCharacters = 65_536;
     private static readonly TimeSpan TerminationWaitTimeout = TimeSpan.FromSeconds(10);
     private readonly string executablePath;
+    private readonly IReadOnlyDictionary<string, string> childEnvironment;
 
-    public AdbProcessRunner(string executablePath)
+    public AdbProcessRunner(string executablePath, IReadOnlyDictionary<string, string>? childEnvironment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         this.executablePath = executablePath;
+        this.childEnvironment = childEnvironment is null
+            ? new Dictionary<string, string>()
+            : new Dictionary<string, string>(childEnvironment);
     }
 
     public async Task<AdbProcessResult> RunAsync(
@@ -139,6 +150,12 @@ public sealed class AdbProcessRunner
         {
             ArgumentNullException.ThrowIfNull(argument);
             startInfo.ArgumentList.Add(argument);
+        }
+
+        // Runtime composition supplies version-specific child settings; the runner does not choose ADB policy.
+        foreach ((string name, string value) in childEnvironment)
+        {
+            startInfo.Environment[name] = value;
         }
 
         return startInfo;

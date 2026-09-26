@@ -115,7 +115,7 @@ public sealed class DeviceCardViewModel : ObservableViewModel
 }
 
 /// <summary>Owns the Devices workspace and deterministic preview selection.</summary>
-public sealed class DevicesViewModel : ObservableViewModel
+public sealed partial class DevicesViewModel : ObservableViewModel
 {
     private readonly PresentationText text;
     private DeviceScenarioChoice? selectedScenario;
@@ -146,7 +146,7 @@ public sealed class DevicesViewModel : ObservableViewModel
     public string ScenarioLabel { get; }
     public string EmptyTitle { get; }
     public string EmptyBody { get; }
-    public bool IsEmpty => Cards.Count == 0;
+    public bool IsEmpty => Cards.Count == 0 && !IsLiveEnabled;
 
     public DeviceScenarioChoice? SelectedScenario
     {

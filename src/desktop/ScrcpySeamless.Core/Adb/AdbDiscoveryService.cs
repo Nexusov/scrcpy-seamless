@@ -6,6 +6,10 @@ public sealed class AdbDiscoveryService(IAdbGateway gateway)
     public Task<AdbResult<IReadOnlyList<AdbDevice>>> GetDevicesAsync(CancellationToken cancellationToken) =>
         gateway.GetDevicesAsync(cancellationToken);
 
+    /** Returns one unfiltered mDNS snapshot so callers can report each service purpose. */
+    public Task<AdbResult<IReadOnlyList<AdbMdnsService>>> GetServicesAsync(CancellationToken cancellationToken) =>
+        gateway.GetServicesAsync(cancellationToken);
+
     public async Task<AdbResult<IReadOnlyList<AdbMdnsService>>> GetServicesAsync(
         AdbServiceKind kind,
         CancellationToken cancellationToken)

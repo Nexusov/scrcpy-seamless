@@ -6,7 +6,7 @@ using ScrcpySeamless.Core.Adb;
 namespace ScrcpySeamless.Infrastructure.Adb;
 
 /** Maps ADB process responses to platform-independent application results. */
-public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
+public sealed class AdbGateway(IAdbProcessRunner runner) : IAdbGateway
 {
     private static readonly TimeSpan DiscoveryTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PairingTimeout = TimeSpan.FromSeconds(30);
@@ -60,9 +60,37 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
             }
 
             AdbParseResult<AdbMdnsService> parsed = AdbResponseParser.ParseMdnsServices(process.StandardOutput);
-            return parsed.MalformedLineCount > 0 && parsed.Items.Count == 0
-                ? AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MalformedResponse)
-                : AdbResult<IReadOnlyList<AdbMdnsService>>.Success(parsed.Items);
+
+            if (parsed.MalformedLineCount > 0 && parsed.Items.Count == 0)
+            {
+                return AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MalformedResponse);
+            }
+
+            if (parsed.Items.Count > 0)
+            {
+                return AdbResult<IReadOnlyList<AdbMdnsService>>.Success(parsed.Items);
+            }
+
+            // An empty service registry does not prove discovery is available.
+            AdbProcessResult check = await runner.RunAsync(["mdns", "check"], DiscoveryTimeout, cancellationToken);
+
+            if (check.ExitCode != 0 || AdbResponseParser.HasErrorDiagnostics(check.StandardError))
+            {
+                return AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.ProcessFailed);
+            }
+
+            if (check.OutputTruncated)
+            {
+                return AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MalformedResponse);
+            }
+
+            return AdbResponseParser.ParseMdnsCheck(check.StandardOutput) switch
+            {
+                AdbMdnsCheckStatus.Available => AdbResult<IReadOnlyList<AdbMdnsService>>.Success(parsed.Items),
+                AdbMdnsCheckStatus.Unavailable =>
+                    AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MdnsUnavailable),
+                _ => AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MalformedResponse),
+            };
         }
         catch (TimeoutException)
         {
@@ -92,12 +120,31 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
                 PairingTimeout,
                 cancellationToken,
                 standardInput: pairingCode);
-            bool paired = !process.OutputTruncated
-                && !AdbResponseParser.HasErrorDiagnostics(process.StandardError)
-                && AdbResponseParser.IsPairingSuccessful(process.ExitCode, process.StandardOutput);
-            return paired
+
+            if (process.OutputTruncated)
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.MalformedResponse);
+            }
+
+            if (AdbResponseParser.HasErrorDiagnostics(process.StandardError))
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.ProcessFailed);
+            }
+
+            if (AdbResponseParser.IsPairingRejected(process.StandardOutput))
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.PairingRejected);
+            }
+
+            if (process.ExitCode != 0)
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.ProcessFailed);
+            }
+
+            // Exit zero without the expected success line is uncertain, not a rejection.
+            return AdbResponseParser.IsPairingSuccessful(process.ExitCode, process.StandardOutput)
                 ? AdbResult<bool>.Success(true)
-                : AdbResult<bool>.Error(AdbFailureKind.PairingRejected);
+                : AdbResult<bool>.Error(AdbFailureKind.MalformedResponse);
         }
         catch (TimeoutException)
         {

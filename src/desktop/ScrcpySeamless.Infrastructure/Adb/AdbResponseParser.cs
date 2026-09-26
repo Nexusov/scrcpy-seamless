@@ -5,11 +5,21 @@ namespace ScrcpySeamless.Infrastructure.Adb;
 
 public sealed record AdbParseResult<T>(IReadOnlyList<T> Items, int MalformedLineCount);
 
+/** Server-reported health of ADB mDNS discovery, independent of service count. */
+public enum AdbMdnsCheckStatus { Available, Unavailable, Unrecognized }
+
 /** Parses untrusted ADB text without treating daemon notices as devices. */
 public static class AdbResponseParser
 {
     private const string PairingServiceType = "_adb-tls-pairing._tcp";
     private const string ConnectionServiceType = "_adb-tls-connect._tcp";
+    private const string PairingCodePrompt = "Enter pairing code: ";
+    private const string PairingSuccessPrefix = "Successfully paired to ";
+    private const string PairingFailurePrefix = "Failed:";
+    private const string PairingFailedToPairPrefix = "Failed to pair";
+    private const string MdnsVersionPrefix = "mdns daemon version [";
+    private const string MdnsDaemonUnavailable = "ERROR: mdns daemon unavailable";
+    private const string MdnsDiscoveryDisabled = "ERROR: mdns discovery disabled";
 
     /** Distinguishes ADB errors on stderr from routine daemon startup notices. */
     public static bool HasErrorDiagnostics(string standardError)
@@ -111,10 +121,48 @@ public static class AdbResponseParser
         return new AdbParseResult<AdbMdnsService>(services, malformedLineCount);
     }
 
+    /** Interprets the pinned ADB server's health reply, whose error can exit zero. */
+    public static AdbMdnsCheckStatus ParseMdnsCheck(string output)
+    {
+        string[] lines = ReadDataLines(output).ToArray();
+
+        if (lines.Length != 1)
+        {
+            return AdbMdnsCheckStatus.Unrecognized;
+        }
+
+        string response = lines[0];
+
+        if (response.Equals(MdnsDaemonUnavailable, StringComparison.OrdinalIgnoreCase)
+            || response.Equals(MdnsDiscoveryDisabled, StringComparison.OrdinalIgnoreCase))
+        {
+            return AdbMdnsCheckStatus.Unavailable;
+        }
+
+        bool hasVersion = response.StartsWith(MdnsVersionPrefix, StringComparison.OrdinalIgnoreCase)
+            && response.EndsWith(']') && response.Length > MdnsVersionPrefix.Length + 1;
+        return hasVersion ? AdbMdnsCheckStatus.Available : AdbMdnsCheckStatus.Unrecognized;
+    }
+
+    /** Accepts ADB success both with and without its non-newline input prompt. */
     public static bool IsPairingSuccessful(int exitCode, string output)
     {
         return exitCode == 0 && ReadDataLines(output)
-            .Any(line => line.StartsWith("Successfully paired to ", StringComparison.OrdinalIgnoreCase));
+            .Any(line => line.StartsWith(PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith(PairingCodePrompt + PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /** Recognizes only the ADB pairing command's explicit rejection lines. */
+    public static bool IsPairingRejected(string output)
+    {
+        return ReadDataLines(output).Any(line =>
+        {
+            string response = line.StartsWith(PairingCodePrompt, StringComparison.OrdinalIgnoreCase)
+                ? line[PairingCodePrompt.Length..]
+                : line;
+            return response.StartsWith(PairingFailurePrefix, StringComparison.OrdinalIgnoreCase)
+                || response.StartsWith(PairingFailedToPairPrefix, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     public static bool IsConnectSuccessful(int exitCode, string output, NetworkEndpoint expectedEndpoint)
