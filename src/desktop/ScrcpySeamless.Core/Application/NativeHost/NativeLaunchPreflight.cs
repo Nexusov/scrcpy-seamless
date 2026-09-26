@@ -80,7 +80,13 @@ public static class NativeLaunchPreflight
             return new NativeLaunchPreparation(null, NativeLaunchFailure.UnsupportedOption, options.Diagnostics);
         }
 
-        NetworkEndpoint? reconnectEndpoint = configuration.Mirroring.Reconnect
+        bool hasPlannedNetworkCandidate = plan!.Preferred.Kind == TransportKind.Network ||
+            plan.FallbackCandidates.Any(candidate => candidate.Kind == TransportKind.Network);
+        bool canRetrySelectedNetwork = transport == TransportKind.Network;
+        bool canSwitchUsbToNetwork = transport == TransportKind.Usb &&
+            profile.Connection.AllowFallback && hasPlannedNetworkCandidate;
+        bool canUseLegacyRecovery = canRetrySelectedNetwork || canSwitchUsbToNetwork;
+        NetworkEndpoint? reconnectEndpoint = configuration.Mirroring.Reconnect && canUseLegacyRecovery
             ? profile.ConnectionEndpoint
             : null;
 
@@ -89,7 +95,7 @@ public static class NativeLaunchPreflight
             return Failed(NativeLaunchFailure.UnsupportedReconnectCombination);
         }
 
-        NativeStartRequest request = new(sessionId, plan!, configuration.Mirroring,
+        NativeStartRequest request = new(sessionId, plan, configuration.Mirroring,
             selectedDevice.Serial, transport.Value, reconnectEndpoint, revision);
         return new NativeLaunchPreparation(request, NativeLaunchFailure.None, []);
     }
