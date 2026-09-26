@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ScrcpySeamless.Infrastructure.Runtime;
 using Xunit;
 
@@ -56,6 +57,58 @@ public sealed class DeviceRuntimeBundleTests
 
         Assert.Equal(RuntimeBundleStatus.Missing, DeviceRuntimeBundle.Validate(fixture.Directory).Status);
         Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate("relative-runtime").Status);
+    }
+
+    /// <summary>Malformed required manifest values leave the original bytes intact and report an invalid runtime.</summary>
+    [Theory]
+    [InlineData("SourceSha", "null")]
+    [InlineData("NativeSourceFingerprint", "null")]
+    [InlineData("ServerSourceFingerprint", "null")]
+    [InlineData("SourceSha", null)]
+    [InlineData("NativeSourceFingerprint", null)]
+    [InlineData("ServerSourceFingerprint", null)]
+    [InlineData("SourceSha", "42")]
+    [InlineData("NativeSourceFingerprint", "{}")]
+    [InlineData("ServerSourceFingerprint", "[]")]
+    [InlineData("SchemaVersion", "2")]
+    [InlineData("SchemaVersion", null)]
+    [InlineData("Files", "null")]
+    [InlineData("Origins", "null")]
+    [InlineData("Files", null)]
+    [InlineData("Origins", null)]
+    [InlineData("Files", "42")]
+    [InlineData("Origins", "[]")]
+    [InlineData("Files.scrcpy.exe", "null")]
+    [InlineData("Origins.scrcpy.exe", "null")]
+    [InlineData("Files.scrcpy.exe", "42")]
+    [InlineData("Origins.scrcpy.exe", "42")]
+    public void RejectsMalformedManifestWithoutChangingIt(string member, string? replacementJson)
+    {
+        using SyntheticBundle fixture = new();
+        string manifestPath = Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName);
+        JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        string[] path = member.Split('.', count: 2);
+        JsonObject owner = path.Length == 1 ? manifest : manifest[path[0]]!.AsObject();
+        string name = path[^1];
+
+        if (replacementJson is null)
+        {
+            owner.Remove(name);
+        }
+        else
+        {
+            owner[name] = JsonNode.Parse(replacementJson);
+        }
+
+        byte[] malformedBytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        File.WriteAllBytes(manifestPath, malformedBytes);
+
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+
+        Assert.Equal(RuntimeBundleStatus.InvalidManifest, result.Status);
+        Assert.Null(result.Bundle);
+        Assert.Equal(DeviceRuntimeBundle.ManifestFileName, result.Component);
+        Assert.Equal(malformedBytes, File.ReadAllBytes(manifestPath));
     }
 
     /// <summary>Only the tested ADB 34.0.5 bytes receive the Openscreen compatibility setting.</summary>

@@ -85,10 +85,10 @@ public sealed class DeviceRuntimeBundle
         }
 
         bool invalidManifest = manifest is null || manifest.SchemaVersion != 1 ||
-            manifest.SourceSha.Length != 40 || !manifest.SourceSha.All(Uri.IsHexDigit) ||
-            manifest.NativeSourceFingerprint.Length != 64 ||
+            manifest.SourceSha is not { Length: 40 } || !manifest.SourceSha.All(Uri.IsHexDigit) ||
+            manifest.NativeSourceFingerprint is not { Length: 64 } ||
             !manifest.NativeSourceFingerprint.All(Uri.IsHexDigit) ||
-            manifest.ServerSourceFingerprint.Length != 64 ||
+            manifest.ServerSourceFingerprint is not { Length: 64 } ||
             !manifest.ServerSourceFingerprint.All(Uri.IsHexDigit) ||
             manifest.Files is null || manifest.Origins is null ||
             manifest.Files.Count != RequiredFiles.Length || manifest.Origins.Count != RequiredFiles.Length ||
