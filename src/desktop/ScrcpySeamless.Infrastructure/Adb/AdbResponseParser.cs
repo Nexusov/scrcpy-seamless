@@ -12,6 +12,8 @@ public static class AdbResponseParser
     private const string ConnectionServiceType = "_adb-tls-connect._tcp";
     private const string PairingCodePrompt = "Enter pairing code: ";
     private const string PairingSuccessPrefix = "Successfully paired to ";
+    private const string PairingFailurePrefix = "Failed:";
+    private const string PairingFailedToPairPrefix = "Failed to pair";
 
     /** Distinguishes ADB errors on stderr from routine daemon startup notices. */
     public static bool HasErrorDiagnostics(string standardError)
@@ -119,6 +121,19 @@ public static class AdbResponseParser
         return exitCode == 0 && ReadDataLines(output)
             .Any(line => line.StartsWith(PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase)
                 || line.StartsWith(PairingCodePrompt + PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /** Recognizes only the ADB pairing command's explicit rejection lines. */
+    public static bool IsPairingRejected(string output)
+    {
+        return ReadDataLines(output).Any(line =>
+        {
+            string response = line.StartsWith(PairingCodePrompt, StringComparison.OrdinalIgnoreCase)
+                ? line[PairingCodePrompt.Length..]
+                : line;
+            return response.StartsWith(PairingFailurePrefix, StringComparison.OrdinalIgnoreCase)
+                || response.StartsWith(PairingFailedToPairPrefix, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     public static bool IsConnectSuccessful(int exitCode, string output, NetworkEndpoint expectedEndpoint)

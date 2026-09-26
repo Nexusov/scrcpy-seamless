@@ -73,8 +73,13 @@ public sealed class AdbTests
         const string output = "Enter pairing code: Successfully paired to 192.0.2.8:37123 [guid=synthetic]";
 
         Assert.True(AdbResponseParser.IsPairingSuccessful(0, output));
+        Assert.True(AdbResponseParser.IsPairingSuccessful(0,
+            "Enter pairing code: \nSuccessfully paired to 192.0.2.8:37123"));
         Assert.False(AdbResponseParser.IsPairingSuccessful(1, output));
         Assert.False(AdbResponseParser.IsPairingSuccessful(0, "Enter pairing code: Failed to pair"));
+        Assert.True(AdbResponseParser.IsPairingRejected("Enter pairing code: Failed: Wrong password"));
+        Assert.True(AdbResponseParser.IsPairingRejected("Failed to pair: synthetic refusal"));
+        Assert.False(AdbResponseParser.IsPairingRejected("error: cannot contact ADB server"));
     }
 
     /** Error diagnostics remain detectable without treating daemon notices as failures. */

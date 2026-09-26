@@ -92,12 +92,31 @@ public sealed class AdbGateway(AdbProcessRunner runner) : IAdbGateway
                 PairingTimeout,
                 cancellationToken,
                 standardInput: pairingCode);
-            bool paired = !process.OutputTruncated
-                && !AdbResponseParser.HasErrorDiagnostics(process.StandardError)
-                && AdbResponseParser.IsPairingSuccessful(process.ExitCode, process.StandardOutput);
-            return paired
+
+            if (process.OutputTruncated)
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.MalformedResponse);
+            }
+
+            if (AdbResponseParser.HasErrorDiagnostics(process.StandardError))
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.ProcessFailed);
+            }
+
+            if (AdbResponseParser.IsPairingRejected(process.StandardOutput))
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.PairingRejected);
+            }
+
+            if (process.ExitCode != 0)
+            {
+                return AdbResult<bool>.Error(AdbFailureKind.ProcessFailed);
+            }
+
+            // Exit zero without the expected success line is uncertain, not a rejection.
+            return AdbResponseParser.IsPairingSuccessful(process.ExitCode, process.StandardOutput)
                 ? AdbResult<bool>.Success(true)
-                : AdbResult<bool>.Error(AdbFailureKind.PairingRejected);
+                : AdbResult<bool>.Error(AdbFailureKind.MalformedResponse);
         }
         catch (TimeoutException)
         {
