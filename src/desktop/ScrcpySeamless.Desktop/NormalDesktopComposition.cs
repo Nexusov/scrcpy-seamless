@@ -274,7 +274,7 @@ public static class NormalDesktopFactory
             {
                 AdbGateway gateway = new(new AdbProcessRunner(readyBundle.AdbExecutablePath));
                 devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
-                    action => Dispatcher.UIThread.Post(action));
+                    action => Dispatcher.UIThread.Post(action), gateway);
             }
         }
 

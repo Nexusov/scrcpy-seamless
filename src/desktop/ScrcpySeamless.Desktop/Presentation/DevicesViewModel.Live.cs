@@ -26,13 +26,17 @@ public sealed partial class DevicesViewModel
 {
     private AdbDiscoveryService? discovery;
     private AdbPairingService? pairing;
+    private IAdbGateway? connectionGateway;
     private Action<Action>? dispatch;
     private CancellationTokenSource? discoveryCancellation;
     private CancellationTokenSource? pairingCancellation;
+    private CancellationTokenSource? connectionCancellation;
     private Task activeRefresh = Task.CompletedTask;
     private Task activePairing = Task.CompletedTask;
+    private Task activeConnection = Task.CompletedTask;
     private long discoveryGeneration;
     private long pairingGeneration;
+    private long connectionGeneration;
     private bool liveDisposed;
     private LiveDiscoveryState discoveryState = LiveDiscoveryState.Initial;
     private ObservedDeviceChoice? selectedObservedDevice;
@@ -42,6 +46,9 @@ public sealed partial class DevicesViewModel
     private string manualConnectionEndpoint = string.Empty;
     private string pairingCode = string.Empty;
     private bool isPairing;
+    private bool isConnecting;
+    private NetworkEndpoint? connectedEndpoint;
+    private string? connectionMessage;
     private string? discoveryMessage;
     private string? serviceMessage;
     private string? pairingMessage;
@@ -56,10 +63,14 @@ public sealed partial class DevicesViewModel
     public ICommand CancelRefreshCommand => cancelRefreshCommand ??= new ActionCommand(CancelRefresh);
     public ICommand PairCommand => pairCommand ??= new ActionCommand(() => _ = PairAsync());
     public ICommand CancelPairCommand => cancelPairCommand ??= new ActionCommand(CancelPair);
+    public ICommand ConnectCommand => connectCommand ??= new ActionCommand(() => _ = ConnectAsync());
+    public ICommand CancelConnectCommand => cancelConnectCommand ??= new ActionCommand(CancelConnect);
     private ICommand? refreshCommand;
     private ICommand? cancelRefreshCommand;
     private ICommand? pairCommand;
     private ICommand? cancelPairCommand;
+    private ICommand? connectCommand;
+    private ICommand? cancelConnectCommand;
 
     public bool IsLiveEnabled => discovery is not null && !liveDisposed;
     public LiveDiscoveryState DiscoveryState => discoveryState;
@@ -69,7 +80,9 @@ public sealed partial class DevicesViewModel
     public string? DiscoveryMessage { get => discoveryMessage; private set => SetProperty(ref discoveryMessage, value); }
     public string? ServiceMessage { get => serviceMessage; private set => SetProperty(ref serviceMessage, value); }
     public string? PairingMessage { get => pairingMessage; private set => SetProperty(ref pairingMessage, value); }
+    public string? ConnectionMessage { get => connectionMessage; private set => SetProperty(ref connectionMessage, value); }
     public bool IsPairing => isPairing;
+    public bool IsConnecting => isConnecting;
     public string LiveDiscoveryTitle => text.Get("devices.live.discoveryTitle");
     public string RefreshLabel => text.Get("devices.live.refresh");
     public string CancelRefreshLabel => text.Get("devices.live.cancelRefresh");
@@ -83,6 +96,8 @@ public sealed partial class DevicesViewModel
     public string PairCodeLabel => text.Get("devices.live.pairCode");
     public string PairLabel => text.Get("devices.live.pair");
     public string CancelPairLabel => text.Get("devices.live.cancelPair");
+    public string ConnectLabel => text.Get("devices.live.connect");
+    public string CancelConnectLabel => text.Get("devices.live.cancelConnect");
     public string DiscoveryStatusLabel => text.Get(discoveryState switch
     {
         LiveDiscoveryState.Loading => "devices.live.loading",
@@ -102,7 +117,7 @@ public sealed partial class DevicesViewModel
             }
         }
     }
-    public string? ConnectedEndpointLabel => PairingOutcome?.ConnectedEndpoint is { } endpoint
+    public string? ConnectedEndpointLabel => (connectedEndpoint ?? PairingOutcome?.ConnectedEndpoint) is { } endpoint
         ? $"{text.Get("devices.live.connectedEndpoint")}: {endpoint}"
         : null;
     public DeviceSessionViewModel? SessionActions { get; private set; }
@@ -110,7 +125,10 @@ public sealed partial class DevicesViewModel
     public bool CanRefresh => IsLiveEnabled && !IsDiscovering;
     public bool CanCancelRefresh => IsLiveEnabled && IsDiscovering;
     public bool CanCancelPair => IsLiveEnabled && IsPairing;
-    public bool CanPair => IsLiveEnabled && !IsPairing && ResolvePairingEndpoint() is not null &&
+    public bool CanConnect => IsLiveEnabled && connectionGateway is not null && !IsConnecting && !IsPairing &&
+        ResolveConnectionEndpoint() is not null;
+    public bool CanCancelConnect => IsLiveEnabled && IsConnecting;
+    public bool CanPair => IsLiveEnabled && !IsPairing && !IsConnecting && ResolvePairingEndpoint() is not null &&
         pairingCode.Length == PairingCodeLength && pairingCode.All(char.IsAsciiDigit);
     private const int PairingCodeLength = 6;
     private static readonly TimeSpan ShutdownWait = TimeSpan.FromSeconds(5);
@@ -171,6 +189,7 @@ public sealed partial class DevicesViewModel
             if (SetProperty(ref selectedConnectionService, value))
             {
                 OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+                OnPropertyChanged(nameof(CanConnect));
             }
         }
     }
@@ -195,6 +214,7 @@ public sealed partial class DevicesViewModel
             if (SetProperty(ref manualConnectionEndpoint, value ?? string.Empty))
             {
                 OnPropertyChanged(nameof(SelectedConnectionEndpoint));
+                OnPropertyChanged(nameof(CanConnect));
             }
         }
     }
@@ -213,7 +233,7 @@ public sealed partial class DevicesViewModel
 
     /// <summary>Attaches existing Core operations without contacting a device on construction.</summary>
     public void AttachLiveServices(AdbDiscoveryService discoveryService, AdbPairingService pairingService,
-        Action<Action> publishOnUiThread)
+        Action<Action> publishOnUiThread, IAdbGateway? explicitConnectionGateway = null)
     {
         ArgumentNullException.ThrowIfNull(discoveryService);
         ArgumentNullException.ThrowIfNull(pairingService);
@@ -226,11 +246,13 @@ public sealed partial class DevicesViewModel
 
         discovery = discoveryService;
         pairing = pairingService;
+        connectionGateway = explicitConnectionGateway;
         dispatch = publishOnUiThread;
         OnPropertyChanged(nameof(IsLiveEnabled));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(CanRefresh));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
     }
 
     /// <summary>Refreshes only when explicitly requested, retaining failed observations as stale.</summary>
@@ -259,6 +281,7 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(SelectedObservedDevice));
         OnPropertyChanged(nameof(SelectedConnectionEndpoint));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
 
         try
         {
@@ -304,6 +327,7 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(SelectedObservedDevice));
         OnPropertyChanged(nameof(SelectedConnectionEndpoint));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
     }
 
     /// <summary>Pairs explicitly and optionally connects a separately chosen endpoint.</summary>
@@ -336,6 +360,7 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(IsPairing));
         OnPropertyChanged(nameof(CanPair));
         OnPropertyChanged(nameof(CanCancelPair));
+        OnPropertyChanged(nameof(CanConnect));
 
         try
         {
@@ -379,6 +404,127 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(IsPairing));
         OnPropertyChanged(nameof(CanCancelPair));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
+    }
+
+    /// <summary>Connects one explicitly chosen endpoint without pairing or saving a profile.</summary>
+    public Task ConnectAsync(CancellationToken cancellationToken = default)
+    {
+        Task operation = ConnectCoreAsync(cancellationToken);
+        activeConnection = operation;
+        return operation;
+    }
+
+    /// <summary>Owns one bounded ADB connect command and rejects superseded results.</summary>
+    private async Task ConnectCoreAsync(CancellationToken cancellationToken)
+    {
+        if (!CanConnect)
+        {
+            ConnectionMessage = text.Get("devices.live.connectInvalid");
+            return;
+        }
+
+        NetworkEndpoint endpoint = ResolveConnectionEndpoint()!;
+        long generation = ++connectionGeneration;
+        CancellationTokenSource ownedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        connectionCancellation = ownedCancellation;
+        isConnecting = true;
+        ConnectionMessage = text.Get("devices.live.connecting");
+        OnPropertyChanged(nameof(IsConnecting));
+        OnPropertyChanged(nameof(CanConnect));
+        OnPropertyChanged(nameof(CanCancelConnect));
+        OnPropertyChanged(nameof(CanPair));
+
+        try
+        {
+            AdbResult<bool> result = await connectionGateway!.ConnectAsync(endpoint, ownedCancellation.Token);
+            dispatch!(() => PublishConnection(generation, endpoint, result));
+        }
+        catch (OperationCanceledException) when (ownedCancellation.IsCancellationRequested)
+        {
+            dispatch!(() => PublishConnectionCancellation(generation));
+        }
+        catch (Exception)
+        {
+            dispatch!(() => PublishConnectionFailure(generation));
+        }
+        finally
+        {
+            if (ReferenceEquals(connectionCancellation, ownedCancellation))
+            {
+                connectionCancellation = null;
+            }
+
+            ownedCancellation.Dispose();
+        }
+    }
+
+    /// <summary>Cancels local waiting without claiming that remote ADB state was reversed.</summary>
+    public void CancelConnect()
+    {
+        if (!isConnecting)
+        {
+            return;
+        }
+
+        connectionGeneration++;
+        connectionCancellation?.Cancel();
+        ConnectionMessage = text.Get("devices.live.connectCancelled");
+        FinishConnection();
+    }
+
+    /// <summary>Publishes only the latest exact endpoint and refreshes after completed connect.</summary>
+    private void PublishConnection(long generation, NetworkEndpoint endpoint, AdbResult<bool> result)
+    {
+        if (liveDisposed || generation != connectionGeneration)
+        {
+            return;
+        }
+
+        bool connected = result.IsSuccess && result.Value;
+        connectedEndpoint = connected ? endpoint : null;
+        ConnectionMessage = text.Get(connected ? "devices.live.connectSucceeded" : "devices.live.connectFailed");
+        OnPropertyChanged(nameof(ConnectedEndpointLabel));
+        FinishConnection();
+
+        if (connected)
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    /// <summary>Preserves uncertainty when a connect command is cancelled.</summary>
+    private void PublishConnectionCancellation(long generation)
+    {
+        if (liveDisposed || generation != connectionGeneration)
+        {
+            return;
+        }
+
+        ConnectionMessage = text.Get("devices.live.connectCancelled");
+        FinishConnection();
+    }
+
+    /// <summary>Hides raw ADB output while reporting a connection failure.</summary>
+    private void PublishConnectionFailure(long generation)
+    {
+        if (liveDisposed || generation != connectionGeneration)
+        {
+            return;
+        }
+
+        ConnectionMessage = text.Get("devices.live.connectFailed");
+        FinishConnection();
+    }
+
+    /// <summary>Settles one connection attempt's presentation state.</summary>
+    private void FinishConnection()
+    {
+        isConnecting = false;
+        OnPropertyChanged(nameof(IsConnecting));
+        OnPropertyChanged(nameof(CanConnect));
+        OnPropertyChanged(nameof(CanCancelConnect));
+        OnPropertyChanged(nameof(CanPair));
     }
 
     /// <summary>Invalidates late results when this workspace leaves the application lifetime.</summary>
@@ -387,12 +533,20 @@ public sealed partial class DevicesViewModel
         liveDisposed = true;
         discoveryGeneration++;
         pairingGeneration++;
+        connectionGeneration++;
         discoveryCancellation?.Cancel();
         pairingCancellation?.Cancel();
+        connectionCancellation?.Cancel();
+        if (isConnecting)
+        {
+            ConnectionMessage = text.Get("devices.live.connectCancelled");
+            FinishConnection();
+        }
         PairingCode = string.Empty;
         OnPropertyChanged(nameof(IsLiveEnabled));
         OnPropertyChanged(nameof(CanRefresh));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
     }
 
     /// <summary>Cancels owned ADB work and awaits its settlement before application shutdown.</summary>
@@ -402,7 +556,7 @@ public sealed partial class DevicesViewModel
 
         try
         {
-            await Task.WhenAll(activeRefresh, activePairing).WaitAsync(ShutdownWait, cancellationToken);
+            await Task.WhenAll(activeRefresh, activePairing, activeConnection).WaitAsync(ShutdownWait, cancellationToken);
             return true;
         }
         catch (TimeoutException)
@@ -452,6 +606,7 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(SelectedObservedDevice));
         OnPropertyChanged(nameof(SelectedConnectionEndpoint));
         OnPropertyChanged(nameof(CanPair));
+        OnPropertyChanged(nameof(CanConnect));
     }
 
     /// <summary>Preserves a previously observed list on failure and marks it non-authoritative.</summary>
@@ -533,6 +688,7 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(IsPairing));
         OnPropertyChanged(nameof(CanPair));
         OnPropertyChanged(nameof(CanCancelPair));
+        OnPropertyChanged(nameof(CanConnect));
     }
 
     /// <summary>Updates labeled status without creating an authoritative empty result on failure.</summary>

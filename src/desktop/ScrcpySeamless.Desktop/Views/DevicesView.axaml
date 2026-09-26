@@ -82,6 +82,13 @@
             </ComboBox>
             <TextBox PlaceholderText="{Binding ManualConnectionLabel}" Text="{Binding ManualConnectionEndpoint, Mode=TwoWay}"
                      AutomationProperties.AutomationId="devices.manualConnectionEndpoint" />
+            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+              <Button Content="{Binding ConnectLabel}" Command="{Binding ConnectCommand}"
+                      IsEnabled="{Binding CanConnect}" AutomationProperties.AutomationId="devices.connect" />
+              <Button Content="{Binding CancelConnectLabel}" Command="{Binding CancelConnectCommand}"
+                      IsEnabled="{Binding CanCancelConnect}" AutomationProperties.AutomationId="devices.cancelConnect" />
+            </WrapPanel>
+            <TextBlock Text="{Binding ConnectionMessage}" TextWrapping="Wrap" Classes="muted" />
             <TextBlock Text="{Binding ServiceMessage}" TextWrapping="Wrap" Classes="muted" />
             <TextBox PlaceholderText="{Binding PairCodeLabel}" PasswordChar="●" MaxLength="6"
                      Text="{Binding PairingCode, Mode=TwoWay}"

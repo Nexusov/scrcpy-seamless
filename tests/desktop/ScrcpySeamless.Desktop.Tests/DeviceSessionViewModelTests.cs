@@ -65,6 +65,21 @@ public sealed class DeviceSessionViewModelTests
         Assert.Equal(committed, File.ReadAllBytes(composition.DataPaths.ConfigurationFile));
     }
 
+    /// <summary>A newly chosen Wi-Fi endpoint cannot silently override the saved reconnect target.</summary>
+    [AvaloniaFact]
+    public async Task UnsavedSelectedConnectionEndpointBlocksLaunch()
+    {
+        using Fixture fixture = new();
+        (NormalDesktopComposition composition, DeviceSessionViewModel actions, FakeHost host) =
+            await fixture.CreatePreparedSessionAsync();
+        composition.Devices.ManualConnectionEndpoint = "phone.local:38211";
+
+        await actions.MirrorAsync();
+
+        Assert.Equal(0, host.Starts);
+        Assert.Contains("differs from the saved profile", actions.Status);
+    }
+
     /// <summary>A selected committed profile starts once, remains owned and stops once.</summary>
     [AvaloniaFact]
     public async Task DuplicateMirrorCannotStartAnotherChildAndStopSettlesOwnedChild()

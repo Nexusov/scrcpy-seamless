@@ -8,6 +8,49 @@ namespace ScrcpySeamless.Desktop.Tests;
 /// <summary>Protects explicit device selection and secret-free pairing presentation.</summary>
 public sealed class LiveDevicesTests
 {
+    /// <summary>A manual connection endpoint works without mDNS or a new pairing operation.</summary>
+    [Fact]
+    public async Task ManualConnectKeepsProfilePersistenceExplicit()
+    {
+        FakeGateway gateway = new();
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.ManualConnectionEndpoint = "phone.local:38211";
+
+        Assert.True(devices.CanConnect);
+        await devices.ConnectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("phone.local:38211", gateway.ConnectedEndpoint?.ToString());
+        Assert.Equal(0, gateway.PairingCalls);
+        Assert.Contains("Save the endpoint", devices.ConnectionMessage);
+        Assert.Contains("phone.local:38211", devices.ConnectedEndpointLabel);
+        Assert.Empty(devices.ObservedDevices);
+    }
+
+    /// <summary>Close cancellation prevents a late connect result from updating the workspace.</summary>
+    [Fact]
+    public async Task ShutdownCancelsManualConnectAndItsLatePublication()
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeGateway gateway = new()
+        {
+            ConnectAsyncOverride = async (_, cancellationToken) =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return AdbResult<bool>.Success(true);
+            },
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.ManualConnectionEndpoint = "phone.local:38211";
+        Task connecting = devices.ConnectAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(await devices.ShutdownLiveAsync(TestContext.Current.CancellationToken));
+        await connecting;
+        Assert.False(devices.IsLiveEnabled);
+        Assert.Null(devices.ConnectedEndpointLabel);
+    }
+
     /// <summary>Attaching live services is inert until a user asks for refresh.</summary>
     [Fact]
     public void AttachmentNeverDiscoversOrPairsImplicitly()
@@ -208,7 +251,7 @@ public sealed class LiveDevicesTests
         DevicesViewModel devices = new(StaticDevicePresentationSource.Empty(),
             new PresentationText());
         devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
-            dispatcher ?? (action => action()));
+            dispatcher ?? (action => action()), gateway);
         return devices;
     }
 
@@ -221,6 +264,7 @@ public sealed class LiveDevicesTests
         public AdbResult<bool> PairingResult { get; set; } = AdbResult<bool>.Success(true);
         public AdbResult<bool> ConnectionResult { get; set; } = AdbResult<bool>.Success(true);
         public Func<NetworkEndpoint, string, CancellationToken, Task<AdbResult<bool>>>? PairAsyncOverride { get; set; }
+        public Func<NetworkEndpoint, CancellationToken, Task<AdbResult<bool>>>? ConnectAsyncOverride { get; set; }
         public int DiscoveryCalls { get; private set; }
         public int PairingCalls { get; private set; }
         public NetworkEndpoint? PairedEndpoint { get; private set; }
@@ -248,7 +292,8 @@ public sealed class LiveDevicesTests
             CancellationToken cancellationToken)
         {
             ConnectedEndpoint = connectionEndpoint;
-            return Task.FromResult(ConnectionResult);
+            return ConnectAsyncOverride?.Invoke(connectionEndpoint, cancellationToken)
+                ?? Task.FromResult(ConnectionResult);
         }
 
         public Task<AdbResult<string>> GetDeviceSerialPropertyAsync(NetworkEndpoint connectionEndpoint,

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.NativeHost;
+using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Infrastructure.Configuration;
 using ScrcpySeamless.Infrastructure.NativeHost;
 using ScrcpySeamless.Infrastructure.Runtime;
@@ -105,6 +106,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
             SavedProfileChoice? selectedProfile = SelectedLaunchProfile;
             AdbDevice? selectedDevice = devices.SelectedObservedDevice;
+            NetworkEndpoint? selectedConnectionEndpoint = devices.SelectedConnectionEndpoint;
 
             if (selectedProfile is null || !ProfileChoices.Contains(selectedProfile) || selectedDevice is null)
             {
@@ -116,7 +118,9 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
             ConfigurationReadResult committed = await store.ReadAsync(cancellationToken);
             bool selectionChanged = SelectedLaunchProfile != selectedProfile ||
                 !ProfileChoices.Contains(selectedProfile) ||
-                devices.SelectedObservedDevice != selectedDevice || configuration.Revision != selectedRevision;
+                devices.SelectedObservedDevice != selectedDevice ||
+                devices.SelectedConnectionEndpoint != selectedConnectionEndpoint ||
+                configuration.Revision != selectedRevision;
             bool editsArrived = configuration.IsDirty || profiles.HasUnstagedChanges ||
                 configuration.IsBusy || configuration.RequiresReload;
 
@@ -130,6 +134,16 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                 !string.Equals(committed.Revision, selectedRevision, StringComparison.Ordinal))
             {
                 Status = "Committed configuration changed or is unavailable; reload before Mirror.";
+                return;
+            }
+
+            DeviceProfile? committedProfile = committed.Configuration.Profiles.SingleOrDefault(profile =>
+                profile.Id == selectedProfile.Id);
+
+            if (selectedConnectionEndpoint is not null &&
+                committedProfile?.ConnectionEndpoint != selectedConnectionEndpoint)
+            {
+                Status = "Selected Wi-Fi endpoint differs from the saved profile; Apply the intended endpoint first.";
                 return;
             }
 
