@@ -273,7 +273,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
-| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | In progress locally; hardware pending |
+| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Implemented locally; primary Mirror hardware smoke passed; ready for PR preparation/review |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
 ### Phase 5C dependency-ordered checkpoints
@@ -281,13 +281,13 @@ interface here; broad competitive feature completion remains Phase 10.
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
 | 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Implemented locally; synthetic tests passed |
-| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Implemented locally; hardware pending |
-| 5C.3 | Guided pairing with separate explicit profile persistence | Pairing succeeded on the rebuilt DEV package in an owner-run hardware check; profile persistence remains separately gated |
+| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Discovery observed in the final DEV package with an already-running Openscreen server; cold-start discovery pending Phase 5D |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Pairing succeeded in an earlier owner-run DEV check; a separate profile was saved with Apply for the Mirror smoke |
 | 5C.4 | Execution preflight and immutable native request translated from committed settings | Implemented locally; synthetic tests passed |
-| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Implemented locally; hardware pending |
+| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Owner-run USB-to-Wi-Fi Mirror and Stop smoke passed; PID/HWND continuity sampled |
 | 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
 | 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
-| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; real-device smoke explicitly pending |
+| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; one primary real-device Mirror cycle passed |
 
 The local Phase 5C boundary has 328 passing .NET tests, 16 native tests,
 28 legacy suites, SpecGen verify, metadata and DocsCheck. The isolated DEV
@@ -304,7 +304,7 @@ successful response when its non-newline code prompt shared the output line.
 A focused regression test failed before and passed after the local parser fix.
 The owner then reported `Pairing succeeded` through the rebuilt
 `scrcpy-seamless-desktop-p05c-gb3976af5` DEV package. This verifies the pairing
-path only; Phase 5C mirroring and USB-to-Wi-Fi recovery remain hardware-pending.
+path only; the later Mirror smoke is recorded separately below.
 The focused pairing follow-up restores discovery-first Wireless setup with
 an explicit manual fallback and visible Pair eligibility reasons. Synthetic
 tests cover candidate selection, stale discovery, cancellation and corrected
@@ -326,12 +326,26 @@ Bonjour daemon failure remains unexplained. The owner reported that the
 pairing device appeared in the final `scrcpy-seamless-desktop-p05c-g2b902065`
 DEV package while the shared Openscreen server was already running. This
 confirms discovery in that package but does not independently validate a
-cold-start server selection. Mirroring hardware smoke remains the Phase 5C
-acceptance gate.
+cold-start server selection. Cold-start discovery from an absent shared ADB
+server remains an explicit integrated Phase 5D validation item; this task did
+not restart the shared server.
+
+The owner then used the same `g2b902065` package and an isolated committed DEV
+profile to launch Mirror with an explicitly selected USB ADB transport. After
+correcting a model-versus-serial entry in the profile, the owner confirmed
+USB video, PC control and audible PC audio, physically removed USB, and
+confirmed video, control and audio after Wi-Fi recovery. Exact-path native
+samples before and after had PID `34212`, start time
+`2026-09-26T13:22:12.9316230Z` and HWND `1641858`. Stop closed the mirror
+window and exited the owned process; Desktop reported `stopped`, the saved
+profile remained present and the shared ADB server remained running. This is
+one successful primary hardware cycle, not exhaustive device or channel
+coverage. The observed evidence is detailed in
+[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 
 The single shared-server restart and mDNS queries had explicit owner approval.
-Pairing was not repeated, and the Mirror hardware gate remains manual in
-[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
+Pairing was not repeated during the Mirror hardware smoke. Phase 5D has not
+started, and Phase 5C is not yet published.
 
 ### Phase 5A dependency-ordered checkpoints
 
