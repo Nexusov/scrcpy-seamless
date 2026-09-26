@@ -282,7 +282,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | --- | --- | --- |
 | 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Implemented locally; synthetic tests passed |
 | 5C.2 | Explicit live discovery and truthful saved-profile/device association | Implemented locally; hardware pending |
-| 5C.3 | Guided pairing with separate explicit profile persistence | Local ADB response regression fixed and tested; hardware recheck pending |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Pairing succeeded on the rebuilt DEV package in an owner-run hardware check; profile persistence remains separately gated |
 | 5C.4 | Execution preflight and immutable native request translated from committed settings | Implemented locally; synthetic tests passed |
 | 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Implemented locally; hardware pending |
 | 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
@@ -301,11 +301,12 @@ zero while the primary remained open. During the manual pairing gate, the owner
 reported that Desktop displayed a pairing failure while the packaged ADB CLI
 successfully paired with the same endpoint and code. The parser rejected ADB's
 successful response when its non-newline code prompt shared the output line.
-A focused regression test failed before and passed after the local parser fix;
-pairing through the rebuilt Desktop remains hardware-unverified. No Phase 5C
-phone/ADB operation or USB-to-Wi-Fi recovery has been run by automation. The
-manual gate is in
-[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
+A focused regression test failed before and passed after the local parser fix.
+The owner then reported `Pairing succeeded` through the rebuilt
+`scrcpy-seamless-desktop-p05c-gb3976af5` DEV package. This verifies the pairing
+path only; Phase 5C mirroring and USB-to-Wi-Fi recovery remain hardware-pending.
+No Phase 5C phone/ADB operation has been run by automation. The manual gate is
+in [the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 
 ### Phase 5A dependency-ordered checkpoints
 
