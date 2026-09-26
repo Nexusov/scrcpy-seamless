@@ -10,6 +10,8 @@ public static class AdbResponseParser
 {
     private const string PairingServiceType = "_adb-tls-pairing._tcp";
     private const string ConnectionServiceType = "_adb-tls-connect._tcp";
+    private const string PairingCodePrompt = "Enter pairing code: ";
+    private const string PairingSuccessPrefix = "Successfully paired to ";
 
     /** Distinguishes ADB errors on stderr from routine daemon startup notices. */
     public static bool HasErrorDiagnostics(string standardError)
@@ -111,10 +113,12 @@ public static class AdbResponseParser
         return new AdbParseResult<AdbMdnsService>(services, malformedLineCount);
     }
 
+    /** Accepts ADB success both with and without its non-newline input prompt. */
     public static bool IsPairingSuccessful(int exitCode, string output)
     {
         return exitCode == 0 && ReadDataLines(output)
-            .Any(line => line.StartsWith("Successfully paired to ", StringComparison.OrdinalIgnoreCase));
+            .Any(line => line.StartsWith(PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith(PairingCodePrompt + PairingSuccessPrefix, StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool IsConnectSuccessful(int exitCode, string output, NetworkEndpoint expectedEndpoint)

@@ -282,14 +282,14 @@ interface here; broad competitive feature completion remains Phase 10.
 | --- | --- | --- |
 | 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Implemented locally; synthetic tests passed |
 | 5C.2 | Explicit live discovery and truthful saved-profile/device association | Implemented locally; hardware pending |
-| 5C.3 | Guided pairing with separate explicit profile persistence | Implemented locally; hardware pending |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Local ADB response regression fixed and tested; hardware recheck pending |
 | 5C.4 | Execution preflight and immutable native request translated from committed settings | Implemented locally; synthetic tests passed |
 | 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Implemented locally; hardware pending |
 | 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
 | 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
 | 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; real-device smoke explicitly pending |
 
-The local Phase 5C boundary has 327 passing .NET tests, 16 native tests,
+The local Phase 5C boundary has 328 passing .NET tests, 16 native tests,
 28 legacy suites, SpecGen verify, metadata and DocsCheck. The isolated DEV
 stage validates source-built native/server bytes and imports only reviewed
 ADB/SDL/FFmpeg/runtime resources. A desktop process smoke opened and closed
@@ -297,8 +297,14 @@ preview, settings-only and device-enabled UI on synthetic roots without a
 device action. A second same-root settings-only process exposed an early
 dispatcher-shutdown exception; a focused follow-up defers its shutdown until
 the event loop starts, and a repeat process smoke forwarded/exited with code
-zero while the primary remained open. No Phase 5C phone/ADB operation or
-USB-to-Wi-Fi recovery has been run by automation. The manual gate is in
+zero while the primary remained open. During the manual pairing gate, the owner
+reported that Desktop displayed a pairing failure while the packaged ADB CLI
+successfully paired with the same endpoint and code. The parser rejected ADB's
+successful response when its non-newline code prompt shared the output line.
+A focused regression test failed before and passed after the local parser fix;
+pairing through the rebuilt Desktop remains hardware-unverified. No Phase 5C
+phone/ADB operation or USB-to-Wi-Fi recovery has been run by automation. The
+manual gate is in
 [the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 
 ### Phase 5A dependency-ordered checkpoints

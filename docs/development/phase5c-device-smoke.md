@@ -21,7 +21,11 @@ $data = 'D:\My Projects\scrcpy-seamless\.dev-data\p05c'
    **Refresh** and explicitly select its eligible USB ADB transport. Refresh
    contacts the shared ADB daemon. If already paired, use the explicit Connect
    action with the connection endpoint; otherwise Pair with separate pairing
-   and connection endpoints. Do not send the pairing code to chat.
+   and connection endpoints. Use the IP and port shown inside the phone's
+   **Pair device with pairing code** dialog for Pairing host:port; the ordinary
+   Wireless debugging connection port serves a different purpose. Verify that
+   the rebuilt Desktop reports pairing success after entering a fresh code.
+   Do not send the pairing code to chat.
 2. In Profiles, create or select the intended DEV profile. Save the USB serial
    and Wi-Fi connection endpoint explicitly with **Apply**. Return to Devices,
    choose the saved profile in **Mirror session**, and press **Mirror**. Pair

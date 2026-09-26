@@ -66,6 +66,17 @@ public sealed class AdbTests
         Assert.False(AdbResponseParser.IsConnectSuccessful(1, "connected to 192.0.2.8:5555", endpoint));
     }
 
+    /** Accepts the success line after ADB's prompt, which has no newline. */
+    [Fact]
+    public void PairingSuccessMayFollowTheCodePromptOnTheSameLine()
+    {
+        const string output = "Enter pairing code: Successfully paired to 192.0.2.8:37123 [guid=synthetic]";
+
+        Assert.True(AdbResponseParser.IsPairingSuccessful(0, output));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(1, output));
+        Assert.False(AdbResponseParser.IsPairingSuccessful(0, "Enter pairing code: Failed to pair"));
+    }
+
     /** Error diagnostics remain detectable without treating daemon notices as failures. */
     [Fact]
     public void StderrDistinguishesErrorsFromDaemonStartup()
