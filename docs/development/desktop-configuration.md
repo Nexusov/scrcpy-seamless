@@ -4,8 +4,10 @@ Phase 3 provides a headless C# foundation. The current WinForms/PowerShell
 launcher and canonical 1.x package do not consume these classes yet; no user
 configuration is migrated merely by building or testing the solution. Phase 5A
 introduced the Avalonia shell and an explicitly simulated preview. Phase 5B
-adds an opt-in normal settings composition with real local files; preview still
-constructs no persistent, ADB or native adapters.
+adds an opt-in normal settings composition with real local files. Phase 5C
+adds device operations only for `--dev-data-dir=<absolute>` together with
+`--device-runtime=<absolute>`. Preview still constructs no persistent, ADB,
+activation or native adapters.
 
 ## Storage and authority
 
@@ -21,6 +23,34 @@ or an explicit selected root, never the current working directory. A missing
 document stays absent until Apply. Malformed or ambiguous launch arguments are
 rejected. `--preview` accepts no storage selection and remains in memory even
 when a real configuration exists nearby.
+
+## Phase 5C DEV device boundary
+
+An explicit device runtime is validated against its separate DEV hash manifest
+before ADB services or a native host are attached. An absent or invalid runtime
+leaves normal settings editable and blocks Mirror. Startup does not probe ADB:
+Refresh, Pair and Mirror each require a user action. Refresh distinguishes a
+failed/stale observation from an authoritative empty result; selecting a saved
+profile does not select an ADB transport. Pairing and connection endpoints have
+different purposes. Pairing neither saves a profile nor starts mirroring; use
+the Profiles editor and its existing revision-checked Apply to persist changes.
+
+Mirror requires a selected saved profile, a fresh explicitly selected eligible
+ADB transport and no pending profile/mirroring edits. It rereads the committed
+v2 document and checks its byte revision against the loaded editor before
+building an immutable native request. Unknown/managed options and currently
+unsupported legacy reconnect combinations block execution without deleting
+their stored values. Appearance edits do not block Mirror. One active mirror
+is permitted per control center. Process existence reports only process
+evidence; video, audio and control remain unverified until hardware observation.
+
+The compatibility adapter owns only its native child, stop event and bounded
+sanitized lifecycle JSONL in the selected DEV data root. It does not stop the
+shared ADB daemon or replace the native client's existing in-process reconnect.
+Same-user normal Desktop activation is scoped to the selected data root;
+preview creates no activation endpoint. Accepted exit decisions cancel/settle
+live work and stop the owned child; a failed native stop keeps the window open.
+Abnormal parent death is not yet a proven orphan-prevention mechanism.
 
 ## Phase 5B editing and Desktop preferences
 
@@ -177,6 +207,7 @@ separate even when advertised by the same handset.
 capabilities and bounded retry/failback policy. It does not run reconnection;
 the native ConnectionManager belongs to Phase 8. Core also defines a
 same-user, single-control-center activation contract and an owned native-host
-start/stop/completion contract. The Windows activation channel, Desktop window
-focus behavior and native process adapter remain for later Desktop/IPC phases.
+start/stop/completion contract. Phase 5C wires the Windows same-user activation
+channel and an isolated legacy native process adapter. Phase 6 still owns the
+new Desktop/native machine protocol and crash-lifetime contract.
 No Win32, named-pipe, HWND or legacy environment-variable detail enters Core.

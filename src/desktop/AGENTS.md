@@ -13,8 +13,12 @@ may wire the existing Infrastructure configuration and migration adapters only
 at the Desktop composition root: select one explicit data root, keep edits
 detached, and use separate revision-checked configuration and Desktop-preference
 documents. Preview must remain in-memory and must not construct real adapters.
-ADB/native-host integration belongs to Phase 5C; Phase 6 machine IPC remains
-separate. Read the
+Phase 5C attaches explicit DEV-only discovery, pairing, committed-snapshot
+launch and a replaceable legacy native adapter. Do not start ADB on page open,
+infer USB/network physical identity, launch from dirty drafts, or report a
+channel ready from process existence. Close settles owned ADB/native work
+after the accepted save/discard decision; preview remains in-memory. Phase 6
+machine IPC remains separate. Read the
 [configuration and boundary guide](../../docs/development/desktop-configuration.md)
 before changing v2 persistence, migration, ADB, activation or native-host APIs.
 

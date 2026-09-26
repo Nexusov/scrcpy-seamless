@@ -280,14 +280,14 @@ interface here; broad competitive feature completion remains Phase 10.
 
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
-| 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Pending |
-| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Pending |
-| 5C.3 | Guided pairing with separate explicit profile persistence | Pending |
-| 5C.4 | Execution preflight and immutable native request translated from committed settings | Pending |
-| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Pending |
-| 5C.6 | Device/session actions, cancellation and coordinated application close | Pending |
-| 5C.7 | Same-scope activation and duplicate-launch protection | Pending |
-| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | Pending |
+| 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Implemented locally; synthetic tests passed |
+| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Implemented locally; hardware pending |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Implemented locally; hardware pending |
+| 5C.4 | Execution preflight and immutable native request translated from committed settings | Implemented locally; synthetic tests passed |
+| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Implemented locally; hardware pending |
+| 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
+| 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
+| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | 324 .NET and 16 native tests passed; DEV staging pending; hardware explicitly pending |
 
 ### Phase 5A dependency-ordered checkpoints
 

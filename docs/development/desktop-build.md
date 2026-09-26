@@ -119,5 +119,35 @@ settings and is **not** a side-effect-free preview. For the Phase 5B test root:
 The normal Desktop saves profiles and preferences only on Apply; it does not
 discover a phone, run ADB, start native mirroring or infer online availability.
 The self-contained directory is a local development artifact, not a release or
-replacement for a legacy DEV package. Device/native integration and
-distribution-license review remain later work.
+replacement for a legacy DEV package. Distribution-license review remains
+later work.
+
+### Phase 5C isolated device-enabled DEV bundle
+
+Phase 5C selects `--device-runtime=<absolute directory>` only with an explicit
+`--dev-data-dir=<absolute directory>`. Neither preview nor settings-only startup
+contacts ADB; device-enabled startup attaches the validated bundle but does
+not refresh, pair or mirror until an explicit action. The source-built native
+client and Android server are combined with hash-checked reviewed imported
+ADB/SDL/FFmpeg binaries and image resources. This DEV manifest does not
+replace or modify the canonical 1.x release manifest. The staging script
+copies only its exact dependency list, never the prior DEV app directory or
+personal configuration.
+
+After all source commits and validation, stage the exact HEAD once:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\stage-desktop-device-dev.ps1
+$sourceSha = (git rev-parse --short=8 HEAD).Trim()
+$package = (Resolve-Path ".\dist\dev\scrcpy-seamless-desktop-p05c-g$sourceSha").Path
+& "$package\ScrcpySeamless.Desktop.exe" --preview --scenario=fallback
+& "$package\ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p05c' --page=settings
+& "$package\ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p05c' "--device-runtime=$package\runtime" --page=devices
+```
+
+The last command can affect the previously authorized shared ADB daemon only
+after a user selects Refresh/Pair/Mirror. Keep one active mirror during the
+initial hardware smoke. Session-scoped sanitized lifecycle JSONL is written
+under `.dev-data/p05c/native-sessions/`; its timestamps are local receive
+times, not native event-emission times. Device video/audio/control and
+USB-to-Wi-Fi recovery remain hardware-unverified until a manual run.
