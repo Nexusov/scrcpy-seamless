@@ -34,9 +34,10 @@ $data = 'D:\My Projects\scrcpy-seamless\.dev-data\p05c'
    otherwise use **Connect selected endpoint** with the distinct connection
    service or its manual address. Neither action saves a profile or starts
    mirroring.
-3. In Profiles, create or select the intended DEV profile. The ADB observation
-   label is `model · serial · state`; save its middle USB `serial`, not the
-   first model field. Save the distinct Wi-Fi connection endpoint from the
+3. In Profiles, create or select the intended DEV profile. The current ADB
+   observation row displays the model before the USB transport serial; save
+   the USB serial, not the model. This is guidance for the current display,
+   not an ADB parsing rule. Save the distinct Wi-Fi connection endpoint from the
    `_adb-tls-connect` connection service, not the pairing-code endpoint.
    Select USB as preferred transport, allow fallback, then use **Save to
    draft** followed by **Apply**. Return to Devices,
@@ -105,8 +106,8 @@ The owner ran the same `g2b902065` DEV package with the isolated
 `.dev-data\p05c` root and one active mirror. The saved DEV profile had an
 explicit USB serial, a distinct Wi-Fi connection endpoint, USB preference,
 fallback and reconnect enabled. An initial Mirror attempt was blocked before
-native launch because the ADB observation's model was entered as the USB
-serial; the label is `model · serial · state`. After the serial was corrected
+native launch because the model shown in the current ADB observation row was
+entered as the USB serial. After the serial was corrected
 and the profile was saved through **Save to draft** and **Apply**, the owner
 explicitly selected the USB observation and launched Mirror. The adapter
 passes that selected USB serial to native `-s`; the selected target and

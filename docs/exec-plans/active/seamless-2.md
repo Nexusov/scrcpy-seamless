@@ -276,6 +276,15 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Implemented locally; primary Mirror hardware smoke passed; ready for PR preparation/review |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
 
+Phase 5D integrated acceptance must check discovery when the reviewed package
+starts from an absent shared ADB server, with separate authorization before a
+controlled server restart. Its usability review must also make the model and
+USB transport serial distinguishable and let a user associate the selected
+transport with a saved profile without guessing. Internal selection continues
+to use the typed transport identity; the current display-row position is not
+an ADB parsing contract. This follow-up does not imply automatic profile
+saving, physical-device identity inference or discarding pending edits.
+
 ### Phase 5C dependency-ordered checkpoints
 
 | Checkpoint | Reviewable result | Status |
