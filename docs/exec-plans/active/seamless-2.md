@@ -1,11 +1,9 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5B PR preparation gate: Phase 5A merged
-through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
-the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
-commits. Phase 5B is being prepared for independent PR review; overall Phase 5
-remains incomplete.
-Phase 5C–5D and Phases 6–13 have not started.
+Status at the 2026-09-26 Phase 5C PR #8 correctness gate: Phases 5A and 5B
+are integrated. Phase 5C has an accepted, bounded DEV hardware smoke and an
+open PR; its synthetic safety follow-up is under review. Overall Phase 5
+remains incomplete. Phase 5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,10 +14,10 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The accepted Phase 5A merge is the base for branch `2.0/p05b-settings`.
-Only publication of that branch as a PR into `seamless-2.0` is authorized at
-this gate; merge, tag, release and Phase 5C remain unapproved. Keep the current
-launcher and imported runtime fallback functional. Phase 6 machine IPC,
+The current `2.0/p05c-devices` branch has an open PR into `seamless-2.0`.
+This gate permits bounded follow-up commits and a normal push to that PR;
+merge, tag, release and Phase 5D remain unapproved. Keep the current launcher
+and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
@@ -354,7 +352,20 @@ coverage. The observed evidence is detailed in
 
 The single shared-server restart and mDNS queries had explicit owner approval.
 Pairing was not repeated during the Mirror hardware smoke. Phase 5D has not
-started, and Phase 5C is not yet published.
+started, and Phase 5C PR #8 remains open without integration.
+
+The PR #8 safety follow-up uses deterministic synthetic tests for disabled
+USB fallback, cancelled or rejected Pair/Connect attempts, late native-child
+stop failure and retry, aborted close, and malformed runtime manifests. The
+prepared legacy reconnect environment now follows the saved fallback policy;
+the Desktop retains every started ADB operation through settlement and retains
+native ownership until exact-child cleanup completes. A failed native close
+keeps device services available for retry; failed ADB settlement keeps the
+window open in an explicit restricted state. The local Release solution passes
+393 .NET tests and the unchanged legacy suite passes 28/28. These checks do
+not extend the accepted physical-device claim beyond the original `g2b902065`
+artifact; cold-start discovery and broader native/reconnect guarantees remain
+in their assigned later phases.
 
 ### Phase 5A dependency-ordered checkpoints
 

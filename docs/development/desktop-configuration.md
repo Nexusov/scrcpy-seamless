@@ -27,8 +27,9 @@ when a real configuration exists nearby.
 ## Phase 5C DEV device boundary
 
 An explicit device runtime is validated against its separate DEV hash manifest
-before ADB services or a native host are attached. An absent or invalid runtime
-leaves normal settings editable and blocks Mirror. Startup does not probe ADB:
+before ADB services or a native host are attached. An absent or invalid runtime,
+including malformed or missing manifest fields, leaves normal settings editable
+and blocks Mirror without rewriting the input files. Startup does not probe ADB:
 Refresh, Pair, Connect and Mirror each require a user action. Opening Wireless
 setup is an explicit action that runs one discovery snapshot; use Refresh after
 opening the phone's pairing-code dialog if that first snapshot was too early.
@@ -56,13 +57,25 @@ unsupported legacy reconnect combinations block execution without deleting
 their stored values. Appearance edits do not block Mirror. One active mirror
 is permitted per control center. Process existence reports only process
 evidence; video, audio and control remain unverified until hardware observation.
+For a selected USB transport, the legacy reconnect target is exported only
+when the saved profile permits fallback and the connection plan includes a
+network candidate with a saved endpoint. A selected network transport may
+retry its own saved endpoint even when cross-transport fallback is disabled.
+Reconnect-specific option restrictions apply only when a reconnect target is
+actually enabled; an unused saved endpoint does not block USB recording.
 
 The compatibility adapter owns only its native child, stop event and bounded
 sanitized lifecycle JSONL in the selected DEV data root. It does not stop the
 shared ADB daemon or replace the native client's existing in-process reconnect.
 Same-user normal Desktop activation is scoped to the selected data root;
 preview creates no activation endpoint. Accepted exit decisions cancel/settle
-live work and stop the owned child; a failed native stop keeps the window open.
+live work and stop the owned child. Superseded Pair/Connect operations remain
+tracked through actual command cleanup even after cancellation or a rejected
+replacement. A late native child remains owned if stopping it fails, and an
+explicit Stop can retry. A failed native stop keeps the window and live device
+actions available for a later Stop. If native stop succeeds but ADB work has
+not settled, the window stays open in a restricted state: device actions remain
+disabled, drafts remain in memory, and Close can be retried after settlement.
 Abnormal parent death is not yet a proven orphan-prevention mechanism.
 
 ## Phase 5B editing and Desktop preferences
