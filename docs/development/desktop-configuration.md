@@ -202,8 +202,8 @@ the persistent shared ADB daemon is not application-owned. A cancelled call
 propagates cancellation while an internal timeout reports `TimedOut` through
 the gateway. Device and mDNS text is parsed as untrusted input. The pairing
 code is sent through redirected stdin, not a process command-line argument.
-The generic runner inherits its process environment and does not select an
-ADB mDNS backend. The reviewed DEV runtime packages ADB Platform Tools
+The generic runner accepts explicit child-environment settings but does not
+select an ADB mDNS backend. The reviewed DEV runtime packages ADB Platform Tools
 34.0.5-10900879. Its server selects the mDNS backend at server startup;
 changing a later client environment does not change an already-running shared
 server. A legacy runner explicitly selected Openscreen. During a subsequent
@@ -215,10 +215,19 @@ server is therefore on the Bonjour path at check time, but whether it selected
 Bonjour initially or fell back from Openscreen is unknown. An empty service
 list in this state is not evidence that the phone stopped advertising. The
 gateway now checks mDNS health when the service list is empty and reports
-unavailability separately from a healthy empty result. No runtime override
-is enabled without a controlled server-start check. A future bundled-ADB
-compatibility override belongs to an explicit runtime/composition policy and
-must respect shared-server ownership.
+unavailability separately from a healthy empty result. A controlled restart
+with the exact same ADB binary hash and `ADB_MDNS_OPENSCREEN=1` selected
+`Openscreen discovery 0.0.0`; with the phone's pairing-code screen open, the
+Desktop displayed its pairing service immediately. This establishes that the
+observed empty ADB result preceded UI parsing, and that Openscreen discovery
+works in the tested setup. It does not establish why the earlier Bonjour
+daemon query failed or whether a restart alone would have recovered it.
+The validated runtime policy matches the reviewed ADB 34.0.5 executable by
+SHA-256 and passes `ADB_MDNS_OPENSCREEN=1` to Desktop ADB children and the
+legacy native child. The policy can select the backend only if one of these
+children starts a server; it never changes or restarts an existing shared
+server. Other ADB binaries inherit their normal environment.
+
 Pairing codes are transient and absent from saved profiles, result/error
 objects and diagnostics. After a network connection,
 `adb -s <network-endpoint> shell getprop ro.serialno` reports an observed

@@ -87,3 +87,9 @@ is otherwise unknown; do not restart it as a diagnostic shortcut. ADB 34.0.5
 may return `ERROR: mdns daemon unavailable` from `mdns check` with exit code
 zero. That means discovery is unavailable on the current server and must not
 be reported as "no phone found" merely because `mdns services` is empty.
+
+The exact reviewed ADB 34.0.5 runtime now gives its child processes an
+Openscreen startup setting, but an existing shared server retains its backend.
+The controlled Openscreen startup check reported a healthy backend and the
+owner observed the pairing service appear immediately while the phone's code
+dialog was open. The package still needs the Mirror hardware smoke above.

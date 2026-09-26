@@ -308,20 +308,26 @@ path only; Phase 5C mirroring and USB-to-Wi-Fi recovery remain hardware-pending.
 The focused pairing follow-up restores discovery-first Wireless setup with
 an explicit manual fallback and visible Pair eligibility reasons. Synthetic
 tests cover candidate selection, stale discovery, cancellation and corrected
-pairing response classification. The reported empty service list is not yet
-attributed to the server, parser, timing or network: the corresponding raw
-`adb mdns services` output and active server backend were not captured. Bundled
-ADB remains pinned at 34.0.5. A subsequent owner-run check with the phone
+pairing response classification. The initial empty service-list report lacked
+raw ADB output and server-backend evidence. Bundled ADB remains pinned at
+34.0.5. A subsequent owner-run check with the phone
 pairing dialog open returned zero services, while `adb mdns check` reported
 `ERROR: mdns daemon unavailable` despite exit zero. The current shared server
 was on the Bonjour path at check time; why its daemon query failed and whether
 it previously attempted Openscreen remain unknown. The gateway now probes
 mDNS health only after an empty service list and presents unavailable discovery
-separately from a healthy empty list. No backend override or shared-server
-restart was introduced. An isolated DEV package and owner-run discovery/mirror
-smoke remain the Phase 5C acceptance gate.
-No Phase 5C phone/ADB operation has been run by automation. The manual gate is
-in [the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
+separately from a healthy empty list. A single authorized shared-server restart
+with the same ADB 34.0.5 hash and process-local Openscreen setting changed
+`mdns check` to `Openscreen discovery 0.0.0`. With the pairing dialog open, the
+owner then observed the pairing service immediately in Desktop. The validated
+runtime now applies that setting only to child processes that may start the
+server; it does not restart or reconfigure an existing server. The earlier
+Bonjour daemon failure remains unexplained, and mirroring hardware smoke
+remains the Phase 5C acceptance gate.
+
+The single shared-server restart and mDNS queries had explicit owner approval.
+Pairing was not repeated, and the Mirror hardware gate remains manual in
+[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 
 ### Phase 5A dependency-ordered checkpoints
 

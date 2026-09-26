@@ -21,6 +21,9 @@ after the accepted save/discard decision; preview remains in-memory. Phase 6
 machine IPC remains separate. Read the
 [configuration and boundary guide](../../docs/development/desktop-configuration.md)
 before changing v2 persistence, migration, ADB, activation or native-host APIs.
+The validated ADB 34.0.5 DEV runtime selects Openscreen only through explicit
+Desktop composition settings on child processes that may start the shared
+server. Never reset a pre-existing shared ADB server as an automatic repair.
 
 Phase 4 option descriptors under Core are generated from
 `spec/options/options.yaml`. Change the spec and run SpecGen; do not hand-edit
