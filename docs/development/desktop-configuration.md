@@ -47,6 +47,16 @@ mDNS discovery is unavailable. Pairing and Connect neither save a profile nor
 start mirroring; use the Profiles editor and its existing revision-checked Apply
 to persist changes.
 
+Phase 5D labels a discovered row with its model, route and actual ADB selector
+as separate concepts. In the normal Profiles editor, **Use selected ADB
+transport in this profile draft** copies a fresh, explicitly selected USB
+serial into only the USB field, or a concrete network endpoint into only the
+connection field. An opaque or unknown route remains manual; its display name
+is never treated as identity. The action refuses to replace an unstaged editor
+buffer. It neither pairs nor saves: Save to draft and Apply remain separate,
+revision-checked steps. The pairing endpoint remains distinct from the
+connection endpoint.
+
 Mirror requires a selected saved profile, a fresh explicitly selected eligible
 ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before

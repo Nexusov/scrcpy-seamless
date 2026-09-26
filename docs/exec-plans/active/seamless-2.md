@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-26 Phase 5C PR #8 correctness gate: Phases 5A and 5B
-are integrated. Phase 5C has an accepted, bounded DEV hardware smoke and an
-open PR; its synthetic safety follow-up is under review. Overall Phase 5
-remains incomplete. Phase 5D and Phases 6–13 have not started.
+Status at the 2026-09-26 Phase 5D local acceptance gate: Phases 5A–5C are
+integrated. PR #8 merged as `a3b1aa2b983cafbaa524a86502b1424315521582`,
+preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
+Phase 5D is in progress locally; overall Phase 5 remains incomplete. Phases
+6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -14,10 +15,10 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The current `2.0/p05c-devices` branch has an open PR into `seamless-2.0`.
-This gate permits bounded follow-up commits and a normal push to that PR;
-merge, tag, release and Phase 5D remain unapproved. Keep the current launcher
-and imported runtime fallback functional. Phase 6 machine IPC,
+The local `2.0/p05d-acceptance` branch starts from the verified PR #8 merge.
+This gate permits local Phase 5D work and an isolated DEV artifact, but no
+Phase 5D push, PR, merge, tag or release. Keep the current launcher and
+imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
@@ -271,8 +272,8 @@ interface here; broad competitive feature completion remains Phase 10.
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
-| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Implemented locally; primary Mirror hardware smoke passed; ready for PR preparation/review |
-| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
+| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Accepted and integrated through PR #8; historical hardware smoke remains tied to `g2b902065` |
+| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; manual acceptance pending |
 
 Phase 5D integrated acceptance must check discovery when the reviewed package
 starts from an absent shared ADB server, with separate authorization before a
@@ -282,6 +283,17 @@ transport with a saved profile without guessing. Internal selection continues
 to use the typed transport identity; the current display-row position is not
 an ADB parsing contract. This follow-up does not imply automatic profile
 saving, physical-device identity inference or discarding pending edits.
+
+### Phase 5D dependency-ordered checkpoints
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 5D.1 | Reconcile implemented Phase 5 scope with existing synthetic and hardware evidence | Integrated matrix recorded; prior phone results remain artifact-specific |
+| 5D.2 | Make selected transport and saved-profile association explicit without transcribing the model as a serial | Implemented with typed route evidence, explicit draft action and passing focused tests |
+| 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected and passing; actual Windows and screen-reader limits remain to record |
+| 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | Pending code validation and staging |
+| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | Pending final artifact |
+| 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | Pending user participation; no hardware acceptance claimed |
 
 ### Phase 5C dependency-ordered checkpoints
 
@@ -352,7 +364,7 @@ coverage. The observed evidence is detailed in
 
 The single shared-server restart and mDNS queries had explicit owner approval.
 Pairing was not repeated during the Mirror hardware smoke. Phase 5D has not
-started, and Phase 5C PR #8 remains open without integration.
+started at the time of that smoke; Phase 5C PR #8 is now integrated.
 
 The PR #8 safety follow-up uses deterministic synthetic tests for disabled
 USB fallback, cancelled or rejected Pair/Connect attempts, late native-child
