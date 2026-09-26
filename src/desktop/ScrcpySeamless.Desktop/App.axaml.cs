@@ -80,7 +80,7 @@ public partial class App : Application
                 if (disposition == ActivationDisposition.ForwardedToPrimary)
                 {
                     activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    desktopLifetime.Shutdown();
+                    Dispatcher.UIThread.Post(() => desktopLifetime.Shutdown());
                     base.OnFrameworkInitializationCompleted();
                     return;
                 }
