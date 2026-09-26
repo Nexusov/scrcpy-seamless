@@ -36,6 +36,11 @@ A package must never include:
 
 Keep package-content tests explicit.
 
+The Phase 5C Desktop DEV staging script admits only exact hashed runtime
+components and a self-contained Desktop publish under `dist/dev`. Its manifest
+is not the canonical 1.x release manifest; never copy a whole prior DEV `app/`
+directory because it may contain personal configuration or logs.
+
 ## Provenance
 
 Do not bypass a provenance/hash failure by merely updating expected hashes.

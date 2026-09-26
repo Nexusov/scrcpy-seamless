@@ -1,11 +1,9 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-25 Phase 5B PR preparation gate: Phase 5A merged
-through PR #6 at `190bce459895c25e5d1b2ac6708acf0b0d426a70`, preserving
-the approved `75cf922981042accdd45126099d2ebf4b983ac07` head and its ten
-commits. Phase 5B is being prepared for independent PR review; overall Phase 5
-remains incomplete.
-Phase 5C–5D and Phases 6–13 have not started.
+Status at the 2026-09-26 Phase 5C PR #8 correctness gate: Phases 5A and 5B
+are integrated. Phase 5C has an accepted, bounded DEV hardware smoke and an
+open PR; its synthetic safety follow-up is under review. Overall Phase 5
+remains incomplete. Phase 5D and Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -16,10 +14,10 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The accepted Phase 5A merge is the base for branch `2.0/p05b-settings`.
-Only publication of that branch as a PR into `seamless-2.0` is authorized at
-this gate; merge, tag, release and Phase 5C remain unapproved. Keep the current
-launcher and imported runtime fallback functional. Phase 6 machine IPC,
+The current `2.0/p05c-devices` branch has an open PR into `seamless-2.0`.
+This gate permits bounded follow-up commits and a normal push to that PR;
+merge, tag, release and Phase 5D remain unapproved. Keep the current launcher
+and imported runtime fallback functional. Phase 6 machine IPC,
 Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
@@ -272,9 +270,102 @@ interface here; broad competitive feature completion remains Phase 10.
 | Slice | Dependency | Acceptance boundary | Status |
 | --- | --- | --- | --- |
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
-| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | PR preparation; independent review pending |
-| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Not started |
+| 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
+| 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Implemented locally; primary Mirror hardware smoke passed; ready for PR preparation/review |
 | 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Not started |
+
+Phase 5D integrated acceptance must check discovery when the reviewed package
+starts from an absent shared ADB server, with separate authorization before a
+controlled server restart. Its usability review must also make the model and
+USB transport serial distinguishable and let a user associate the selected
+transport with a saved profile without guessing. Internal selection continues
+to use the typed transport identity; the current display-row position is not
+an ADB parsing contract. This follow-up does not imply automatic profile
+saving, physical-device identity inference or discarding pending edits.
+
+### Phase 5C dependency-ordered checkpoints
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 5C.1 | Explicit device-enabled composition, validated runtime paths and committed launch snapshot | Implemented locally; synthetic tests passed |
+| 5C.2 | Explicit live discovery and truthful saved-profile/device association | Discovery observed in the final DEV package with an already-running Openscreen server; cold-start discovery pending Phase 5D |
+| 5C.3 | Guided pairing with separate explicit profile persistence | Pairing succeeded in an earlier owner-run DEV check; a separate profile was saved with Apply for the Mirror smoke |
+| 5C.4 | Execution preflight and immutable native request translated from committed settings | Implemented locally; synthetic tests passed |
+| 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Owner-run USB-to-Wi-Fi Mirror and Stop smoke passed; PID/HWND continuity sampled |
+| 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
+| 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
+| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; one primary real-device Mirror cycle passed |
+
+The local Phase 5C boundary has 328 passing .NET tests, 16 native tests,
+28 legacy suites, SpecGen verify, metadata and DocsCheck. The isolated DEV
+stage validates source-built native/server bytes and imports only reviewed
+ADB/SDL/FFmpeg/runtime resources. A desktop process smoke opened and closed
+preview, settings-only and device-enabled UI on synthetic roots without a
+device action. A second same-root settings-only process exposed an early
+dispatcher-shutdown exception; a focused follow-up defers its shutdown until
+the event loop starts, and a repeat process smoke forwarded/exited with code
+zero while the primary remained open. During the manual pairing gate, the owner
+reported that Desktop displayed a pairing failure while the packaged ADB CLI
+successfully paired with the same endpoint and code. The parser rejected ADB's
+successful response when its non-newline code prompt shared the output line.
+A focused regression test failed before and passed after the local parser fix.
+The owner then reported `Pairing succeeded` through the rebuilt
+`scrcpy-seamless-desktop-p05c-gb3976af5` DEV package. This verifies the pairing
+path only; the later Mirror smoke is recorded separately below.
+The focused pairing follow-up restores discovery-first Wireless setup with
+an explicit manual fallback and visible Pair eligibility reasons. Synthetic
+tests cover candidate selection, stale discovery, cancellation and corrected
+pairing response classification. The initial empty service-list report lacked
+raw ADB output and server-backend evidence. Bundled ADB remains pinned at
+34.0.5. A subsequent owner-run check with the phone
+pairing dialog open returned zero services, while `adb mdns check` reported
+`ERROR: mdns daemon unavailable` despite exit zero. The current shared server
+was on the Bonjour path at check time; why its daemon query failed and whether
+it previously attempted Openscreen remain unknown. The gateway now probes
+mDNS health only after an empty service list and presents unavailable discovery
+separately from a healthy empty list. A single authorized shared-server restart
+with the same ADB 34.0.5 hash and process-local Openscreen setting changed
+`mdns check` to `Openscreen discovery 0.0.0`. With the pairing dialog open, the
+owner then observed the pairing service immediately in Desktop. The validated
+runtime now applies that setting only to child processes that may start the
+server; it does not restart or reconfigure an existing server. The earlier
+Bonjour daemon failure remains unexplained. The owner reported that the
+pairing device appeared in the final `scrcpy-seamless-desktop-p05c-g2b902065`
+DEV package while the shared Openscreen server was already running. This
+confirms discovery in that package but does not independently validate a
+cold-start server selection. Cold-start discovery from an absent shared ADB
+server remains an explicit integrated Phase 5D validation item; this task did
+not restart the shared server.
+
+The owner then used the same `g2b902065` package and an isolated committed DEV
+profile to launch Mirror with an explicitly selected USB ADB transport. After
+correcting a model-versus-serial entry in the profile, the owner confirmed
+USB video, PC control and audible PC audio, physically removed USB, and
+confirmed video, control and audio after Wi-Fi recovery. Exact-path native
+samples before and after had PID `34212`, start time
+`2026-09-26T13:22:12.9316230Z` and HWND `1641858`. Stop closed the mirror
+window and exited the owned process; Desktop reported `stopped`, the saved
+profile remained present and the shared ADB server remained running. This is
+one successful primary hardware cycle, not exhaustive device or channel
+coverage. The observed evidence is detailed in
+[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
+
+The single shared-server restart and mDNS queries had explicit owner approval.
+Pairing was not repeated during the Mirror hardware smoke. Phase 5D has not
+started, and Phase 5C PR #8 remains open without integration.
+
+The PR #8 safety follow-up uses deterministic synthetic tests for disabled
+USB fallback, cancelled or rejected Pair/Connect attempts, late native-child
+stop failure and retry, aborted close, and malformed runtime manifests. The
+prepared legacy reconnect environment now follows the saved fallback policy;
+the Desktop retains every started ADB operation through settlement and retains
+native ownership until exact-child cleanup completes. A failed native close
+keeps device services available for retry; failed ADB settlement keeps the
+window open in an explicit restricted state. The local Release solution passes
+393 .NET tests and the unchanged legacy suite passes 28/28. These checks do
+not extend the accepted physical-device claim beyond the original `g2b902065`
+artifact; cold-start discovery and broader native/reconnect guarantees remain
+in their assigned later phases.
 
 ### Phase 5A dependency-ordered checkpoints
 

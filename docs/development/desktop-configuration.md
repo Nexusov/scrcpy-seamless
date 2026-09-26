@@ -4,8 +4,10 @@ Phase 3 provides a headless C# foundation. The current WinForms/PowerShell
 launcher and canonical 1.x package do not consume these classes yet; no user
 configuration is migrated merely by building or testing the solution. Phase 5A
 introduced the Avalonia shell and an explicitly simulated preview. Phase 5B
-adds an opt-in normal settings composition with real local files; preview still
-constructs no persistent, ADB or native adapters.
+adds an opt-in normal settings composition with real local files. Phase 5C
+adds device operations only for `--dev-data-dir=<absolute>` together with
+`--device-runtime=<absolute>`. Preview still constructs no persistent, ADB,
+activation or native adapters.
 
 ## Storage and authority
 
@@ -21,6 +23,60 @@ or an explicit selected root, never the current working directory. A missing
 document stays absent until Apply. Malformed or ambiguous launch arguments are
 rejected. `--preview` accepts no storage selection and remains in memory even
 when a real configuration exists nearby.
+
+## Phase 5C DEV device boundary
+
+An explicit device runtime is validated against its separate DEV hash manifest
+before ADB services or a native host are attached. An absent or invalid runtime,
+including malformed or missing manifest fields, leaves normal settings editable
+and blocks Mirror without rewriting the input files. Startup does not probe ADB:
+Refresh, Pair, Connect and Mirror each require a user action. Opening Wireless
+setup is an explicit action that runs one discovery snapshot; use Refresh after
+opening the phone's pairing-code dialog if that first snapshot was too early.
+The interface distinguishes not searched, searching, empty, failed and cancelled
+pairing discovery from USB transport observations. One fresh pairing service is
+visibly preselected, multiple services require selection, and manual pairing
+address entry is an explicit fallback. Pair eligibility and its visible reason
+use the same validation; changing or losing a target clears the pairing code.
+Pair never needs a connection endpoint and never connects automatically.
+Refresh distinguishes a
+failed/stale observation from an authoritative empty result; selecting a saved
+profile does not select an ADB transport. Pairing and connection endpoints have
+different purposes. An already paired endpoint can be connected manually when
+mDNS discovery is unavailable. Pairing and Connect neither save a profile nor
+start mirroring; use the Profiles editor and its existing revision-checked Apply
+to persist changes.
+
+Mirror requires a selected saved profile, a fresh explicitly selected eligible
+ADB transport and no pending profile/mirroring edits. It rereads the committed
+v2 document and checks its byte revision against the loaded editor before
+building an immutable native request. A selected Wi-Fi endpoint that differs
+from the saved profile blocks launch until the profile is explicitly updated.
+Unknown/managed options and currently
+unsupported legacy reconnect combinations block execution without deleting
+their stored values. Appearance edits do not block Mirror. One active mirror
+is permitted per control center. Process existence reports only process
+evidence; video, audio and control remain unverified until hardware observation.
+For a selected USB transport, the legacy reconnect target is exported only
+when the saved profile permits fallback and the connection plan includes a
+network candidate with a saved endpoint. A selected network transport may
+retry its own saved endpoint even when cross-transport fallback is disabled.
+Reconnect-specific option restrictions apply only when a reconnect target is
+actually enabled; an unused saved endpoint does not block USB recording.
+
+The compatibility adapter owns only its native child, stop event and bounded
+sanitized lifecycle JSONL in the selected DEV data root. It does not stop the
+shared ADB daemon or replace the native client's existing in-process reconnect.
+Same-user normal Desktop activation is scoped to the selected data root;
+preview creates no activation endpoint. Accepted exit decisions cancel/settle
+live work and stop the owned child. Superseded Pair/Connect operations remain
+tracked through actual command cleanup even after cancellation or a rejected
+replacement. A late native child remains owned if stopping it fails, and an
+explicit Stop can retry. A failed native stop keeps the window and live device
+actions available for a later Stop. If native stop succeeds but ADB work has
+not settled, the window stays open in a restricted state: device actions remain
+disabled, drafts remain in memory, and Close can be retried after settlement.
+Abnormal parent death is not yet a proven orphan-prevention mechanism.
 
 ## Phase 5B editing and Desktop preferences
 
@@ -159,9 +215,32 @@ the persistent shared ADB daemon is not application-owned. A cancelled call
 propagates cancellation while an internal timeout reports `TimedOut` through
 the gateway. Device and mDNS text is parsed as untrusted input. The pairing
 code is sent through redirected stdin, not a process command-line argument.
-The generic runner inherits its process environment and does not select an
-ADB mDNS backend. A future bundled-ADB compatibility override belongs to an
-explicit runtime/composition policy, after reviewing that toolchain version.
+The generic runner accepts explicit child-environment settings but does not
+select an ADB mDNS backend. The reviewed DEV runtime packages ADB Platform Tools
+34.0.5-10900879. Its server selects the mDNS backend at server startup;
+changing a later client environment does not change an already-running shared
+server. A legacy runner explicitly selected Openscreen. During a subsequent
+owner-run check with the phone pairing dialog open, `adb mdns services` returned
+an empty list while `adb mdns check` returned `ERROR: mdns daemon unavailable`
+with process exit zero. In [ADB 34.0.5's Bonjour implementation](https://android.googlesource.com/platform/packages/modules/adb/+/refs/tags/platform-tools-34.0.5/client/mdnsresponder_client.cpp),
+that reply means the server's DNSService daemon query failed. The current
+server is therefore on the Bonjour path at check time, but whether it selected
+Bonjour initially or fell back from Openscreen is unknown. An empty service
+list in this state is not evidence that the phone stopped advertising. The
+gateway now checks mDNS health when the service list is empty and reports
+unavailability separately from a healthy empty result. A controlled restart
+with the exact same ADB binary hash and `ADB_MDNS_OPENSCREEN=1` selected
+`Openscreen discovery 0.0.0`; with the phone's pairing-code screen open, the
+Desktop displayed its pairing service immediately. This establishes that the
+observed empty ADB result preceded UI parsing, and that Openscreen discovery
+works in the tested setup. It does not establish why the earlier Bonjour
+daemon query failed or whether a restart alone would have recovered it.
+The validated runtime policy matches the reviewed ADB 34.0.5 executable by
+SHA-256 and passes `ADB_MDNS_OPENSCREEN=1` to Desktop ADB children and the
+legacy native child. The policy can select the backend only if one of these
+children starts a server; it never changes or restarts an existing shared
+server. Other ADB binaries inherit their normal environment.
+
 Pairing codes are transient and absent from saved profiles, result/error
 objects and diagnostics. After a network connection,
 `adb -s <network-endpoint> shell getprop ro.serialno` reports an observed
@@ -177,6 +256,7 @@ separate even when advertised by the same handset.
 capabilities and bounded retry/failback policy. It does not run reconnection;
 the native ConnectionManager belongs to Phase 8. Core also defines a
 same-user, single-control-center activation contract and an owned native-host
-start/stop/completion contract. The Windows activation channel, Desktop window
-focus behavior and native process adapter remain for later Desktop/IPC phases.
+start/stop/completion contract. Phase 5C wires the Windows same-user activation
+channel and an isolated legacy native process adapter. Phase 6 still owns the
+new Desktop/native machine protocol and crash-lifetime contract.
 No Win32, named-pipe, HWND or legacy environment-variable detail enters Core.

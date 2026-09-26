@@ -27,6 +27,125 @@
           </ComboBox>
         </StackPanel>
       </Grid>
+      <!-- Live controls are visible only when composition explicitly attaches ADB services. -->
+      <StackPanel IsVisible="{Binding IsLiveEnabled}" Spacing="12">
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="sectionTitle" Text="{Binding LiveDiscoveryTitle}" />
+            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+              <Button Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}"
+                      IsEnabled="{Binding CanRefresh}" AutomationProperties.AutomationId="devices.refresh" />
+              <Button Content="{Binding CancelRefreshLabel}" Command="{Binding CancelRefreshCommand}"
+                      IsEnabled="{Binding CanCancelRefresh}" AutomationProperties.AutomationId="devices.cancelRefresh" />
+            </WrapPanel>
+            <TextBlock Text="{Binding DiscoveryStatusLabel}" Classes="muted" />
+            <TextBlock Text="{Binding DiscoveryMessage}" TextWrapping="Wrap" Classes="muted" />
+            <TextBlock Text="{Binding StaleMessage}"
+                       Classes="muted" IsVisible="{Binding IsObservationStale}" />
+            <ComboBox ItemsSource="{Binding ObservedDevices}"
+                      SelectedItem="{Binding SelectedDeviceChoice, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="devices.observedSelection">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ObservedDeviceChoice">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+        </Border>
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="sectionTitle" Text="{Binding LivePairingTitle}" />
+            <Button Content="{Binding OpenWirelessSetupLabel}" Command="{Binding OpenWirelessSetupCommand}"
+                    IsVisible="{Binding IsWirelessSetupClosed}"
+                    AutomationProperties.AutomationId="devices.openWirelessSetup" />
+            <!-- Wireless effects start only after this explicit setup action. -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsWirelessSetupOpen}">
+              <TextBlock Text="{Binding PairingDescription}" TextWrapping="Wrap" Classes="muted" />
+              <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                <Button Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}"
+                        IsEnabled="{Binding CanRefresh}" AutomationProperties.AutomationId="devices.refreshPairing" />
+                <Button Content="{Binding CancelRefreshLabel}" Command="{Binding CancelRefreshCommand}"
+                        IsEnabled="{Binding CanCancelRefresh}" AutomationProperties.AutomationId="devices.cancelPairingRefresh" />
+                <Button Content="{Binding CloseWirelessSetupLabel}" Command="{Binding CloseWirelessSetupCommand}"
+                        IsEnabled="{Binding CanCloseWirelessSetup}"
+                        AutomationProperties.AutomationId="devices.closeWirelessSetup" />
+              </WrapPanel>
+              <TextBlock Text="{Binding PairingDiscoveryStatusLabel}" TextWrapping="Wrap" Classes="muted"
+                         AutomationProperties.Name="{Binding PairingDiscoveryStatusLabel}" />
+              <TextBlock Text="{Binding ServiceMessage}" TextWrapping="Wrap" Classes="muted" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsDiscoveredPairing}">
+                <TextBlock Text="{Binding PairingServiceLabel}" Classes="muted" />
+                <ComboBox ItemsSource="{Binding PairingServices}"
+                          SelectedItem="{Binding SelectedPairingService, Mode=TwoWay}"
+                          AutomationProperties.Name="{Binding PairingServiceLabel}"
+                          AutomationProperties.AutomationId="devices.pairingService">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ObservedServiceChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="{Binding ShowManualPairingLabel}" Command="{Binding ShowManualPairingCommand}"
+                        AutomationProperties.AutomationId="devices.showManualPairing" />
+              </StackPanel>
+              <StackPanel Spacing="8" IsVisible="{Binding IsManualPairing}">
+                <TextBox PlaceholderText="{Binding ManualPairingLabel}"
+                         Text="{Binding ManualPairingEndpoint, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding ManualPairingLabel}"
+                         AutomationProperties.AutomationId="devices.manualPairingEndpoint" />
+                <Button Content="{Binding UseDiscoveredPairingLabel}" Command="{Binding UseDiscoveredPairingCommand}"
+                        AutomationProperties.AutomationId="devices.useDiscoveredPairing" />
+              </StackPanel>
+              <TextBox PlaceholderText="{Binding PairCodeLabel}" PasswordChar="●" MaxLength="6"
+                       Text="{Binding PairingCode, Mode=TwoWay}"
+                       AutomationProperties.Name="{Binding PairCodeLabel}"
+                       AutomationProperties.AutomationId="devices.pairingCode" />
+              <TextBlock Text="{Binding PairEligibilityMessage}" TextWrapping="Wrap" Classes="muted"
+                         AutomationProperties.Name="{Binding PairEligibilityMessage}" />
+              <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                <Button Content="{Binding PairLabel}" Command="{Binding PairCommand}" IsEnabled="{Binding CanPair}"
+                        AutomationProperties.AutomationId="devices.pair" />
+                <Button Content="{Binding CancelPairLabel}" Command="{Binding CancelPairCommand}"
+                        IsEnabled="{Binding CanCancelPair}" AutomationProperties.AutomationId="devices.cancelPair" />
+              </WrapPanel>
+              <TextBlock Text="{Binding PairingMessage}" TextWrapping="Wrap" Classes="muted" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsDiscoveredConnection}">
+                <TextBlock Text="{Binding ConnectionServiceLabel}" Classes="muted" />
+                <ComboBox ItemsSource="{Binding ConnectionServices}"
+                          SelectedItem="{Binding SelectedConnectionService, Mode=TwoWay}"
+                          AutomationProperties.Name="{Binding ConnectionServiceLabel}"
+                          AutomationProperties.AutomationId="devices.connectionService">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ObservedServiceChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="{Binding ShowManualConnectionLabel}" Command="{Binding ShowManualConnectionCommand}"
+                        AutomationProperties.AutomationId="devices.showManualConnection" />
+              </StackPanel>
+              <StackPanel Spacing="8" IsVisible="{Binding IsManualConnection}">
+                <TextBox PlaceholderText="{Binding ManualConnectionLabel}"
+                         Text="{Binding ManualConnectionEndpoint, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding ManualConnectionLabel}"
+                         AutomationProperties.AutomationId="devices.manualConnectionEndpoint" />
+                <Button Content="{Binding UseDiscoveredConnectionLabel}" Command="{Binding UseDiscoveredConnectionCommand}"
+                        AutomationProperties.AutomationId="devices.useDiscoveredConnection" />
+              </StackPanel>
+              <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                <Button Content="{Binding ConnectLabel}" Command="{Binding ConnectCommand}"
+                        IsEnabled="{Binding CanConnect}" AutomationProperties.AutomationId="devices.connect" />
+                <Button Content="{Binding CancelConnectLabel}" Command="{Binding CancelConnectCommand}"
+                        IsEnabled="{Binding CanCancelConnect}" AutomationProperties.AutomationId="devices.cancelConnect" />
+              </WrapPanel>
+              <TextBlock Text="{Binding ConnectionMessage}" TextWrapping="Wrap" Classes="muted" />
+              <TextBlock Text="{Binding ConnectedEndpointLabel}" TextWrapping="Wrap" Classes="muted" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+      <ContentControl Content="{Binding SessionActions}" IsVisible="{Binding HasSessionActions}" />
       <Border Classes="card" IsVisible="{Binding IsEmpty}"
               AutomationProperties.AutomationId="devices.empty">
         <StackPanel Spacing="12" Margin="4,8,4,12">

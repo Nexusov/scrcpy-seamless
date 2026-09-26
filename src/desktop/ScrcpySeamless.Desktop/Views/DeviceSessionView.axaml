@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.DeviceSessionView"
+             x:DataType="vm:DeviceSessionViewModel">
+  <Border Classes="card">
+    <StackPanel Spacing="10">
+      <TextBlock Classes="sectionTitle" Text="Mirror session" />
+      <TextBlock Text="Select and save a profile in Profiles, then select a fresh ADB transport above."
+                 TextWrapping="Wrap" Classes="muted" />
+      <ComboBox ItemsSource="{Binding ProfileChoices}" SelectedItem="{Binding SelectedLaunchProfile, Mode=TwoWay}"
+                AutomationProperties.AutomationId="devices.launchProfile">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SavedProfileChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+        <Button Content="Mirror" Command="{Binding MirrorCommand}"
+                AutomationProperties.AutomationId="devices.mirror" />
+        <Button Content="Stop" Command="{Binding StopCommand}"
+                AutomationProperties.AutomationId="devices.stop" />
+      </WrapPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding ChannelEvidence}" Classes="muted" />
+      <TextBlock Text="{Binding ProcessId, StringFormat='Owned native PID: {0}'}" Classes="muted" />
+      <TextBlock Text="{Binding WindowHandle, StringFormat='Observed HWND: {0}'}" Classes="muted" />
+    </StackPanel>
+  </Border>
+</UserControl>
