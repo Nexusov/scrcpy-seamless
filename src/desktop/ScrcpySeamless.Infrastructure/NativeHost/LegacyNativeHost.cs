@@ -29,7 +29,7 @@ public sealed class LegacyNativeHost : INativeHost
     }
 
     /// <summary>Creates the graceful-stop event before launching one owned child.</summary>
-    public async Task<INativeSession> StartAsync(NativeStartRequest request, CancellationToken cancellationToken)
+    public Task<INativeSession> StartAsync(NativeStartRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
@@ -49,22 +49,8 @@ public sealed class LegacyNativeHost : INativeHost
             Directory.CreateDirectory(sessionDataRoot);
             lifecycleLog = new LegacyNativeLifecycleLog(sessionDataRoot, request.SessionId);
             LegacyNativeSession session = LegacyNativeSession.Start(request.SessionId, startInfo, stopEvent, lifecycleLog);
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await session.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None);
-                }
-                finally
-                {
-                    await session.DisposeAsync();
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            return session;
+            // Once spawned, transfer the child even if cancellation raced with process creation.
+            return Task.FromResult<INativeSession>(session);
         }
         catch
         {

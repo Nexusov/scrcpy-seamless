@@ -22,6 +22,7 @@ public sealed class LegacyNativeSession : INativeSession
     private readonly Task<(string Text, bool Truncated)> errorTask;
     private readonly object stopLock = new();
     private Task? stopTask;
+    private Task? disposeTask;
     private NativeTerminationReason? requestedReason;
     private bool forced;
     private bool disposed;
@@ -96,30 +97,83 @@ public sealed class LegacyNativeSession : INativeSession
     public async Task StopAsync(NativeTerminationReason reason, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Task attempt;
 
         lock (stopLock)
         {
             stopTask ??= StopCoreAsync(reason);
+            attempt = stopTask;
         }
 
-        await stopTask.WaitAsync(cancellationToken);
+        try
+        {
+            await attempt.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            if (attempt.IsFaulted || attempt.IsCanceled)
+            {
+                lock (stopLock)
+                {
+                    if (ReferenceEquals(stopTask, attempt))
+                    {
+                        stopTask = null;
+                    }
+                }
+            }
+
+            throw;
+        }
     }
 
     /// <summary>Stops and releases owned handles after process and stream completion.</summary>
     public async ValueTask DisposeAsync()
     {
-        if (disposed)
+        Task disposal;
+
+        lock (stopLock)
         {
-            return;
+            if (disposed)
+            {
+                return;
+            }
+
+            disposeTask ??= DisposeCoreAsync();
+            disposal = disposeTask;
         }
 
+        try
+        {
+            await disposal;
+        }
+        catch
+        {
+            lock (stopLock)
+            {
+                if (ReferenceEquals(disposeTask, disposal))
+                {
+                    disposeTask = null;
+                }
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>Releases handles only after an owned child has settled.</summary>
+    private async Task DisposeCoreAsync()
+    {
         await StopAsync(NativeTerminationReason.ApplicationShutdown, CancellationToken.None);
-        disposed = true;
         await readerCancellation.CancelAsync();
         readerCancellation.Dispose();
         stopEvent.Dispose();
         lifecycleLog?.Dispose();
         process.Dispose();
+
+        lock (stopLock)
+        {
+            disposed = true;
+        }
     }
 
     /// <summary>Signals native SDL quit before any forceful child-only termination.</summary>

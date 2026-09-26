@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using ScrcpySeamless.Core;
+using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.Connection;
 using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Core.Configuration;
@@ -99,6 +100,54 @@ public sealed class LegacyNativeHostTests
         }
         finally
         {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>A forbidden USB fallback cannot be restored by inherited legacy environment.</summary>
+    [Fact]
+    public void DisabledUsbFallbackClearsInheritedReconnectEnvironment()
+    {
+        const string reconnectVariable = "SCRCPY_RECONNECT_SERIAL";
+        string? originalTarget = Environment.GetEnvironmentVariable(reconnectVariable);
+        string directory = CreateDirectory();
+
+        try
+        {
+            Environment.SetEnvironmentVariable(reconnectVariable, "inherited.example:37123");
+            DeviceProfile profile = new()
+            {
+                Id = ProfileId.New(),
+                UsbIdentity = new UsbSerial("SYNTHETIC_USB"),
+                ConnectionEndpoint = NetworkEndpoint.Parse("synthetic.example:37123"),
+                Connection = new ConnectionPreferences
+                {
+                    PreferredTransport = TransportPreference.Usb,
+                    AllowFallback = false,
+                },
+            };
+            ConfigurationV2 configuration = new()
+            {
+                Profiles = [profile],
+                Mirroring = new MirroringPreferences { Reconnect = true },
+            };
+            NativeLaunchPreparation preparation = NativeLaunchPreflight.Prepare(configuration, "synthetic-revision",
+                profile.Id, new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+            Assert.True(preparation.IsReady);
+
+            LegacyNativeHost host = new(
+                CreateFile(directory, "scrcpy.exe"),
+                CreateFile(directory, "scrcpy-server"),
+                CreateFile(directory, "adb.exe"),
+                Path.Combine(directory, "sessions"));
+            ProcessStartInfo startInfo = host.CreateStartInfo(preparation.Request!, "Local\\synthetic-stop");
+
+            Assert.False(startInfo.Environment.ContainsKey(reconnectVariable));
+            Assert.Equal("inherited.example:37123", Environment.GetEnvironmentVariable(reconnectVariable));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(reconnectVariable, originalTarget);
             Directory.Delete(directory, recursive: true);
         }
     }
@@ -238,6 +287,53 @@ public sealed class LegacyNativeHostTests
         }
         finally
         {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>A failed stop attempt does not permanently poison cleanup of the same child.</summary>
+    [Fact]
+    public async Task FailedStopCanBeRetriedAfterTheOwnedChildExits()
+    {
+        string directory = CreateDirectory();
+        string readyPath = Path.Combine(directory, "ready.txt");
+        string scriptPath = Path.Combine(directory, "blocking-child.ps1");
+        File.WriteAllText(scriptPath, """
+            param([string]$readyPath)
+            [IO.File]::WriteAllText($readyPath, $PID.ToString())
+            [Threading.ManualResetEventSlim]::new($false).Wait()
+            """);
+        using EventWaitHandle stopEvent = new(false, EventResetMode.ManualReset);
+        LegacyNativeSession session = LegacyNativeSession.Start(SessionId.New(),
+            CreatePowerShellFileStartInfo(scriptPath, readyPath), stopEvent);
+
+        try
+        {
+            await WaitForFileAsync(readyPath, session.Completion);
+            stopEvent.Dispose();
+            await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+                session.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None));
+            Assert.True(IsProcessAlive(session.ProcessId));
+
+            using Process owned = Process.GetProcessById(session.ProcessId);
+            owned.Kill();
+            await owned.WaitForExitAsync(TestContext.Current.CancellationToken);
+            await session.Completion;
+
+            await session.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None);
+            await session.DisposeAsync();
+            Assert.False(IsProcessAlive(session.ProcessId));
+        }
+        finally
+        {
+            if (IsProcessAlive(session.ProcessId))
+            {
+                using Process owned = Process.GetProcessById(session.ProcessId);
+                owned.Kill();
+                await owned.WaitForExitAsync(TestContext.Current.CancellationToken);
+            }
+
+            await session.DisposeAsync();
             Directory.Delete(directory, recursive: true);
         }
     }
