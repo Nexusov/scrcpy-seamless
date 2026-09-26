@@ -139,6 +139,10 @@ rendering; shortcut edits become active only after successful Apply. The
 requested font remains saved even when the local font is unavailable and a
 system font renders instead. Only implemented local command IDs can be bound;
 disabled shortcuts have an explicit empty binding.
+Settings → Shortcuts links to this existing Desktop editor and presents a
+read-only, offline [native mirror shortcut reference](desktop-shortcuts.md).
+The native modifier remains the generated `shortcut-mod` mirroring option;
+the reference cannot change bindings or a running mirror.
 
 The v2 document has `SchemaVersion: 2`, a list of `Profiles`, and global
 `Mirroring` preferences (`Reconnect` and `Options`). A profile has a stable

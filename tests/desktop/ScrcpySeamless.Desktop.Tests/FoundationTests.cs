@@ -105,6 +105,58 @@ public sealed class FoundationTests
         }
     }
 
+    /// <summary>Uses the full width below a compact category picker without losing draft or search focus.</summary>
+    [AvaloniaFact]
+    public void CompactCategoryResultsSpanAvailableWidth()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        object? selectedFontSize = application.Resources["BodyFontSize"];
+
+        try
+        {
+            ShellViewModel shell = DesktopComposition.Create(
+                new DesktopLaunchOptions(true, AppTheme.Light, null, true), _ => { });
+            MainWindow window = new(shell) { Width = 900, Height = 620 };
+            window.Show();
+            window.UpdateLayout();
+            ScrcpySeamless.Desktop.Views.SettingsView settings = Assert.Single(
+                window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            Grid columns = settings.FindControl<Grid>("SettingsColumns")!;
+            Grid results = settings.FindControl<Grid>("SettingsResults")!;
+            ComboBox picker = settings.FindControl<ComboBox>("CompactCategoryPicker")!;
+            TextBox search = settings.FindControl<TextBox>("OptionSearch")!;
+            ScrollViewer options = settings.FindControl<ScrollViewer>("OptionScroll")!;
+
+            Assert.True(picker.IsVisible);
+            Assert.Equal(0, Grid.GetRow(picker));
+            Assert.Equal(1, Grid.GetRow(results));
+            Assert.Equal(0, Grid.GetColumn(results));
+            Assert.InRange(Math.Abs(results.Bounds.Width - columns.Bounds.Width), 0, 1);
+            Assert.InRange(Math.Abs(search.Bounds.Width - results.Bounds.Width), 0, 1);
+            Assert.True(options.Extent.Height > options.Viewport.Height);
+            options.Offset = new Vector(0, 200);
+            window.UpdateLayout();
+            Assert.True(options.Offset.Y > 0);
+
+            OptionRowViewModel row = Assert.Single(shell.Settings.VisibleRows,
+                option => option.Id == "audio-output-buffer");
+            row.TextValue = "900";
+            picker.SelectedItem = shell.Settings.Categories[0];
+            search.Focus();
+            search.Text = "audio-output-buffer";
+            window.UpdateLayout();
+            Assert.True(search.IsFocused);
+            Assert.Equal("900", shell.Settings.DraftValues[row.Id].GetString());
+            Assert.Equal(selectedFontSize, application.Resources["BodyFontSize"]);
+            window.Close();
+        }
+        finally
+        {
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Uses the same preview metric tokens to validate enlarged controls at a small client size.</summary>
     [AvaloniaFact]
     public void EnlargedMetricsKeepNavigationAndSettingsReachable()

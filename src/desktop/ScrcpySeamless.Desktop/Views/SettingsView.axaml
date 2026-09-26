@@ -13,7 +13,7 @@
         <TextBlock Name="SettingsSubtitle" Classes="muted" Text="{Binding Subtitle}" />
       </StackPanel>
       <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
-              IsVisible="{Binding IsPreview}"
+              IsVisible="{Binding ShowResetDraftButton}"
               VerticalAlignment="Bottom" AutomationProperties.AutomationId="settings.resetDraft"
               AutomationProperties.Name="{Binding ResetLabel}" />
     </Grid>
@@ -51,11 +51,16 @@
                   IsVisible="{Binding Configuration.HasPreparedMigration}"
                   AutomationProperties.AutomationId="configuration.migration.cancel" />
         </WrapPanel>
-        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8">
+        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8" LineSpacing="8">
           <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}"
-                  AutomationProperties.AutomationId="settings.section.mirroring" />
+                  AutomationProperties.AutomationId="settings.section.mirroring"
+                  AutomationProperties.Name="{Binding MirroringSectionLabel}" />
           <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}"
-                  AutomationProperties.AutomationId="settings.section.desktop" />
+                  AutomationProperties.AutomationId="settings.section.desktop"
+                  AutomationProperties.Name="{Binding DesktopSectionLabel}" />
+          <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+                  AutomationProperties.AutomationId="settings.section.shortcuts"
+                  AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
         </WrapPanel>
       </StackPanel>
     </Border>
@@ -88,9 +93,12 @@
                       IsVisible="{Binding Configuration.CanPrepareMigration}"
                       AutomationProperties.AutomationId="configuration.compactMigration" />
             </WrapPanel>
-            <WrapPanel ItemSpacing="6">
+            <WrapPanel ItemSpacing="6" LineSpacing="6">
               <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
               <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
+              <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+                      AutomationProperties.AutomationId="settings.compactShortcuts"
+                      AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
             </WrapPanel>
             <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
               <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
@@ -106,6 +114,15 @@
         </Expander>
       </StackPanel>
     </Border>
+    <!-- Preview has no persistence toolbar, but can still open the read-only reference. -->
+    <WrapPanel Grid.Row="1" IsVisible="{Binding IsPreview}" ItemSpacing="8" LineSpacing="8">
+      <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}"
+              AutomationProperties.AutomationId="settings.section.mirroring"
+              AutomationProperties.Name="{Binding MirroringSectionLabel}" />
+      <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+              AutomationProperties.AutomationId="settings.section.shortcuts"
+              AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
+    </WrapPanel>
     <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18"
           IsVisible="{Binding IsMirroringSection}" IsEnabled="{Binding IsOptionEditorAvailable}">
       <Grid Name="CategoryNavigation" Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
@@ -157,5 +174,7 @@
     </Grid>
     <ContentControl Grid.Row="2" Content="{Binding Preferences}"
                     IsVisible="{Binding IsDesktopSection}" />
+    <views:ShortcutsReferenceView Grid.Row="2" DataContext="{Binding}"
+                                  IsVisible="{Binding IsShortcutsSection}" />
   </Grid>
 </UserControl>

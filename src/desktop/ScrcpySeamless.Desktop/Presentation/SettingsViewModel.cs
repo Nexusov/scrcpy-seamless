@@ -12,7 +12,7 @@ public sealed record SettingsCategory(string Id, string Label);
 public enum SettingsResultsChange { Category, Search }
 
 /// <summary>Selects one settings editor without discarding either detached draft.</summary>
-public enum SettingsSection { Mirroring, Desktop }
+public enum SettingsSection { Mirroring, Desktop, Shortcuts }
 
 /// <summary>Exposes one generated editable option and its detached draft value.</summary>
 public sealed class OptionRowViewModel : ObservableViewModel
@@ -265,8 +265,12 @@ public sealed class SettingsViewModel : ObservableViewModel
         ResetDraftCommand = new ActionCommand(ResetDraft);
         ShowMirroringCommand = new ActionCommand(() => SelectedSection = SettingsSection.Mirroring);
         ShowDesktopCommand = new ActionCommand(() => SelectedSection = SettingsSection.Desktop);
+        ShowShortcutsCommand = new ActionCommand(() => SelectedSection = SettingsSection.Shortcuts);
+        ShowShortcutModifierCommand = new ActionCommand(ShowShortcutModifier);
         MirroringSectionLabel = text.Get("settings.section.mirroring");
         DesktopSectionLabel = text.Get("settings.section.desktop");
+        ShortcutsSectionLabel = text.Get("settings.section.shortcuts");
+        ShortcutReference = new NativeShortcutReference(text);
         ConfigurationApplyLabel = text.Get("settings.configuration.apply");
         ConfigurationCancelLabel = text.Get("settings.configuration.cancel");
         MigrationPrepareLabel = text.Get("settings.migration.prepare");
@@ -284,6 +288,8 @@ public sealed class SettingsViewModel : ObservableViewModel
     public string? ConfigurationPath { get; private set; }
     public string MirroringSectionLabel { get; }
     public string DesktopSectionLabel { get; }
+    public string ShortcutsSectionLabel { get; }
+    public NativeShortcutReference ShortcutReference { get; }
     public string ConfigurationApplyLabel { get; }
     public string ConfigurationCancelLabel { get; }
     public string ConfigurationReloadLabel => text.Get(Configuration?.ReloadRequiresDiscard == true
@@ -294,6 +300,8 @@ public sealed class SettingsViewModel : ObservableViewModel
     public string MigrationCancelLabel { get; }
     public ICommand ShowMirroringCommand { get; }
     public ICommand ShowDesktopCommand { get; }
+    public ICommand ShowShortcutsCommand { get; }
+    public ICommand ShowShortcutModifierCommand { get; }
     public SettingsSection SelectedSection
     {
         get => selectedSection;
@@ -306,10 +314,14 @@ public sealed class SettingsViewModel : ObservableViewModel
 
             OnPropertyChanged(nameof(IsMirroringSection));
             OnPropertyChanged(nameof(IsDesktopSection));
+            OnPropertyChanged(nameof(IsShortcutsSection));
+            OnPropertyChanged(nameof(ShowResetDraftButton));
         }
     }
     public bool IsMirroringSection => SelectedSection == SettingsSection.Mirroring;
     public bool IsDesktopSection => SelectedSection == SettingsSection.Desktop;
+    public bool IsShortcutsSection => SelectedSection == SettingsSection.Shortcuts;
+    public bool ShowResetDraftButton => IsPreview && !IsShortcutsSection;
     public bool IsOptionEditorAvailable => IsPreview || Configuration?.CanEdit == true;
     public string ConfigurationStatusMessage
     {
@@ -422,6 +434,14 @@ public sealed class SettingsViewModel : ObservableViewModel
         ShortcutHelp = gesture.Length == 0
             ? text.Get("settings.shortcut.unbound")
             : $"{gesture}: {text.Get(SettingsShortcuts.FocusSearchHelpKey)}";
+    }
+
+    /// <summary>Opens the existing generated modifier option without changing its draft value.</summary>
+    private void ShowShortcutModifier()
+    {
+        SelectedSection = SettingsSection.Mirroring;
+        SelectedCategory = Categories.First(category => category.Id == "Control");
+        SearchText = "shortcut-mod";
     }
 
     /// <summary>Loads a detached persisted snapshot without changing the active search or category.</summary>

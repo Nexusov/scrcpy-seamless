@@ -35,6 +35,7 @@ public partial class SettingsView : UserControl
         if (observedViewModel is not null)
         {
             observedViewModel.ResultsChanged += OnResultsChanged;
+            observedViewModel.PropertyChanged += OnSettingsPropertyChanged;
 
             // Preview retains the accepted local gesture; normal mode activates only saved bindings.
             KeyBindings.Clear();
@@ -61,7 +62,17 @@ public partial class SettingsView : UserControl
         }
 
         observedViewModel.ResultsChanged -= OnResultsChanged;
+        observedViewModel.PropertyChanged -= OnSettingsPropertyChanged;
         observedViewModel = null;
+    }
+
+    /// <summary>Reclaims the configuration toolbar space when the reference tab opens.</summary>
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName == nameof(SettingsViewModel.IsShortcutsSection))
+        {
+            UpdateLayoutMode();
+        }
     }
 
     /// <summary>Reveals the first changed result after the item layout catches up.</summary>
@@ -87,7 +98,8 @@ public partial class SettingsView : UserControl
         ComboBox picker = this.FindControl<ComboBox>("CompactCategoryPicker")!;
         Grid results = this.FindControl<Grid>("SettingsResults")!;
         bool compact = Bounds.Width < CompactCategoryWidth;
-        bool stacked = compact && (observedViewModel?.IsPreview == true || Bounds.Width < StackedCategoryWidth);
+        // Once categories use the compact picker, results span the full content width below it.
+        bool stacked = compact;
         bool shortWindow = Bounds.Height < 500;
         bool compactPersistent = shortWindow && observedViewModel?.IsPersistent == true;
         // Reflow the preview title only where the adjacent Reset action would clip it.
@@ -99,8 +111,11 @@ public partial class SettingsView : UserControl
         this.FindControl<TextBlock>("SettingsGlobalLabel")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsUnsavedLabel")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsShortcutHelp")!.IsVisible = !shortWindow;
-        this.FindControl<Border>("SettingsStatusBlock")!.IsVisible = !compactPersistent;
-        this.FindControl<Border>("CompactSettingsToolbar")!.IsVisible = compactPersistent;
+        // Preview keeps its section navigation in place of persistence actions.
+        bool showConfigurationToolbar = observedViewModel?.IsPersistent == true &&
+            observedViewModel.IsShortcutsSection != true;
+        this.FindControl<Border>("SettingsStatusBlock")!.IsVisible = showConfigurationToolbar && !compactPersistent;
+        this.FindControl<Border>("CompactSettingsToolbar")!.IsVisible = showConfigurationToolbar && compactPersistent;
         navigation.IsVisible = !compact;
         picker.IsVisible = compact;
         columns.ColumnDefinitions = stacked ? new ColumnDefinitions("*") : new ColumnDefinitions("160,*");
