@@ -29,16 +29,20 @@ when a real configuration exists nearby.
 An explicit device runtime is validated against its separate DEV hash manifest
 before ADB services or a native host are attached. An absent or invalid runtime
 leaves normal settings editable and blocks Mirror. Startup does not probe ADB:
-Refresh, Pair and Mirror each require a user action. Refresh distinguishes a
+Refresh, Pair, Connect and Mirror each require a user action. Refresh distinguishes a
 failed/stale observation from an authoritative empty result; selecting a saved
 profile does not select an ADB transport. Pairing and connection endpoints have
-different purposes. Pairing neither saves a profile nor starts mirroring; use
-the Profiles editor and its existing revision-checked Apply to persist changes.
+different purposes. An already paired endpoint can be connected manually when
+mDNS discovery is unavailable. Pairing and Connect neither save a profile nor
+start mirroring; use the Profiles editor and its existing revision-checked Apply
+to persist changes.
 
 Mirror requires a selected saved profile, a fresh explicitly selected eligible
 ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before
-building an immutable native request. Unknown/managed options and currently
+building an immutable native request. A selected Wi-Fi endpoint that differs
+from the saved profile blocks launch until the profile is explicitly updated.
+Unknown/managed options and currently
 unsupported legacy reconnect combinations block execution without deleting
 their stored values. Appearance edits do not block Mirror. One active mirror
 is permitted per control center. Process existence reports only process

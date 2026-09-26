@@ -289,7 +289,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
 | 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; real-device smoke explicitly pending |
 
-The local Phase 5C boundary has 324 passing .NET tests, 16 native tests,
+The local Phase 5C boundary has 327 passing .NET tests, 16 native tests,
 28 legacy suites, SpecGen verify, metadata and DocsCheck. The isolated DEV
 stage validates source-built native/server bytes and imports only reviewed
 ADB/SDL/FFmpeg/runtime resources. A desktop process smoke opened and closed

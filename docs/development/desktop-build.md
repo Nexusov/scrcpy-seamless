@@ -146,7 +146,7 @@ $package = (Resolve-Path ".\dist\dev\scrcpy-seamless-desktop-p05c-g$sourceSha").
 ```
 
 The last command can affect the previously authorized shared ADB daemon only
-after a user selects Refresh/Pair/Mirror. Keep one active mirror during the
+after a user selects Refresh/Pair/Connect/Mirror. Keep one active mirror during the
 initial hardware smoke. Session-scoped sanitized lifecycle JSONL is written
 under `.dev-data/p05c/native-sessions/`; its timestamps are local receive
 times, not native event-emission times. Device video/audio/control and

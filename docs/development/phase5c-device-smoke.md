@@ -19,8 +19,9 @@ $data = 'D:\My Projects\scrcpy-seamless\.dev-data\p05c'
 
 1. Connect the intended phone by USB and leave Wi-Fi on. In Devices, press
    **Refresh** and explicitly select its eligible USB ADB transport. Refresh
-   contacts the shared ADB daemon. Pair only if necessary, using separate
-   pairing and connection endpoints. Do not send the pairing code to chat.
+   contacts the shared ADB daemon. If already paired, use the explicit Connect
+   action with the connection endpoint; otherwise Pair with separate pairing
+   and connection endpoints. Do not send the pairing code to chat.
 2. In Profiles, create or select the intended DEV profile. Save the USB serial
    and Wi-Fi connection endpoint explicitly with **Apply**. Return to Devices,
    choose the saved profile in **Mirror session**, and press **Mirror**. Pair
