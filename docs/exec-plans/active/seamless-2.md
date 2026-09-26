@@ -322,8 +322,12 @@ with the same ADB 34.0.5 hash and process-local Openscreen setting changed
 owner then observed the pairing service immediately in Desktop. The validated
 runtime now applies that setting only to child processes that may start the
 server; it does not restart or reconfigure an existing server. The earlier
-Bonjour daemon failure remains unexplained, and mirroring hardware smoke
-remains the Phase 5C acceptance gate.
+Bonjour daemon failure remains unexplained. The owner reported that the
+pairing device appeared in the final `scrcpy-seamless-desktop-p05c-g2b902065`
+DEV package while the shared Openscreen server was already running. This
+confirms discovery in that package but does not independently validate a
+cold-start server selection. Mirroring hardware smoke remains the Phase 5C
+acceptance gate.
 
 The single shared-server restart and mDNS queries had explicit owner approval.
 Pairing was not repeated, and the Mirror hardware gate remains manual in

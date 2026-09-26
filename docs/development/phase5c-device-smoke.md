@@ -92,4 +92,8 @@ The exact reviewed ADB 34.0.5 runtime now gives its child processes an
 Openscreen startup setting, but an existing shared server retains its backend.
 The controlled Openscreen startup check reported a healthy backend and the
 owner observed the pairing service appear immediately while the phone's code
-dialog was open. The package still needs the Mirror hardware smoke above.
+dialog was open. The owner also reported that the pairing device appeared in
+the final `scrcpy-seamless-desktop-p05c-g2b902065` package. That run used the
+already-started Openscreen server, so it does not independently verify the
+new package's cold-start policy. The package still needs the Mirror hardware
+smoke above.
