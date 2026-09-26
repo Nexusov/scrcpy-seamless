@@ -206,10 +206,17 @@ The generic runner inherits its process environment and does not select an
 ADB mDNS backend. The reviewed DEV runtime packages ADB Platform Tools
 34.0.5-10900879. Its server selects the mDNS backend at server startup;
 changing a later client environment does not change an already-running shared
-server. A legacy runner explicitly selected Openscreen, but the cause of one
-reported empty Desktop discovery remains unknown because raw service output,
-backend state and phone-dialog timing were not captured. No runtime override
-is enabled without evidence from a controlled check. A future bundled-ADB
+server. A legacy runner explicitly selected Openscreen. During a subsequent
+owner-run check with the phone pairing dialog open, `adb mdns services` returned
+an empty list while `adb mdns check` returned `ERROR: mdns daemon unavailable`
+with process exit zero. In [ADB 34.0.5's Bonjour implementation](https://android.googlesource.com/platform/packages/modules/adb/+/refs/tags/platform-tools-34.0.5/client/mdnsresponder_client.cpp),
+that reply means the server's DNSService daemon query failed. The current
+server is therefore on the Bonjour path at check time, but whether it selected
+Bonjour initially or fell back from Openscreen is unknown. An empty service
+list in this state is not evidence that the phone stopped advertising. The
+gateway now checks mDNS health when the service list is empty and reports
+unavailability separately from a healthy empty result. No runtime override
+is enabled without a controlled server-start check. A future bundled-ADB
 compatibility override belongs to an explicit runtime/composition policy and
 must respect shared-server ownership.
 Pairing codes are transient and absent from saved profiles, result/error

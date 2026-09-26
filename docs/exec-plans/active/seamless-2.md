@@ -311,9 +311,15 @@ tests cover candidate selection, stale discovery, cancellation and corrected
 pairing response classification. The reported empty service list is not yet
 attributed to the server, parser, timing or network: the corresponding raw
 `adb mdns services` output and active server backend were not captured. Bundled
-ADB remains pinned at 34.0.5; no mDNS override or shared-server restart was
-introduced. A new isolated DEV package and owner-run discovery/mirror smoke
-remain the Phase 5C acceptance gate.
+ADB remains pinned at 34.0.5. A subsequent owner-run check with the phone
+pairing dialog open returned zero services, while `adb mdns check` reported
+`ERROR: mdns daemon unavailable` despite exit zero. The current shared server
+was on the Bonjour path at check time; why its daemon query failed and whether
+it previously attempted Openscreen remain unknown. The gateway now probes
+mDNS health only after an empty service list and presents unavailable discovery
+separately from a healthy empty list. No backend override or shared-server
+restart was introduced. An isolated DEV package and owner-run discovery/mirror
+smoke remain the Phase 5C acceptance gate.
 No Phase 5C phone/ADB operation has been run by automation. The manual gate is
 in [the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 

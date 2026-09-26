@@ -83,4 +83,7 @@ $adb = Join-Path $runtime 'adb.exe'
 Record the result of `mdns check`, the count and service types (`_adb-tls-pairing`
 versus `_adb-tls-connect`) from `mdns services`, and whether Desktop's visible
 pairing list matches. The existing shared server's startup environment/backend
-is otherwise unknown; do not restart it as a diagnostic shortcut.
+is otherwise unknown; do not restart it as a diagnostic shortcut. ADB 34.0.5
+may return `ERROR: mdns daemon unavailable` from `mdns check` with exit code
+zero. That means discovery is unavailable on the current server and must not
+be reported as "no phone found" merely because `mdns services` is empty.
