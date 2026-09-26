@@ -179,6 +179,10 @@ public sealed class FoundationTests
             var editor = option.FindControl<TextBox>("OptionEditor")!;
             var validation = Assert.Single(option.GetVisualDescendants().OfType<TextBlock>(),
                 block => block.Text == row.ValidationMessage);
+            Assert.Equal($"{row.AutomationId}.validation",
+                Avalonia.Automation.AutomationProperties.GetAutomationId(validation));
+            Assert.Equal(row.ValidationMessage,
+                Avalonia.Automation.AutomationProperties.GetName(validation));
             var reset = Assert.Single(option.GetVisualDescendants().OfType<Button>(),
                 button => button.Content?.ToString() == row.ResetLabel);
             var help = Assert.Single(option.GetVisualDescendants().OfType<Expander>());
@@ -317,6 +321,82 @@ public sealed class FoundationTests
         window.Close();
     }
 
+    /// <summary>Escape dismisses a close failure without closing the owner or hiding enlarged text.</summary>
+    [AvaloniaFact]
+    public async Task EnlargedCloseFailureDialogIsReadableAndSafelyDismissed()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.System, null, true), _ => { });
+        DialogProbeWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            Task pendingDialog = window.ShowCloseFailureForTest();
+            Window dialog = Assert.Single(window.OwnedWindows);
+            dialog.UpdateLayout();
+            TextBlock message = Assert.Single(dialog.GetVisualDescendants().OfType<TextBlock>());
+
+            Assert.True(message.Bounds.Bottom <= dialog.Bounds.Height,
+                $"Close failure text clipped: message={message.Bounds}, dialog={dialog.Bounds}");
+            dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            Assert.True(pendingDialog.IsCompleted);
+            Assert.True(window.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
+    /// <summary>Keeps all three dirty-close decisions inside the dialog at enlarged metrics.</summary>
+    [AvaloniaFact]
+    public async Task EnlargedDirtyCloseDialogKeepsActionsVisibleAndEscapeMeansStay()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.System, null, true), _ => { });
+        DialogProbeWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            Task<bool> pendingDecision = window.AskCloseDecisionForTest("configuration and desktop preferences");
+            Window dialog = Assert.Single(window.OwnedWindows);
+            dialog.UpdateLayout();
+            Button[] buttons = dialog.GetVisualDescendants().OfType<Button>().ToArray();
+            Assert.Equal(3, buttons.Length);
+
+            foreach (Button button in buttons)
+            {
+                Point? position = button.TranslatePoint(new Point(0, 0), dialog);
+                Assert.NotNull(position);
+                Assert.True(position.Value.X + button.Bounds.Width <= dialog.Bounds.Width,
+                    $"Close action exceeds enlarged dialog width: action={button.Content}, position={position}, dialog={dialog.Bounds}");
+                Assert.True(position.Value.Y + button.Bounds.Height <= dialog.Bounds.Height,
+                    $"Close action exceeds enlarged dialog height: action={button.Content}, position={position}, dialog={dialog.Bounds}");
+            }
+
+            dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            Assert.True(await pendingDecision);
+            Assert.True(window.IsVisible);
+
+            Task<bool> windowCloseDecision = window.AskCloseDecisionForTest("configuration");
+            Assert.Single(window.OwnedWindows).Close();
+            Assert.True(await windowCloseDecision);
+            Assert.True(window.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>System request inherits framework changes; explicit choices keep their variant.</summary>
     [AvaloniaFact]
     public void ThemeChoiceUsesFrameworkInheritance()
@@ -428,4 +508,15 @@ public sealed class FoundationTests
             Assert.True(resources.RootElement.TryGetProperty(descriptor.DescriptionResourceKey, out _));
         }
     }
+}
+
+/// <summary>Exposes only the close failure dialog for deterministic headless keyboard checks.</summary>
+internal sealed class DialogProbeWindow(ShellViewModel shell) : MainWindow(shell)
+{
+    /// <summary>Shows the same owner-bound failure dialog as the normal close path.</summary>
+    public Task ShowCloseFailureForTest() => ShowCloseFailureAsync();
+
+    /// <summary>Reports whether Escape kept the existing dirty draft in the owner window.</summary>
+    public async Task<bool> AskCloseDecisionForTest(string groups) =>
+        await AskCloseDecisionAsync(groups) == CloseDecision.Stay;
 }

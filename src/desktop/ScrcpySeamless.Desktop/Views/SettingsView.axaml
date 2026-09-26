@@ -63,32 +63,46 @@
             Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8" Padding="8">
       <StackPanel Spacing="4" ToolTip.Tip="{Binding ConfigurationStatusMessage}"
                   AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}">
-        <TextBlock Text="{Binding ConfigurationStatusMessage}" TextWrapping="NoWrap"
-                   TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="configuration.compactStatus" />
+        <!-- Keep the two draft decisions visible; secondary actions remain reachable in the disclosure. -->
         <WrapPanel ItemSpacing="6">
           <Button Name="CompactConfigurationApplyButton" Content="{Binding ConfigurationApplyLabel}" Command="{Binding Configuration.ApplyCommand}"
                   AutomationProperties.AutomationId="configuration.compactApply" />
           <Button Name="CompactConfigurationCancelButton" Content="{Binding ConfigurationCancelLabel}" Command="{Binding Configuration.CancelCommand}"
                   AutomationProperties.AutomationId="configuration.compactCancel" />
-          <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
-                  AutomationProperties.AutomationId="configuration.compactReload" />
-          <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
-                  IsVisible="{Binding Configuration.CanPrepareMigration}"
-                  AutomationProperties.AutomationId="configuration.compactMigration" />
         </WrapPanel>
-        <WrapPanel ItemSpacing="6">
-          <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
-          <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
-        </WrapPanel>
-        <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
-          <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
-                     TextWrapping="NoWrap" MaxWidth="220" VerticalAlignment="Center"
-                     ToolTip.Tip="{Binding MigrationSummaryMessage}" />
-          <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
-                  AutomationProperties.AutomationId="configuration.compactMigrationCommit" />
-          <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
-                  AutomationProperties.AutomationId="configuration.compactMigrationCancel" />
-        </WrapPanel>
+        <Expander Name="CompactSettingsMoreActions" AutomationProperties.AutomationId="configuration.compactMore"
+                  AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}">
+          <Expander.Header>
+            <TextBlock Text="{Binding ConfigurationStatusMessage}" TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis" MaxWidth="270"
+                       ToolTip.Tip="{Binding ConfigurationStatusMessage}"
+                       AutomationProperties.AutomationId="configuration.compactStatus" />
+          </Expander.Header>
+          <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="4">
+            <WrapPanel ItemSpacing="6">
+              <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
+                      AutomationProperties.AutomationId="configuration.compactReload" />
+              <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
+                      IsVisible="{Binding Configuration.CanPrepareMigration}"
+                      AutomationProperties.AutomationId="configuration.compactMigration" />
+            </WrapPanel>
+            <WrapPanel ItemSpacing="6">
+              <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
+              <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
+            </WrapPanel>
+            <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
+              <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
+                         TextWrapping="NoWrap" MaxWidth="220" VerticalAlignment="Center"
+                         ToolTip.Tip="{Binding MigrationSummaryMessage}" />
+              <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
+                      AutomationProperties.AutomationId="configuration.compactMigrationCommit" />
+              <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
+                      AutomationProperties.AutomationId="configuration.compactMigrationCancel" />
+            </WrapPanel>
+          </StackPanel>
+          </ScrollViewer>
+        </Expander>
       </StackPanel>
     </Border>
     <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18"

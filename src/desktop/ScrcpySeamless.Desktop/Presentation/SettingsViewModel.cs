@@ -54,6 +54,7 @@ public sealed class OptionRowViewModel : ObservableViewModel
     public OptionDescriptor Descriptor { get; }
     public string Id => Descriptor.Id;
     public string AutomationId => $"option.{Id}";
+    public string ValidationAutomationId => $"{AutomationId}.validation";
     public string Label { get; }
     public string Description { get; }
     public string ShortDescription { get; }
