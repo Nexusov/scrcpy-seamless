@@ -22,7 +22,9 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
     private readonly Action<Action> dispatch;
     private readonly object gate = new();
     private INativeSession? session;
+    private Task<bool>? sessionCleanupTask;
     private Task? startTask;
+    private Task<bool>? stopTask;
     private CancellationTokenSource? startCancellation;
     private bool stopping;
     private bool shuttingDown;
@@ -160,28 +162,36 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
             Status = "Starting the selected native session…";
             INativeSession started = await host.StartAsync(preparation.Request!, cancellationToken);
             bool mustStop;
+            Task<bool>? lateStop = null;
 
             lock (gate)
             {
                 mustStop = shuttingDown || stopping || cancellationToken.IsCancellationRequested;
+                session = started;
 
-                if (!mustStop)
+                if (mustStop && !stopping)
                 {
-                    session = started;
+                    stopping = true;
+                    stopTask = StopLateSessionAsync(started);
+                    lateStop = stopTask;
                 }
             }
 
+            _ = ObserveExitAsync(started);
+
             if (mustStop)
             {
-                await started.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None);
-                await started.DisposeAsync();
+                if (lateStop is not null)
+                {
+                    await lateStop;
+                }
+
                 return;
             }
 
             ProcessId = (started as LegacyNativeSession)?.ProcessId;
             WindowHandle = (started as LegacyNativeSession)?.MainWindowHandle ?? nint.Zero;
             Status = $"Native session {started.SessionId.Value:D} started. Channel readiness is unverified.";
-            _ = ObserveExitAsync(started);
         }
         catch (OperationCanceledException)
         {
@@ -189,7 +199,16 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         }
         catch (Exception exception)
         {
-            Status = $"Launch failed ({exception.GetType().Name}).";
+            bool hasRetainedChild;
+
+            lock (gate)
+            {
+                hasRetainedChild = session is not null;
+            }
+
+            Status = hasRetainedChild
+                ? $"Native stop failed ({exception.GetType().Name}); session ownership retained."
+                : $"Launch failed ({exception.GetType().Name}).";
         }
         finally
         {
@@ -202,12 +221,46 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         }
     }
 
+    /// <summary>Settles a child returned after caller cancellation without awaiting its own start task.</summary>
+    private async Task<bool> StopLateSessionAsync(INativeSession owned)
+    {
+        await Task.Yield();
+
+        try
+        {
+            await owned.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None);
+            await owned.Completion;
+            await SettleSessionAsync(owned);
+            Status = "Launch cancelled.";
+            ProcessId = null;
+            WindowHandle = nint.Zero;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Status = $"Native stop failed ({exception.GetType().Name}); session ownership retained.";
+            return false;
+        }
+        finally
+        {
+            lock (gate)
+            {
+                stopping = false;
+                stopTask = null;
+            }
+        }
+    }
+
     /// <summary>Observes the exact child exit without starting a replacement.</summary>
     private async Task ObserveExitAsync(INativeSession owned)
     {
         try
         {
             NativeExit result = await owned.Completion;
+            dispatch(() => _ = CompleteExitedSessionAsync(owned, result));
+        }
+        catch (Exception exception)
+        {
             dispatch(() =>
             {
                 lock (gate)
@@ -216,39 +269,127 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                     {
                         return;
                     }
-
-                    session = null;
                 }
 
-                Status = $"Native session ended: {result.Reason}.";
-                ProcessId = null;
-                WindowHandle = nint.Zero;
-                _ = owned.DisposeAsync();
+                Status = $"Native completion failed ({exception.GetType().Name}); check owned session.";
             });
-        }
-        catch (Exception exception)
-        {
-            dispatch(() => Status = $"Native completion failed ({exception.GetType().Name}); check owned process.");
         }
     }
 
-    /// <summary>Cancels an in-flight start and stops only its owned child.</summary>
-    public async Task<bool> StopAsync(NativeTerminationReason reason = NativeTerminationReason.UserStop)
+    /// <summary>Awaits exact-child cleanup after a spontaneous exit before releasing ownership.</summary>
+    private async Task CompleteExitedSessionAsync(INativeSession owned, NativeExit result)
     {
-        Task? starting;
-        INativeSession? owned;
+        try
+        {
+            if (await SettleSessionAsync(owned, skipDuringStop: true))
+            {
+                Task? starting;
+
+                lock (gate)
+                {
+                    starting = startTask;
+                }
+
+                if (starting is not null)
+                {
+                    await starting;
+                }
+
+                lock (gate)
+                {
+                    if (session is null && startTask is null && !stopping)
+                    {
+                        Status = $"Native session ended: {result.Reason}.";
+                        ProcessId = null;
+                        WindowHandle = nint.Zero;
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Status = $"Native cleanup failed ({exception.GetType().Name}); session ownership retained.";
+        }
+    }
+
+    /// <summary>Shares one disposal task and releases only the exact child after cleanup succeeds.</summary>
+    private Task<bool> SettleSessionAsync(INativeSession owned, bool skipDuringStop = false)
+    {
+        lock (gate)
+        {
+            if (!ReferenceEquals(session, owned) || (skipDuringStop && stopping))
+            {
+                return Task.FromResult(false);
+            }
+
+            sessionCleanupTask ??= CleanupSessionAsync(owned);
+            return sessionCleanupTask;
+        }
+    }
+
+    /// <summary>Includes disposal and exact-session release in one shared cleanup task.</summary>
+    private async Task<bool> CleanupSessionAsync(INativeSession owned)
+    {
+        await Task.Yield();
+
+        try
+        {
+            await owned.DisposeAsync();
+        }
+        catch
+        {
+            lock (gate)
+            {
+                if (ReferenceEquals(session, owned))
+                {
+                    sessionCleanupTask = null;
+                }
+            }
+
+            throw;
+        }
 
         lock (gate)
         {
-            if (stopping)
+            if (!ReferenceEquals(session, owned))
             {
                 return false;
             }
 
+            session = null;
+            sessionCleanupTask = null;
+            return true;
+        }
+    }
+
+    /// <summary>Cancels an in-flight start and stops only its owned child.</summary>
+    public Task<bool> StopAsync(NativeTerminationReason reason = NativeTerminationReason.UserStop)
+    {
+        lock (gate)
+        {
+            if (stopTask is not null)
+            {
+                return stopTask;
+            }
+
             stopping = true;
             startCancellation?.Cancel();
+            stopTask = StopCoreAsync(reason);
+            return stopTask;
+        }
+    }
+
+    /// <summary>Shares one stop attempt across concurrent callers until cleanup settles.</summary>
+    private async Task<bool> StopCoreAsync(NativeTerminationReason reason)
+    {
+        await Task.Yield();
+        Task? starting;
+        INativeSession? owned;
+        Task<bool>? pendingCleanup;
+
+        lock (gate)
+        {
             starting = startTask;
-            owned = session;
         }
 
         try
@@ -260,22 +401,25 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
             lock (gate)
             {
-                owned = session ?? owned;
+                owned = session;
+                pendingCleanup = sessionCleanupTask;
+            }
+
+            if (pendingCleanup is not null)
+            {
+                await pendingCleanup;
+
+                lock (gate)
+                {
+                    owned = session;
+                }
             }
 
             if (owned is not null)
             {
                 await owned.StopAsync(reason, CancellationToken.None);
                 await owned.Completion;
-                await owned.DisposeAsync();
-
-                lock (gate)
-                {
-                    if (ReferenceEquals(session, owned))
-                    {
-                        session = null;
-                    }
-                }
+                await SettleSessionAsync(owned);
             }
 
             Status = "Native session stopped.";
@@ -285,7 +429,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         }
         catch (Exception exception)
         {
-            Status = $"Native stop failed ({exception.GetType().Name}); process ownership retained.";
+            Status = $"Native stop failed ({exception.GetType().Name}); session ownership retained.";
             return false;
         }
         finally
@@ -293,6 +437,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
             lock (gate)
             {
                 stopping = false;
+                stopTask = null;
             }
         }
     }

@@ -237,12 +237,15 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
     }
 
-    /// <summary>Reports retained native ownership when bounded shutdown could not finish.</summary>
+    /// <summary>Explains which owned cleanup remains incomplete after a failed close.</summary>
     protected virtual async Task ShowStopFailureAsync()
     {
+        bool awaitingAdbCleanup = normalComposition?.IsLiveShutdownPending == true;
         Window dialog = new()
         {
-            Title = "scrcpy Seamless — native session still active",
+            Title = awaitingAdbCleanup
+                ? "scrcpy Seamless — device cleanup still pending"
+                : "scrcpy Seamless — native cleanup incomplete",
             Width = 480,
             Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -250,7 +253,9 @@ public partial class MainWindow : Window
             {
                 Margin = new Avalonia.Thickness(20),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Text = "The owned native process did not stop. The control center remains open; review the session status and retry Stop.",
+                Text = awaitingAdbCleanup
+                    ? "Native stopped, but an owned ADB operation has not settled. Device actions remain disabled; wait for it to finish and retry Close. Drafts remain in memory."
+                    : "The owned native session could not be confirmed stopped and cleaned up. The control center remains open; review its status and retry Stop.",
             },
         };
         await dialog.ShowDialog(this);

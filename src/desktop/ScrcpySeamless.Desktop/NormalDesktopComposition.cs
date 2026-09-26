@@ -15,6 +15,7 @@ public sealed class NormalDesktopComposition
     private readonly PresentationText text;
     private bool closeSaveActive;
     private bool exitReserved;
+    private bool liveShutdownPending;
 
     public NormalDesktopComposition(
         ShellViewModel shell,
@@ -52,6 +53,7 @@ public sealed class NormalDesktopComposition
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
     public bool IsCloseSaveActive => closeSaveActive || exitReserved;
+    public bool IsLiveShutdownPending => liveShutdownPending;
     public bool HasLiveOperations => DeviceSession is not null;
 
     /// <summary>Stops the owned native child and settles explicit ADB operations after exit acceptance.</summary>
@@ -66,11 +68,11 @@ public sealed class NormalDesktopComposition
         Configuration.RefreshCloseSaveState();
         Preferences.RefreshCloseSaveState();
         Shell.RefreshThemeEditState();
-        Devices.DisposeLive();
         bool stopped = await DeviceSession.ShutdownAsync();
 
         if (!stopped)
         {
+            liveShutdownPending = false;
             DeviceSession.ResumeAfterFailedShutdown();
             exitReserved = false;
             Configuration.RefreshCloseSaveState();
@@ -79,15 +81,21 @@ public sealed class NormalDesktopComposition
             return false;
         }
 
+        Devices.DisposeLive();
         bool settled = await Devices.ShutdownLiveAsync();
 
         if (!settled)
         {
-            DeviceSession.ResumeAfterFailedShutdown();
+            // Native has stopped, but device cleanup is still owned: keep Mirror reserved.
+            liveShutdownPending = true;
             exitReserved = false;
             Configuration.RefreshCloseSaveState();
             Preferences.RefreshCloseSaveState();
             Shell.RefreshThemeEditState();
+        }
+        else
+        {
+            liveShutdownPending = false;
         }
 
         return settled;
