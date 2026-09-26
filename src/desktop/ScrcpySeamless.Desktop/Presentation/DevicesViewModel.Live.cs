@@ -37,11 +37,10 @@ public sealed partial class DevicesViewModel
     private CancellationTokenSource? pairingCancellation;
     private CancellationTokenSource? connectionCancellation;
     private readonly SemaphoreSlim discoveryGate = new(1, 1);
-    private readonly object refreshTaskLock = new();
-    private readonly HashSet<Task> activeRefreshes = [];
+    private readonly object adbTaskLock = new();
+    private readonly HashSet<Task> activeAdbOperations = [];
+    private readonly HashSet<Task> activeDirectOperations = [];
     private long wirelessSetupRefreshGeneration;
-    private Task activePairing = Task.CompletedTask;
-    private Task activeConnection = Task.CompletedTask;
     private long discoveryGeneration;
     private long pairingGeneration;
     private long connectionGeneration;
@@ -181,7 +180,17 @@ public sealed partial class DevicesViewModel
     public bool CanConnect => IsLiveEnabled && isWirelessSetupOpen && connectionGateway is not null
         && !IsConnecting && !IsPairing && !IsDiscovering && ResolveConnectionEndpoint() is not null;
     public bool CanCancelConnect => IsLiveEnabled && IsConnecting;
-    public bool CanCloseWirelessSetup => pairingCancellation is null && connectionCancellation is null;
+    public bool CanCloseWirelessSetup
+    {
+        get
+        {
+            lock (adbTaskLock)
+            {
+                return activeDirectOperations.All(operation => operation.IsCompleted)
+                    && pairingCancellation is null && connectionCancellation is null;
+            }
+        }
+    }
     public bool CanPair => EvaluatePairEligibility().IsAvailable;
     private const int PairingCodeLength = 6;
     private static readonly TimeSpan ShutdownWait = TimeSpan.FromSeconds(5);
@@ -433,21 +442,67 @@ public sealed partial class DevicesViewModel
     /// <summary>Refreshes only when explicitly requested, retaining failed observations as stale.</summary>
     public Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        Task operation = RefreshCoreAsync(cancellationToken);
-        // Retain every in-flight snapshot, including a superseded cancellation-resistant one.
-        lock (refreshTaskLock)
+        return TrackAdbOperation(() => RefreshCoreAsync(cancellationToken));
+    }
+
+    /// <summary>Reserves ownership before starting an ADB command and retains it through cleanup.</summary>
+    private Task TrackAdbOperation(Func<Task> start, bool direct = false)
+    {
+        TaskCompletionSource ownership = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task operation = ownership.Task;
+
+        lock (adbTaskLock)
         {
-            activeRefreshes.Add(operation);
+            activeAdbOperations.Add(operation);
+
+            if (direct)
+            {
+                activeDirectOperations.Add(operation);
+            }
         }
 
         _ = operation.ContinueWith(completed =>
         {
-            lock (refreshTaskLock)
+            lock (adbTaskLock)
             {
-                activeRefreshes.Remove(completed);
+                activeAdbOperations.Remove(completed);
+                activeDirectOperations.Remove(completed);
+            }
+
+            if (direct && dispatch is not null)
+            {
+                dispatch(() => OnPropertyChanged(nameof(CanCloseWirelessSetup)));
             }
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+        try
+        {
+            _ = CompleteAdbOperationAsync(start(), ownership);
+        }
+        catch (Exception exception)
+        {
+            ownership.TrySetException(exception);
+        }
+
         return operation;
+    }
+
+    /// <summary>Settles the ownership reservation only after the actual operation has finished.</summary>
+    private static async Task CompleteAdbOperationAsync(Task operation, TaskCompletionSource ownership)
+    {
+        try
+        {
+            await operation;
+            ownership.TrySetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            ownership.TrySetCanceled();
+        }
+        catch (Exception exception)
+        {
+            ownership.TrySetException(exception);
+        }
     }
 
     /// <summary>Runs one owned discovery attempt and ignores superseded completions.</summary>
@@ -531,9 +586,7 @@ public sealed partial class DevicesViewModel
     /// <summary>Pairs explicitly and optionally connects a separately chosen endpoint.</summary>
     public Task PairAsync(CancellationToken cancellationToken = default)
     {
-        Task operation = PairCoreAsync(cancellationToken);
-        activePairing = operation;
-        return operation;
+        return TrackAdbOperation(() => PairCoreAsync(cancellationToken), direct: true);
     }
 
     /// <summary>Runs a captured pairing attempt without retaining its visible code.</summary>
@@ -624,9 +677,7 @@ public sealed partial class DevicesViewModel
     /// <summary>Connects one explicitly chosen endpoint without pairing or saving a profile.</summary>
     public Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        Task operation = ConnectCoreAsync(cancellationToken);
-        activeConnection = operation;
-        return operation;
+        return TrackAdbOperation(() => ConnectCoreAsync(cancellationToken), direct: true);
     }
 
     /// <summary>Owns one bounded ADB connect command and rejects superseded results.</summary>
@@ -775,19 +826,28 @@ public sealed partial class DevicesViewModel
 
         try
         {
-            Task[] refreshes;
-            lock (refreshTaskLock)
+            Task[] operations;
+            lock (adbTaskLock)
             {
-                refreshes = activeRefreshes.ToArray();
+                operations = activeAdbOperations.ToArray();
             }
 
-            await Task.WhenAll([.. refreshes, activePairing, activeConnection])
+            await Task.WhenAll(operations)
                 .WaitAsync(ShutdownWait, cancellationToken);
             return true;
         }
         catch (TimeoutException)
         {
             // Generations are invalidated even when an external gateway fails to honor cancellation.
+            return false;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A faulted owned operation cannot be reported as a successful close.
             return false;
         }
     }

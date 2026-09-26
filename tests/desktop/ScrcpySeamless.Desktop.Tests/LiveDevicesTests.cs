@@ -55,6 +55,88 @@ public sealed class LiveDevicesTests
         Assert.Null(devices.ConnectedEndpointLabel);
     }
 
+    /// <summary>Closing waits for a cancelled connection even when a replacement has completed.</summary>
+    [Fact]
+    public async Task ShutdownRetainsCancelledConnectAfterReplacementCompletes()
+    {
+        TaskCompletionSource<AdbResult<bool>> releaseFirst =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int attempts = 0;
+        FakeGateway gateway = new()
+        {
+            ConnectAsyncOverride = (_, _) => Interlocked.Increment(ref attempts) == 1
+                ? releaseFirst.Task
+                : Task.FromResult(AdbResult<bool>.Success(true)),
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.OpenWirelessSetup();
+        devices.ShowManualConnection();
+        devices.ManualConnectionEndpoint = "phone.local:38211";
+
+        Task first = devices.ConnectAsync(TestContext.Current.CancellationToken);
+        devices.CancelConnect();
+        Task replacement = devices.ConnectAsync(TestContext.Current.CancellationToken);
+        await replacement.WaitAsync(TestContext.Current.CancellationToken);
+        string? settledEndpointLabel = devices.ConnectedEndpointLabel;
+
+        Task<bool> shutdown = devices.ShutdownLiveAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.False(shutdown.IsCompleted);
+            Assert.False(devices.CanCloseWirelessSetup);
+            Assert.Equal(settledEndpointLabel, devices.ConnectedEndpointLabel);
+        }
+        finally
+        {
+            releaseFirst.SetResult(AdbResult<bool>.Success(true));
+        }
+
+        await first.WaitAsync(TestContext.Current.CancellationToken);
+        Assert.True(await shutdown.WaitAsync(TestContext.Current.CancellationToken));
+        Assert.True(devices.CanCloseWirelessSetup);
+        Assert.Equal(settledEndpointLabel, devices.ConnectedEndpointLabel);
+        Assert.Equal(2, attempts);
+    }
+
+    /// <summary>Shutdown sees a connect whose gateway has not returned its asynchronous task yet.</summary>
+    [Fact]
+    public async Task ShutdownOwnsConnectDuringSynchronousGatewayEntry()
+    {
+        TaskCompletionSource gatewayEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim releaseGateway = new();
+        FakeGateway gateway = new()
+        {
+            ConnectAsyncOverride = (_, _) =>
+            {
+                gatewayEntered.SetResult();
+                releaseGateway.Wait();
+                return Task.FromResult(AdbResult<bool>.Success(true));
+            },
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.OpenWirelessSetup();
+        devices.ShowManualConnection();
+        devices.ManualConnectionEndpoint = "phone.local:38211";
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Task connecting = Task.Run(() => devices.ConnectAsync(cancellationToken), cancellationToken);
+        await gatewayEntered.Task.WaitAsync(cancellationToken);
+
+        Task<bool> shutdown = devices.ShutdownLiveAsync(cancellationToken);
+        try
+        {
+            Assert.False(shutdown.IsCompleted);
+            Assert.False(devices.CanCloseWirelessSetup);
+        }
+        finally
+        {
+            releaseGateway.Set();
+        }
+
+        await connecting.WaitAsync(cancellationToken);
+        Assert.True(await shutdown.WaitAsync(cancellationToken));
+        Assert.Null(devices.ConnectedEndpointLabel);
+    }
+
     /// <summary>Attaching live services is inert until a user asks for refresh.</summary>
     [Fact]
     public void AttachmentNeverDiscoversOrPairsImplicitly()
@@ -499,6 +581,104 @@ public sealed class LiveDevicesTests
         Assert.Null(devices.PairingOutcome);
         Assert.Contains("cancelled", devices.PairingMessage);
         Assert.Equal(string.Empty, devices.PairingCode);
+    }
+
+    /// <summary>A rejected duplicate cannot replace a cancelled pairing task during shutdown.</summary>
+    [Fact]
+    public async Task ShutdownRetainsCancelledPairAfterRejectedDuplicate()
+    {
+        TaskCompletionSource<AdbResult<bool>> releasePair =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeGateway gateway = new() { PairAsyncOverride = (_, _, _) => releasePair.Task };
+        DevicesViewModel devices = CreateDevices(gateway);
+        PrepareManualPairing(devices, "phone.local:37123");
+
+        Task first = devices.PairAsync(TestContext.Current.CancellationToken);
+        devices.CancelPair();
+        Task rejectedDuplicate = devices.PairAsync(TestContext.Current.CancellationToken);
+        await rejectedDuplicate.WaitAsync(TestContext.Current.CancellationToken);
+
+        Task<bool> shutdown = devices.ShutdownLiveAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.False(shutdown.IsCompleted);
+            Assert.Null(devices.PairingOutcome);
+        }
+        finally
+        {
+            releasePair.SetResult(AdbResult<bool>.Success(true));
+        }
+
+        await first.WaitAsync(TestContext.Current.CancellationToken);
+        Assert.True(await shutdown.WaitAsync(TestContext.Current.CancellationToken));
+        Assert.Null(devices.PairingOutcome);
+        Assert.Equal(1, gateway.PairingCalls);
+    }
+
+    /// <summary>Shutdown sees a pair whose gateway has not returned its asynchronous task yet.</summary>
+    [Fact]
+    public async Task ShutdownOwnsPairDuringSynchronousGatewayEntry()
+    {
+        TaskCompletionSource gatewayEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim releaseGateway = new();
+        FakeGateway gateway = new()
+        {
+            PairAsyncOverride = (_, _, _) =>
+            {
+                gatewayEntered.SetResult();
+                releaseGateway.Wait();
+                return Task.FromResult(AdbResult<bool>.Success(true));
+            },
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        PrepareManualPairing(devices, "phone.local:37123");
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Task pairing = Task.Run(() => devices.PairAsync(cancellationToken), cancellationToken);
+        await gatewayEntered.Task.WaitAsync(cancellationToken);
+
+        Task<bool> shutdown = devices.ShutdownLiveAsync(cancellationToken);
+        try
+        {
+            Assert.False(shutdown.IsCompleted);
+            Assert.False(devices.CanCloseWirelessSetup);
+        }
+        finally
+        {
+            releaseGateway.Set();
+        }
+
+        await pairing.WaitAsync(cancellationToken);
+        Assert.True(await shutdown.WaitAsync(cancellationToken));
+        Assert.Null(devices.PairingOutcome);
+    }
+
+    /// <summary>A faulted owned publication makes shutdown fail without throwing into window close.</summary>
+    [Fact]
+    public async Task ShutdownReportsFaultedPairOperationAsFailure()
+    {
+        TaskCompletionSource<AdbResult<bool>> releasePair =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeGateway gateway = new() { PairAsyncOverride = (_, _, _) => releasePair.Task };
+        bool rejectPublication = false;
+        DevicesViewModel devices = CreateDevices(gateway, action =>
+        {
+            if (rejectPublication)
+            {
+                throw new InvalidOperationException("Synthetic dispatcher failure.");
+            }
+
+            action();
+        });
+        PrepareManualPairing(devices, "phone.local:37123");
+        Task pairing = devices.PairAsync(TestContext.Current.CancellationToken);
+        rejectPublication = true;
+
+        Task<bool> shutdown = devices.ShutdownLiveAsync(TestContext.Current.CancellationToken);
+        releasePair.SetResult(AdbResult<bool>.Success(true));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pairing);
+        Assert.False(await shutdown.WaitAsync(TestContext.Current.CancellationToken));
+        Assert.False(devices.IsLiveEnabled);
     }
 
     /// <summary>Shutdown cancels the active direct ADB command and waits for its settlement.</summary>
