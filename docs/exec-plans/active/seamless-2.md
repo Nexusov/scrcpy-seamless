@@ -305,6 +305,15 @@ A focused regression test failed before and passed after the local parser fix.
 The owner then reported `Pairing succeeded` through the rebuilt
 `scrcpy-seamless-desktop-p05c-gb3976af5` DEV package. This verifies the pairing
 path only; Phase 5C mirroring and USB-to-Wi-Fi recovery remain hardware-pending.
+The focused pairing follow-up restores discovery-first Wireless setup with
+an explicit manual fallback and visible Pair eligibility reasons. Synthetic
+tests cover candidate selection, stale discovery, cancellation and corrected
+pairing response classification. The reported empty service list is not yet
+attributed to the server, parser, timing or network: the corresponding raw
+`adb mdns services` output and active server backend were not captured. Bundled
+ADB remains pinned at 34.0.5; no mDNS override or shared-server restart was
+introduced. A new isolated DEV package and owner-run discovery/mirror smoke
+remain the Phase 5C acceptance gate.
 No Phase 5C phone/ADB operation has been run by automation. The manual gate is
 in [the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 

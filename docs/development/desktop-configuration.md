@@ -29,7 +29,16 @@ when a real configuration exists nearby.
 An explicit device runtime is validated against its separate DEV hash manifest
 before ADB services or a native host are attached. An absent or invalid runtime
 leaves normal settings editable and blocks Mirror. Startup does not probe ADB:
-Refresh, Pair, Connect and Mirror each require a user action. Refresh distinguishes a
+Refresh, Pair, Connect and Mirror each require a user action. Opening Wireless
+setup is an explicit action that runs one discovery snapshot; use Refresh after
+opening the phone's pairing-code dialog if that first snapshot was too early.
+The interface distinguishes not searched, searching, empty, failed and cancelled
+pairing discovery from USB transport observations. One fresh pairing service is
+visibly preselected, multiple services require selection, and manual pairing
+address entry is an explicit fallback. Pair eligibility and its visible reason
+use the same validation; changing or losing a target clears the pairing code.
+Pair never needs a connection endpoint and never connects automatically.
+Refresh distinguishes a
 failed/stale observation from an authoritative empty result; selecting a saved
 profile does not select an ADB transport. Pairing and connection endpoints have
 different purposes. An already paired endpoint can be connected manually when
@@ -194,8 +203,15 @@ propagates cancellation while an internal timeout reports `TimedOut` through
 the gateway. Device and mDNS text is parsed as untrusted input. The pairing
 code is sent through redirected stdin, not a process command-line argument.
 The generic runner inherits its process environment and does not select an
-ADB mDNS backend. A future bundled-ADB compatibility override belongs to an
-explicit runtime/composition policy, after reviewing that toolchain version.
+ADB mDNS backend. The reviewed DEV runtime packages ADB Platform Tools
+34.0.5-10900879. Its server selects the mDNS backend at server startup;
+changing a later client environment does not change an already-running shared
+server. A legacy runner explicitly selected Openscreen, but the cause of one
+reported empty Desktop discovery remains unknown because raw service output,
+backend state and phone-dialog timing were not captured. No runtime override
+is enabled without evidence from a controlled check. A future bundled-ADB
+compatibility override belongs to an explicit runtime/composition policy and
+must respect shared-server ownership.
 Pairing codes are transient and absent from saved profiles, result/error
 objects and diagnostics. After a network connection,
 `adb -s <network-endpoint> shell getprop ro.serialno` reports an observed

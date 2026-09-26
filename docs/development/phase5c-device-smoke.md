@@ -18,19 +18,29 @@ $data = 'D:\My Projects\scrcpy-seamless\.dev-data\p05c'
 ```
 
 1. Connect the intended phone by USB and leave Wi-Fi on. In Devices, press
-   **Refresh** and explicitly select its eligible USB ADB transport. Refresh
-   contacts the shared ADB daemon. If already paired, use the explicit Connect
-   action with the connection endpoint; otherwise Pair with separate pairing
-   and connection endpoints. Use the IP and port shown inside the phone's
-   **Pair device with pairing code** dialog for Pairing host:port; the ordinary
-   Wireless debugging connection port serves a different purpose. Verify that
-   the rebuilt Desktop reports pairing success after entering a fresh code.
-   Do not send the pairing code to chat.
-2. In Profiles, create or select the intended DEV profile. Save the USB serial
+   **Refresh** and explicitly select its eligible USB ADB transport. Open
+   **Wireless setup** and then open **Pair device with pairing code** on the
+   phone. The setup entry runs one discovery snapshot; press **Refresh** after
+   opening the phone dialog if the snapshot was too early. Confirm that a
+   single intended pairing service is visibly selected without copying an IP
+   address. Multiple candidates require an explicit choice. If no pairing
+   service is found, record whether the result says empty, failed or cancelled;
+   **Enter address manually** remains available. Discovery can be checked
+   without submitting another pairing code when the device is already paired.
+   If a repeat pairing is intentionally needed, use a fresh code and the
+   pairing endpoint shown in that phone dialog. Pair does not require the
+   separate Wireless debugging connection endpoint. Do not send a pairing
+   code or private device address to chat.
+2. Check connected ADB transports after Pair or discovery. If the shared ADB
+   server has already connected the phone, select that observed transport;
+   otherwise use **Connect selected endpoint** with the distinct connection
+   service or its manual address. Neither action saves a profile or starts
+   mirroring.
+3. In Profiles, create or select the intended DEV profile. Save the USB serial
    and Wi-Fi connection endpoint explicitly with **Apply**. Return to Devices,
    choose the saved profile in **Mirror session**, and press **Mirror**. Pair
    and Mirror contact the device; pairing does not save the profile.
-3. Confirm USB video, PC control and audible PC output separately. Record the
+4. Confirm USB video, PC control and audible PC output separately. Record the
    owned PID and observed HWND shown in the session panel. For an independent
    exact-path check, run:
 
@@ -43,11 +53,11 @@ $data = 'D:\My Projects\scrcpy-seamless\.dev-data\p05c'
      }
    ```
 
-4. Keep the same local sound source playing, physically disconnect USB and
+5. Keep the same local sound source playing, physically disconnect USB and
    wait for native Wi-Fi recovery. Run the same exact-path check. Compare PID
    and HWND, then independently report video, PC control and PC audio. A
    running process alone is not evidence that those channels recovered.
-5. Press **Stop** in Desktop and confirm the owned process exits. Reopen the
+6. Press **Stop** in Desktop and confirm the owned process exits. Reopen the
    same DEV data root in settings-only mode and confirm saved settings remain.
    The app must not intentionally stop the shared ADB daemon.
 
@@ -55,3 +65,22 @@ Sanitized lifecycle JSONL is under `$data\native-sessions`; it contains local
 receive order/time and owned process identity, not raw native output. It does
 not prove precise reconnect timings or audible output. No pairing code, key,
 private identifier or personal configuration needs to be pasted into chat.
+
+If discovery remains empty or fails while the phone pairing dialog is open,
+the maintainer may run the following optional check with this package's
+bundled ADB. These client commands can start the shared ADB server if it is
+not already running; do not run them during another active mirror or treat
+`adb version` as proof of the server's binary or mDNS backend. Sanitize all
+addresses, serials and instance names before sharing output.
+
+```powershell
+$adb = Join-Path $runtime 'adb.exe'
+& $adb version
+& $adb mdns check
+& $adb mdns services
+```
+
+Record the result of `mdns check`, the count and service types (`_adb-tls-pairing`
+versus `_adb-tls-connect`) from `mdns services`, and whether Desktop's visible
+pairing list matches. The existing shared server's startup environment/backend
+is otherwise unknown; do not restart it as a diagnostic shortcut.
