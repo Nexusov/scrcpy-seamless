@@ -12,8 +12,14 @@ if ($LASTEXITCODE -ne 0 -or $sourceSha -notmatch '^[a-fA-F0-9]{40}$') {
     throw 'A committed source SHA is required for DEV staging.'
 }
 
+$uncommittedPaths = @(& git -C $repositoryDirectory status --porcelain=v1 --untracked-files=all)
+
+if ($LASTEXITCODE -ne 0 -or $uncommittedPaths.Count -ne 0) {
+    throw 'DEV staging requires a clean committed source tree.'
+}
+
 if (-not $PackageDirectory) {
-    $PackageDirectory = Join-Path $repositoryDirectory ('dist\dev\scrcpy-seamless-desktop-p05c-g' + $sourceSha.Substring(0, 8))
+    $PackageDirectory = Join-Path $repositoryDirectory ('dist\dev\scrcpy-seamless-desktop-p05d-g' + $sourceSha.Substring(0, 8))
 }
 
 $packagePath = [IO.Path]::GetFullPath($PackageDirectory)
@@ -86,6 +92,11 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Self-contained Desktop publish failed; inspect the partial DEV directory.'
 }
 
+# Symbol files are not needed for the manual DEV acceptance bundle and can contain build-machine paths.
+foreach ($symbol in @(Get-ChildItem -LiteralPath $packagePath -File -Filter '*.pdb')) {
+    Remove-Item -LiteralPath $symbol.FullName
+}
+
 $runtimeDirectory = Join-Path $packagePath 'runtime'
 New-Item -ItemType Directory -Path $runtimeDirectory | Out-Null
 $files = [ordered]@{}
@@ -112,4 +123,32 @@ $runtimeManifest = [ordered]@{
     Origins = $origins
 }
 $runtimeManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $runtimeDirectory 'runtime-dev-manifest.json') -Encoding UTF8
+
+$noticeNames = @(
+    'Android-Platform-Tools-NOTICE.txt', 'dav1d-COPYING.txt',
+    'FFmpeg-LGPL-2.1.txt', 'FFmpeg-LICENSE.md', 'GCC-GPL-3.0.txt',
+    'GCC-RUNTIME-EXCEPTION.txt', 'MinGW-w64-COPYING.txt',
+    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt'
+)
+$noticeDirectory = Join-Path $packagePath 'licenses'
+New-Item -ItemType Directory -Path $noticeDirectory | Out-Null
+Copy-Item -LiteralPath (Join-Path $repositoryDirectory 'LICENSE') -Destination (Join-Path $packagePath 'LICENSE')
+
+foreach ($name in $noticeNames) {
+    Copy-Item -LiteralPath (Join-Path $repositoryDirectory ('licenses\' + $name)) -Destination (Join-Path $noticeDirectory $name)
+}
+
+@"
+# Isolated Desktop DEV bundle
+
+Source commit: $sourceSha
+
+This is a development artifact, not an official release. Runtime hashes and
+source/build origin labels are in runtime/runtime-dev-manifest.json. The project
+license is in LICENSE; retained ADB, SDL, FFmpeg and compiler-runtime notices
+are in licenses/. Do not copy personal profiles, ADB keys or logs into this
+directory. A public 2.0 distribution requires a separate review of Desktop
+dependency notices and the complete release/license package.
+"@ | Set-Content -LiteralPath (Join-Path $packagePath 'DEV-BUNDLE-NOTICES.md') -Encoding UTF8
+
 Write-Host "Staged isolated Desktop DEV package: $packagePath"
