@@ -1,9 +1,12 @@
 # Phase 5D manual acceptance (prepared; not executed)
 
-Use only the frozen Phase 5D source `9a02818b35aa300a4625edcd97a8794f69149613`
-and DEV package `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-g9a02818b`.
+Use only the current Phase 5D source `eb3de1c55b159b980643ee6235e000770134a1b3`
+and DEV package `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-geb3de1c5`.
 The ZIP at the same path plus `.zip` has SHA-256
-`95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058`.
+`cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`.
+The earlier `g9a02818b` package is retained as historical local evidence,
+not as a hardware pass for this one. Its 12 runtime files have identical
+SHA-256 hashes in the current package; the managed Desktop build changed.
 The isolated data root is `D:\My Projects\scrcpy-seamless\.dev-data\p05d`;
 it was created empty and must not be reseeded from earlier DEV or personal
 installations. Keep one active mirror at a time. Do not share pairing codes,
@@ -15,21 +18,26 @@ device actions. Close one window before launching a different mode on the same
 data root.
 
 ```powershell
-$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-g9a02818b'
+$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-geb3de1c5'
 $devData = 'D:\My Projects\scrcpy-seamless\.dev-data\p05d'
 & "$package\ScrcpySeamless.Desktop.exe" --preview --scenario=fallback
+& "$package\ScrcpySeamless.Desktop.exe" --preview --page=settings --ui-scale=1.5
 & "$package\ScrcpySeamless.Desktop.exe" "--dev-data-dir=$devData" --page=settings
 & "$package\ScrcpySeamless.Desktop.exe" "--dev-data-dir=$devData" "--device-runtime=$package\runtime" --page=devices
 ```
 
-The directory and ZIP were validated from a clean extraction path containing
-spaces. Local preview/settings/profile window inspection did not contact ADB,
-did not write to the empty p05d data root, and did not test a phone.
+The ZIP was verified, extracted into a clean path containing spaces and its
+preview opened from a working directory outside the checkout. Actual Windows
+preview captures for compact Settings and light/dark Shortcuts are under
+`work/phase5d/shortcuts-visual-review/geb3de1c5/`. The preview did not use
+ADB or the p05d data root. No new settings-only/device-enabled Windows or
+phone run has been completed on this source.
 
 ## Cold-start discovery precondition and separate permission
 
-A read-only preparation check found an existing `adb.exe` PID 34800 listening
-on `127.0.0.1:5037`. The absent-server precondition is therefore **not met**. This
+A prior read-only preparation check found an existing `adb.exe` PID 34800
+listening on `127.0.0.1:5037`; current server state has not been rechecked.
+An absent server has **not been established** for this package. This
 procedure must wait until the shared server is naturally absent or the owner
 separately approves a safe moment for one controlled stop. Stopping that server
 temporarily interrupts ADB connections held by Android Studio and other apps;
@@ -75,7 +83,11 @@ non-destructive manual-address fallback if discovery is unavailable.
 1. Open the final package's isolated settings-only and device-enabled modes.
    Check keyboard Tab/Shift+Tab, focus after dialogs, shortcut behavior in
    text fields, visible disabled reasons, and reachability at 660×460 and
-   150% application scale. Record whether inspection used Windows UI
+   150% application scale. In Settings, confirm the compact category selector
+   sits above full-width search/results; check the read-only Shortcuts tab,
+   its scrollable native conditions, MOD link and the existing control-center
+   editor link. Confirm those reference actions do not start a mirror or change
+   drafts. Record whether inspection used Windows UI
    Automation, a real screen reader, or only a visual check.
 2. In Devices, Refresh and explicitly select the USB row whose route and
    **USB serial** are labeled; the model is only a friendly name. In Profiles,

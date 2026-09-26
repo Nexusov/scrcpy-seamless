@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-26 Phase 5D local acceptance gate: Phases 5A–5C are
+Status at the 2026-09-27 Phase 5D local acceptance gate: Phases 5A–5C are
 integrated. PR #8 merged as `a3b1aa2b983cafbaa524a86502b1424315521582`,
 preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
 Phase 5D is in progress locally; overall Phase 5 remains incomplete. Phases
@@ -292,8 +292,8 @@ saving, physical-device identity inference or discarding pending edits.
 | 5D.2 | Make selected transport and saved-profile association explicit without transcribing the model as a serial | Implemented with typed route evidence, explicit draft action and passing focused tests |
 | 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected; actual Windows preview/settings/profile screenshots and UI Automation inspected; full screen-reader/multi-monitor checks remain open |
 | 5D.3a | Add bounded Settings shortcut reference and correct compact category width | Local read-only native reference with existing control-center editor link; compact results span the full width below the category picker; new package and manual acceptance remain separate evidence |
-| 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | Source `9a02818b35aa300a4625edcd97a8794f69149613`; local `scrcpy-seamless-desktop-p05d-g9a02818b.zip` verified from extraction with spaces, SHA-256 `95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058` |
-| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | 400/400 .NET tests, 29/29 legacy suites and extracted Windows mode/activation checks passed; [manual procedure](../../development/phase5d-manual-acceptance.md) prepared; phone remains untested |
+| 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | New source `eb3de1c55b159b980643ee6235e000770134a1b3`; local `scrcpy-seamless-desktop-p05d-geb3de1c5.zip` verified and preview-launched after extraction with spaces, SHA-256 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`. Prior `g9a02818b` package retained; all 12 runtime hashes are identical. |
+| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | 405/405 .NET tests, 29/29 legacy suites; actual Windows preview screenshots of compact Settings and Shortcuts; [manual procedure](../../development/phase5d-manual-acceptance.md) updated; phone and new settings-only/device-enabled Windows checks remain pending |
 | 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | Pending user participation; no hardware acceptance claimed |
 
 ### Phase 5C dependency-ordered checkpoints

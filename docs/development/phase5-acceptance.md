@@ -15,7 +15,7 @@ environment lacks a required condition; **not run** means execution is reserved
 for manual acceptance. A headless test is never labelled a Windows UI Automation
 or audible-output observation.
 
-Frozen Phase 5D code/artifact: source `9a02818b35aa300a4625edcd97a8794f69149613`,
+Previous Phase 5D code/artifact: source `9a02818b35aa300a4625edcd97a8794f69149613`,
 `dist/dev/scrcpy-seamless-desktop-p05d-g9a02818b.zip` SHA-256
 `95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058`.
 Its reviewed runtime identities and hashes are in the package-relative
@@ -30,6 +30,24 @@ the ZIP verifier and extracted Windows startup/activation checks. Native and
 Android server sources did not change in 5D, so their accepted tests are reused
 as earlier evidence, not reported as new runs. There are no failing executed
 final synthetic checks. Required physical-device checks remain outstanding.
+
+Current manual-acceptance target: source
+`eb3de1c55b159b980643ee6235e000770134a1b3`,
+`dist/dev/scrcpy-seamless-desktop-p05d-geb3de1c5.zip` SHA-256
+`cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`.
+Its 12 native/server/ADB/SDL/FFmpeg/image runtime files are byte-identical
+to the previous package. Locked restore, zero-warning Release build, 405/405
+.NET tests, 29/29 legacy suites, SpecGen verify, DocsCheck, metadata and ZIP
+verification passed locally. The extracted ZIP launched preview from a path
+with spaces and a working directory outside the checkout. Actual Windows
+preview screenshots show compact-category results using the full available
+width and the read-only Shortcuts tab at light/150% and dark/100%; see
+`work/phase5d/shortcuts-visual-review/geb3de1c5/`. These images and UI
+Automation's named/focusable tab do not establish screen-reader behavior or
+multi-monitor DPI. No phone, device-enabled Windows session, or cold-start
+discovery check was run on this new managed host. The table below retains the
+previous package's separate, artifact-specific observations; the
+[current manual procedure](phase5d-manual-acceptance.md) targets `geb3de1c5`.
 
 | Requirement / scenario | Layer and expected result | Actual result and status | Source/artifact | Remaining limit |
 | --- | --- | --- | --- | --- |
@@ -54,6 +72,6 @@ final synthetic checks. Required physical-device checks remain outstanding.
 | Disabled cross-transport fallback after USB removal | Physical Android; session does not silently switch to saved Wi-Fi route | **Not run** on final Phase 5D artifact | `g9a02818b` | Retain saved endpoint; inspect actual request evidence |
 | Multi-monitor DPI and screen-reader listening | Windows hardware/assistive technology | **Blocked / not run**: only one display was available; no screen-reader listening was requested | `g9a02818b` | Do not infer from headless resize or accessibility tree |
 
-The [manual procedure](phase5d-manual-acceptance.md) identifies the final
+The [manual procedure](phase5d-manual-acceptance.md) identifies the current
 artifact and actions before any phone or shared-server test.
 No Phase 5D or overall Phase 5 hardware acceptance is claimed here.
