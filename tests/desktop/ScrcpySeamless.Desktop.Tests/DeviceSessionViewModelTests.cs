@@ -72,6 +72,8 @@ public sealed class DeviceSessionViewModelTests
         using Fixture fixture = new();
         (NormalDesktopComposition composition, DeviceSessionViewModel actions, FakeHost host) =
             await fixture.CreatePreparedSessionAsync();
+        composition.Devices.OpenWirelessSetup();
+        composition.Devices.ShowManualConnection();
         composition.Devices.ManualConnectionEndpoint = "phone.local:38211";
 
         await actions.MirrorAsync();
