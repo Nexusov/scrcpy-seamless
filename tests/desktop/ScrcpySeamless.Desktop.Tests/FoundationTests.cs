@@ -156,6 +156,43 @@ public sealed class FoundationTests
         }
     }
 
+    /// <summary>Wraps the preview title before the Reset action at the minimum supported size.</summary>
+    [AvaloniaFact]
+    public void MinimumPreviewSettingsHeaderKeepsTitleAndResetDistinctAtEnlargedMetrics()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.Light, null, true), _ => { });
+        MainWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            ScrcpySeamless.Desktop.Views.SettingsView settings = Assert.Single(
+                window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            TextBlock title = Assert.Single(settings.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == shell.Settings.Title);
+            Button reset = settings.FindControl<Button>("ResetDraftButton")!;
+            Point? titlePosition = title.TranslatePoint(new Point(0, 0), settings);
+            Point? resetPosition = reset.TranslatePoint(new Point(0, 0), settings);
+
+            Assert.NotNull(titlePosition);
+            Assert.NotNull(resetPosition);
+            Assert.Equal(Avalonia.Media.TextWrapping.Wrap, title.TextWrapping);
+            Assert.True(title.Bounds.Height > title.FontSize * 1.5,
+                $"Title did not wrap at minimum size: title={title.Bounds}, font={title.FontSize}");
+            Assert.True(titlePosition.Value.X + title.Bounds.Width <= resetPosition.Value.X,
+                $"Preview title overlaps Reset: title={title.Bounds}, reset={reset.Bounds}");
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Enlarged Settings exposes editing, validation, reset, and help through its scroll viewport.</summary>
     [AvaloniaFact]
     public void EnlargedSettingsOptionControlsRemainReachableByScrolling()
@@ -207,7 +244,9 @@ public sealed class FoundationTests
                 Assert.NotNull(position);
                 Assert.InRange(position.Value.Y, -2, scroll.Viewport.Height);
                 Assert.True(position.Value.Y + control.Bounds.Height <= scroll.Viewport.Height + 2,
-                    $"{control.GetType().Name} remains below the enlarged option viewport");
+                    $"{control.GetType().Name} remains below the enlarged option viewport: " +
+                    $"text={(control as TextBlock)?.Text}, position={position}, control={control.Bounds}, " +
+                    $"viewport={scroll.Viewport}, offset={scroll.Offset}, extent={scroll.Extent}");
             }
 
             Assert.True(editor.Focus());

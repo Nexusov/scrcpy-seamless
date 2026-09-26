@@ -2,7 +2,7 @@
   "app.title": "scrcpy Seamless",
   "app.subtitle": "Desktop control center",
   "app.preview": "DEVELOPMENT PREVIEW · SIMULATED DATA",
-  "app.normal": "Device integration is not connected in this build",
+  "app.normal": "DEVELOPMENT BUILD · LOCAL DATA SCOPE",
   "app.theme.label": "Appearance",
   "app.theme.system": "System",
   "app.theme.light": "Light",

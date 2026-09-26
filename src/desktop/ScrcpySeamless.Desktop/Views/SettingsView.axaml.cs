@@ -90,6 +90,10 @@ public partial class SettingsView : UserControl
         bool stacked = compact && (observedViewModel?.IsPreview == true || Bounds.Width < StackedCategoryWidth);
         bool shortWindow = Bounds.Height < 500;
         bool compactPersistent = shortWindow && observedViewModel?.IsPersistent == true;
+        // Reflow the preview title only where the adjacent Reset action would clip it.
+        this.FindControl<TextBlock>("SettingsTitle")!.TextWrapping = Bounds.Width < StackedCategoryWidth
+            ? Avalonia.Media.TextWrapping.Wrap
+            : Avalonia.Media.TextWrapping.NoWrap;
         this.FindControl<TextBlock>("SettingsEyebrow")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsSubtitle")!.IsVisible = !shortWindow;
         this.FindControl<TextBlock>("SettingsGlobalLabel")!.IsVisible = !shortWindow;

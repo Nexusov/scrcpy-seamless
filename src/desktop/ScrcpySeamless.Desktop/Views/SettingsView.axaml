@@ -8,7 +8,8 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Spacing="5">
         <TextBlock Name="SettingsEyebrow" Classes="eyebrow" Text="{Binding Eyebrow}" />
-        <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+        <!-- The preview title must reflow before the adjacent Reset action at minimum width. -->
+        <TextBlock Name="SettingsTitle" Classes="pageTitle" Text="{Binding Title}" />
         <TextBlock Name="SettingsSubtitle" Classes="muted" Text="{Binding Subtitle}" />
       </StackPanel>
       <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
