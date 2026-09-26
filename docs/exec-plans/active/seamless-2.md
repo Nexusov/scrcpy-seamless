@@ -287,7 +287,19 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5C.5 | Owned legacy native start/stop/completion adapter with bounded diagnostics | Implemented locally; hardware pending |
 | 5C.6 | Device/session actions, cancellation and coordinated application close | Implemented locally; synthetic tests passed |
 | 5C.7 | Same-scope activation and duplicate-launch protection | Implemented locally; Windows multi-instance smoke pending |
-| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | 324 .NET and 16 native tests passed; DEV staging pending; hardware explicitly pending |
+| 5C.8 | Deterministic integration checks, isolated DEV runtime and manual hardware procedure | DEV staging and synthetic validation passed; real-device smoke explicitly pending |
+
+The local Phase 5C boundary has 324 passing .NET tests, 16 native tests,
+28 legacy suites, SpecGen verify, metadata and DocsCheck. The isolated DEV
+stage validates source-built native/server bytes and imports only reviewed
+ADB/SDL/FFmpeg/runtime resources. A desktop process smoke opened and closed
+preview, settings-only and device-enabled UI on synthetic roots without a
+device action. A second same-root settings-only process exposed an early
+dispatcher-shutdown exception; a focused follow-up defers its shutdown until
+the event loop starts, and a repeat process smoke forwarded/exited with code
+zero while the primary remained open. No Phase 5C phone/ADB operation or
+USB-to-Wi-Fi recovery has been run by automation. The manual gate is in
+[the Phase 5C device-smoke procedure](../../development/phase5c-device-smoke.md).
 
 ### Phase 5A dependency-ordered checkpoints
 
