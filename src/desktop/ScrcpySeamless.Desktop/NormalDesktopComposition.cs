@@ -262,9 +262,12 @@ public static class NormalDesktopFactory
         if (options.DeviceRuntimeDirectory is not null)
         {
             RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(options.DeviceRuntimeDirectory);
+            bool enableOpenScreenMdnsCompatibility = runtime.Bundle is { } validatedBundle &&
+                BundledAdbCompatibility.RequiresOpenScreenMdns(validatedBundle.Manifest.Files["adb.exe"]);
             LegacyNativeHost? nativeHost = runtime.Bundle is { } bundle
                 ? new LegacyNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
-                    bundle.AdbExecutablePath, Path.Combine(paths.Directory, "native-sessions"))
+                    bundle.AdbExecutablePath, Path.Combine(paths.Directory, "native-sessions"),
+                    enableOpenScreenMdnsCompatibility)
                 : null;
             deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
                 runtime, nativeHost, action => Dispatcher.UIThread.Post(action));
@@ -272,7 +275,12 @@ public static class NormalDesktopFactory
 
             if (runtime.Bundle is { } readyBundle)
             {
-                AdbGateway gateway = new(new AdbProcessRunner(readyBundle.AdbExecutablePath));
+                // This affects only children that may start ADB; an existing shared server keeps its own backend.
+                IReadOnlyDictionary<string, string>? adbChildEnvironment = enableOpenScreenMdnsCompatibility
+                    ? new Dictionary<string, string> { ["ADB_MDNS_OPENSCREEN"] = "1" }
+                    : null;
+                AdbGateway gateway = new(new AdbProcessRunner(readyBundle.AdbExecutablePath,
+                    adbChildEnvironment));
                 devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
                     action => Dispatcher.UIThread.Post(action), gateway);
             }

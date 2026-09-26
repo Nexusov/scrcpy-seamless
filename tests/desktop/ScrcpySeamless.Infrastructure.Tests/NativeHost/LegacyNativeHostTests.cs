@@ -49,6 +49,33 @@ public sealed class LegacyNativeHostTests
         }
     }
 
+    /// <summary>The selected runtime may pass Openscreen only to its native child.</summary>
+    [Fact]
+    public void ExplicitMdnsCompatibilityIsProcessLocal()
+    {
+        string directory = CreateDirectory();
+
+        try
+        {
+            string? previousBackend = Environment.GetEnvironmentVariable("ADB_MDNS_OPENSCREEN");
+            LegacyNativeHost host = new(
+                CreateFile(directory, "scrcpy.exe"),
+                CreateFile(directory, "scrcpy-server"),
+                CreateFile(directory, "adb.exe"),
+                Path.Combine(directory, "sessions"),
+                enableOpenScreenMdnsCompatibility: true);
+            ProcessStartInfo startInfo = host.CreateStartInfo(CreateRequest("SYNTHETIC_USB", null),
+                "Local\\synthetic-stop");
+
+            Assert.Equal("1", startInfo.Environment["ADB_MDNS_OPENSCREEN"]);
+            Assert.Equal(previousBackend, Environment.GetEnvironmentVariable("ADB_MDNS_OPENSCREEN"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     /// <summary>Legacy reconnect is activated only by an explicit endpoint in the immutable request.</summary>
     [Theory]
     [InlineData(false, "synthetic.example:37123")]

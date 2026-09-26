@@ -140,6 +140,21 @@ public sealed class AdbTests
         }
     }
 
+    /** An explicit runtime setting affects only the ADB child environment. */
+    [Fact]
+    public void ProcessInvocationAppliesProcessLocalRuntimeSetting()
+    {
+        const string backendVariable = "ADB_MDNS_OPENSCREEN";
+        string? previousBackend = Environment.GetEnvironmentVariable(backendVariable);
+        var runner = new AdbProcessRunner(@"C:\synthetic\adb.exe",
+            new Dictionary<string, string> { [backendVariable] = "1" });
+
+        ProcessStartInfo startInfo = runner.CreateStartInfo(["mdns", "services"]);
+
+        Assert.Equal("1", startInfo.Environment[backendVariable]);
+        Assert.Equal(previousBackend, Environment.GetEnvironmentVariable(backendVariable));
+    }
+
     [Fact]
     public async Task CancelledInvocationDoesNotStartAChild()
     {

@@ -19,11 +19,15 @@ public sealed class AdbProcessRunner : IAdbProcessRunner
     private const int MaximumOutputCharacters = 65_536;
     private static readonly TimeSpan TerminationWaitTimeout = TimeSpan.FromSeconds(10);
     private readonly string executablePath;
+    private readonly IReadOnlyDictionary<string, string> childEnvironment;
 
-    public AdbProcessRunner(string executablePath)
+    public AdbProcessRunner(string executablePath, IReadOnlyDictionary<string, string>? childEnvironment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         this.executablePath = executablePath;
+        this.childEnvironment = childEnvironment is null
+            ? new Dictionary<string, string>()
+            : new Dictionary<string, string>(childEnvironment);
     }
 
     public async Task<AdbProcessResult> RunAsync(
@@ -146,6 +150,12 @@ public sealed class AdbProcessRunner : IAdbProcessRunner
         {
             ArgumentNullException.ThrowIfNull(argument);
             startInfo.ArgumentList.Add(argument);
+        }
+
+        // Runtime composition supplies version-specific child settings; the runner does not choose ADB policy.
+        foreach ((string name, string value) in childEnvironment)
+        {
+            startInfo.Environment[name] = value;
         }
 
         return startInfo;

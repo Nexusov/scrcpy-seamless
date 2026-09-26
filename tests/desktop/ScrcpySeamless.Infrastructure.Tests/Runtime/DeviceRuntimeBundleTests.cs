@@ -58,6 +58,16 @@ public sealed class DeviceRuntimeBundleTests
         Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate("relative-runtime").Status);
     }
 
+    /// <summary>Only the tested ADB 34.0.5 bytes receive the Openscreen compatibility setting.</summary>
+    [Theory]
+    [InlineData("58765259A349CCE392FBB2F15DAB75FED3B7C0B40CC68A7653278B9850602A2F", true)]
+    [InlineData("58765259a349cce392fbb2f15dab75fed3b7c0b40cc68a7653278b9850602a2f", true)]
+    [InlineData("0000000000000000000000000000000000000000000000000000000000000000", false)]
+    public void MdnsCompatibilityMatchesExactReviewedAdb(string adbSha256, bool expected)
+    {
+        Assert.Equal(expected, BundledAdbCompatibility.RequiresOpenScreenMdns(adbSha256));
+    }
+
     /// <summary>Owns only disposable fake component files and a matching hash manifest.</summary>
     private sealed class SyntheticBundle : IDisposable
     {
