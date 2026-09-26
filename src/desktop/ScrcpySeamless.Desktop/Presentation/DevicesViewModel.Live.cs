@@ -23,6 +23,7 @@ public enum LiveDiscoveryState
     Empty,
     Error,
     Cancelled,
+    Unavailable,
 }
 
 /// <summary>Explicit ADB discovery and guided pairing, attached only in device-enabled composition.</summary>
@@ -145,6 +146,7 @@ public sealed partial class DevicesViewModel
         LiveDiscoveryState.Empty => "devices.live.pairingEmpty",
         LiveDiscoveryState.Error => "devices.live.pairingDiscoveryFailed",
         LiveDiscoveryState.Cancelled => "devices.live.pairingDiscoveryCancelled",
+        LiveDiscoveryState.Unavailable => "devices.live.pairingDiscoveryUnavailable",
         _ => "devices.live.pairingNotSearched",
     });
     public string DiscoveryStatusLabel => text.Get(discoveryState switch
@@ -154,6 +156,7 @@ public sealed partial class DevicesViewModel
         LiveDiscoveryState.Empty => "devices.live.empty",
         LiveDiscoveryState.Error => "devices.live.error",
         LiveDiscoveryState.Cancelled => "devices.live.cancelled",
+        LiveDiscoveryState.Unavailable => "devices.live.error",
         _ => "devices.live.initial",
     });
     public AdbPairingOutcome? PairingOutcome
@@ -825,8 +828,11 @@ public sealed partial class DevicesViewModel
             ? services.Value!.Any(service => service.Kind == AdbServiceKind.Pairing)
                 ? LiveDiscoveryState.Ready
                 : LiveDiscoveryState.Empty
-            : LiveDiscoveryState.Error;
-        ServiceMessage = servicesAvailable ? null : text.Get("devices.live.serviceFailed");
+            : services.Failure == AdbFailureKind.MdnsUnavailable
+                ? LiveDiscoveryState.Unavailable
+                : LiveDiscoveryState.Error;
+        ServiceMessage = servicesAvailable || services.Failure == AdbFailureKind.MdnsUnavailable
+            ? null : text.Get("devices.live.serviceFailed");
 
         if (servicesAvailable)
         {
@@ -1087,6 +1093,11 @@ public sealed partial class DevicesViewModel
             if (pairingDiscoveryState == LiveDiscoveryState.Error)
             {
                 return new(false, "devices.live.pairDiscoveryFailed", null);
+            }
+
+            if (pairingDiscoveryState == LiveDiscoveryState.Unavailable)
+            {
+                return new(false, "devices.live.pairDiscoveryUnavailable", null);
             }
 
             if (pairingDiscoveryState == LiveDiscoveryState.Cancelled)

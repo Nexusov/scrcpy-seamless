@@ -53,6 +53,20 @@ public sealed class AdbTests
         Assert.Equal(37124, parsed.Items[1].Endpoint.Port);
     }
 
+    /** ADB's mDNS health error can be returned on stdout with process exit zero. */
+    [Fact]
+    public void MdnsCheckDistinguishesUnavailableFromHealthyAndUnknown()
+    {
+        Assert.Equal(AdbMdnsCheckStatus.Unavailable,
+            AdbResponseParser.ParseMdnsCheck("ERROR: mdns daemon unavailable\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Unavailable,
+            AdbResponseParser.ParseMdnsCheck("ERROR: mdns discovery disabled\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Available,
+            AdbResponseParser.ParseMdnsCheck("mdns daemon version [Openscreen discovery 0.0.0]\n"));
+        Assert.Equal(AdbMdnsCheckStatus.Unrecognized,
+            AdbResponseParser.ParseMdnsCheck("unexpected synthetic output\n"));
+    }
+
     [Fact]
     public void PairAndConnectRequireSuccessForTheExpectedEndpoint()
     {

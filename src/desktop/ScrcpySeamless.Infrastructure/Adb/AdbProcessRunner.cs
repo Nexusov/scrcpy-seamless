@@ -6,8 +6,15 @@ namespace ScrcpySeamless.Infrastructure.Adb;
 
 public sealed record AdbProcessResult(int ExitCode, string StandardOutput, string StandardError, bool OutputTruncated);
 
+/** Executes one bounded ADB command so gateway responses can be tested without a daemon. */
+public interface IAdbProcessRunner
+{
+    Task<AdbProcessResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan timeout,
+        CancellationToken cancellationToken, string? standardInput = null);
+}
+
 /** Owns one ADB child process and bounds its lifetime and captured output. */
-public sealed class AdbProcessRunner
+public sealed class AdbProcessRunner : IAdbProcessRunner
 {
     private const int MaximumOutputCharacters = 65_536;
     private static readonly TimeSpan TerminationWaitTimeout = TimeSpan.FromSeconds(10);

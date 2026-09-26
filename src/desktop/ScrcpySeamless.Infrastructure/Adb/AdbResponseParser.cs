@@ -5,6 +5,9 @@ namespace ScrcpySeamless.Infrastructure.Adb;
 
 public sealed record AdbParseResult<T>(IReadOnlyList<T> Items, int MalformedLineCount);
 
+/** Server-reported health of ADB mDNS discovery, independent of service count. */
+public enum AdbMdnsCheckStatus { Available, Unavailable, Unrecognized }
+
 /** Parses untrusted ADB text without treating daemon notices as devices. */
 public static class AdbResponseParser
 {
@@ -14,6 +17,9 @@ public static class AdbResponseParser
     private const string PairingSuccessPrefix = "Successfully paired to ";
     private const string PairingFailurePrefix = "Failed:";
     private const string PairingFailedToPairPrefix = "Failed to pair";
+    private const string MdnsVersionPrefix = "mdns daemon version [";
+    private const string MdnsDaemonUnavailable = "ERROR: mdns daemon unavailable";
+    private const string MdnsDiscoveryDisabled = "ERROR: mdns discovery disabled";
 
     /** Distinguishes ADB errors on stderr from routine daemon startup notices. */
     public static bool HasErrorDiagnostics(string standardError)
@@ -113,6 +119,29 @@ public static class AdbResponseParser
         }
 
         return new AdbParseResult<AdbMdnsService>(services, malformedLineCount);
+    }
+
+    /** Interprets the pinned ADB server's health reply, whose error can exit zero. */
+    public static AdbMdnsCheckStatus ParseMdnsCheck(string output)
+    {
+        string[] lines = ReadDataLines(output).ToArray();
+
+        if (lines.Length != 1)
+        {
+            return AdbMdnsCheckStatus.Unrecognized;
+        }
+
+        string response = lines[0];
+
+        if (response.Equals(MdnsDaemonUnavailable, StringComparison.OrdinalIgnoreCase)
+            || response.Equals(MdnsDiscoveryDisabled, StringComparison.OrdinalIgnoreCase))
+        {
+            return AdbMdnsCheckStatus.Unavailable;
+        }
+
+        bool hasVersion = response.StartsWith(MdnsVersionPrefix, StringComparison.OrdinalIgnoreCase)
+            && response.EndsWith(']') && response.Length > MdnsVersionPrefix.Length + 1;
+        return hasVersion ? AdbMdnsCheckStatus.Available : AdbMdnsCheckStatus.Unrecognized;
     }
 
     /** Accepts ADB success both with and without its non-newline input prompt. */

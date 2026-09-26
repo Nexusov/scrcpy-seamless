@@ -292,6 +292,30 @@ public sealed class LiveDevicesTests
         Assert.Equal(1, gateway.ServiceCalls);
     }
 
+    /// <summary>An unavailable shared-server mDNS backend is not an empty phone result.</summary>
+    [Fact]
+    public void UnavailableMdnsExplainsManualPairingWithoutHidingUsb()
+    {
+        FakeGateway gateway = new()
+        {
+            Devices = AdbResult<IReadOnlyList<AdbDevice>>.Success(
+                [new AdbDevice("synthetic-usb", AdbDeviceState.Device, "Phone")]),
+            Services = AdbResult<IReadOnlyList<AdbMdnsService>>.Error(AdbFailureKind.MdnsUnavailable),
+        };
+        DevicesViewModel devices = CreateDevices(gateway);
+        devices.OpenWirelessSetup();
+        devices.PairingCode = "123456";
+
+        Assert.Equal(LiveDiscoveryState.Ready, devices.DiscoveryState);
+        Assert.Contains("shared server", devices.PairingDiscoveryStatusLabel);
+        Assert.False(devices.CanPair);
+        Assert.Contains("unavailable", devices.PairEligibilityMessage);
+        devices.ShowManualPairing();
+        devices.ManualPairingEndpoint = "192.0.2.8:37123";
+        devices.PairingCode = "123456";
+        Assert.True(devices.CanPair);
+    }
+
     /// <summary>A superseded refresh settles before the next ADB snapshot begins.</summary>
     [Fact]
     public async Task SupersededRefreshWaitsForTheCancelledSnapshot()
