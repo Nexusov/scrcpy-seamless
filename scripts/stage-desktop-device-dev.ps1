@@ -52,8 +52,11 @@ $serverInputs = @(
     'scripts/build-server.ps1'
 )
 & git -C $repositoryDirectory diff --quiet $serverEvidence.SourceHead HEAD -- $serverInputs
+$serverHistoryUnchanged = $LASTEXITCODE -eq 0
+$serverWorkingChanges = @(& git -C $repositoryDirectory status --porcelain=v1 --untracked-files=all -- $serverInputs)
 
-if ($LASTEXITCODE -ne 0 -or $serverEvidence.SchemaVersion -ne 1 -or
+if (-not $serverHistoryUnchanged -or $LASTEXITCODE -ne 0 -or $serverWorkingChanges.Count -ne 0 -or
+    $serverEvidence.SchemaVersion -ne 1 -or
     $serverEvidence.ArtifactSha256 -ne $serverHash -or
     $serverEvidence.SourceFingerprintSha256 -notmatch '^[a-fA-F0-9]{64}$') {
     throw 'Source-built Android server evidence is stale or mismatched.'
