@@ -1,4 +1,4 @@
-# Phase 5D manual acceptance (prepared; not executed)
+# Phase 5D manual acceptance (in progress)
 
 Use only the current Phase 5D source `eb3de1c55b159b980643ee6235e000770134a1b3`
 and DEV package `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-geb3de1c5`.
@@ -30,19 +30,28 @@ The ZIP was verified, extracted into a clean path containing spaces and its
 preview opened from a working directory outside the checkout. Actual Windows
 preview captures for compact Settings and light/dark Shortcuts are under
 `work/phase5d/shortcuts-visual-review/geb3de1c5/`. The preview did not use
-ADB or the p05d data root. No new settings-only/device-enabled Windows or
-phone run has been completed on this source.
+ADB or the p05d data root. The later partial manual results on this same
+artifact are recorded in the [integrated matrix](phase5-acceptance.md#current-artifact-manual-observations).
 
 ## Cold-start discovery precondition and separate permission
 
-A prior read-only preparation check found an existing `adb.exe` PID 34800
-listening on `127.0.0.1:5037`; current server state has not been rechecked.
-An absent server has **not been established** for this package. This
-procedure must wait until the shared server is naturally absent or the owner
-separately approves a safe moment for one controlled stop. Stopping that server
-temporarily interrupts ADB connections held by Android Studio and other apps;
-this task does not authorize the stop. Do not delete ADB keys, unpair the phone,
-change global environment variables or manually prestart a replacement server.
+On 2026-09-28 a read-only check found the existing DEV `adb.exe` PID 34800
+listening on `127.0.0.1:5037`, with no established client connection in that
+snapshot. The owner separately authorized one controlled stop. The exact
+package's `adb.exe kill-server` exited 0; subsequent checks showed no ADB
+process or port-5037 listener before Desktop launch. Desktop PID 32500 then
+started from this package; its UI discovery request started the package's
+`adb.exe` PID 49044, and `mdns check` reported Openscreen discovery. While the
+phone advertised its pairing service, the DEV UI displayed that service and
+`adb mdns services` counted one pairing service. No pairing was attempted.
+The Desktop window was closed normally afterward; ADB PID 49044 remained
+available. See the [current artifact observations](phase5-acceptance.md#current-artifact-manual-observations).
+
+For any future repeat, stopping a shared server still requires new separate
+authorization at a safe moment. It can temporarily interrupt ADB connections
+held by Android Studio and other apps. Do not delete ADB keys, unpair the
+phone, change global environment variables or manually prestart a replacement
+server.
 
 At an agreed safe moment, close other ADB-using tools. Inspect the process,
 executable/start time and port-5037 listener with these read-only commands:
@@ -52,8 +61,8 @@ Get-CimInstance Win32_Process -Filter "Name='adb.exe'" | Select-Object ProcessId
 Get-NetTCPConnection -LocalPort 5037 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
 ```
 
-**Do not run the next command without separate authorization.** It is the
-proposed single shared-server stop and may temporarily disconnect Android
+**Do not run the next command without separate authorization for that run.**
+It is a shared-server stop and may temporarily disconnect Android
 Studio and other ADB clients:
 
 ```powershell

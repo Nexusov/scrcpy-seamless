@@ -44,10 +44,11 @@ preview screenshots show compact-category results using the full available
 width and the read-only Shortcuts tab at light/150% and dark/100%; see
 `work/phase5d/shortcuts-visual-review/geb3de1c5/`. These images and UI
 Automation's named/focusable tab do not establish screen-reader behavior or
-multi-monitor DPI. No phone, device-enabled Windows session, or cold-start
-discovery check was run on this new managed host. The table below retains the
-previous package's separate, artifact-specific observations; the
-[current manual procedure](phase5d-manual-acceptance.md) targets `geb3de1c5`.
+multi-monitor DPI. Subsequent device-enabled Windows/phone and authorized
+cold-start checks used this same artifact; their results appear below.
+The table below retains the previous package's separate, artifact-specific
+observations; the [current manual procedure](phase5d-manual-acceptance.md)
+targets `geb3de1c5`.
 
 | Requirement / scenario | Layer and expected result | Actual result and status | Source/artifact | Remaining limit |
 | --- | --- | --- | --- | --- |
@@ -74,4 +75,28 @@ previous package's separate, artifact-specific observations; the
 
 The [manual procedure](phase5d-manual-acceptance.md) identifies the current
 artifact and actions before any phone or shared-server test.
-No Phase 5D or overall Phase 5 hardware acceptance is claimed here.
+
+## Current artifact manual observations
+
+All observations below used `scrcpy-seamless-desktop-p05d-geb3de1c5` from
+source `eb3de1c55b159b980643ee6235e000770134a1b3`, the isolated
+`.dev-data/p05d` scope and one physical phone. The Mirror checks used an
+already-running shared ADB server; the cold-start check began with no server.
+The owner reported audible PC sound and performed physical USB cable
+changes; the agent inspected the real Desktop/native windows, process identity,
+and saved DEV configuration. Neither UI Automation nor visual inspection is a
+screen-reader test. The Android version was not captured.
+
+| Check | Observation | Limit |
+| --- | --- | --- |
+| Shortcuts and compact Settings | Owner saw the MOD, Home/Back, rotation and conditional native shortcut rows without reported clipping or errors. Compact-category results filled the content width; scrolling worked and an edited draft value persisted. Settings-only mode opened the control-center shortcut editor; Tab/Shift+Tab and visible focus worked. | No real screen reader or multi-monitor DPI test. At 150% application scale, the compact window leaves little vertical space for settings; reducing the chosen scale implicitly would violate the selected preference. |
+| Physical route/profile association | USB and network ADB selections appeared; the physical USB selector was labelled `Route unknown`. The selected-route draft action refused to fill USB serial, leaving a new profile unable to launch until its exact serial was entered manually and saved. After manual entry, the profile launched successfully. | **Failed usability check** for automatic USB association on this observed ADB output. The UI exposes the correct selector but did not classify the route. Raw `adb devices -l` was checked separately after a later reconnect; it contained the device state and model without a `usb:` field. This does not prove the exact earlier output bytes. |
+| USB Mirror and Wi-Fi recovery with fallback enabled | Live video and PC control were observed, and the owner confirmed audible PC audio before and after USB removal. Wi-Fi recovery kept the native PID `32916`, UTC process start `2026-09-28T12:08:00.8138513Z`, HWND `1905410` and title `Phone-Seamless` at the two checkpoints. Desktop Stop closed the native child; the shared ADB server remained running. | One physical recovery cycle on this artifact. Matching PID/HWND samples do not prove every intervening frame or uninterrupted audio. |
+| USB removal with fallback disabled | With the saved Wi-Fi endpoint retained and only fallback disabled, USB removal stopped the native session; the Desktop reported `NativeFailure`, with no observed Wi-Fi transfer. Fallback was restored with Save to draft and Apply. | Native disconnect/exit is expected legacy behavior in this condition; this does not classify the status wording as a separate failure. Child environment was not captured. |
+| Same-root activation while Mirror ran | A secondary Desktop launch for the same DEV data root exited with code 0. Primary PID `31004`/HWND `8327314` and native PID `45780`/HWND `4264984` remained unchanged at the before/after checkpoints. | One real-window activation check. |
+| Normal close while Mirror ran | Closing the primary Desktop window left no processes from the exact DEV Desktop/native executable paths. The shared ADB server remained PID `34800` listening on port 5037. | Does not exercise abnormal parent death or deliberately failed child cleanup. |
+| Cold-start discovery | **Passed in the controlled check**: after separately authorized `kill-server`, both ADB process and port-5037 listener were absent. Desktop PID `32500` requested discovery and started bundled ADB PID `49044`; `mdns check` reported Openscreen. With the phone's pairing-code screen open, DEV UI found the pairing service and `mdns services` counted one. Closing Desktop left ADB available. | One cold-start cycle. Pairing was deliberately not repeated; this does not test every network environment or subsequent daemon restart. |
+
+Phase 5D and overall Phase 5 acceptance remain open. The route-classification
+usability defect, limited compact-window vertical space, and untested real
+screen-reader and multi-monitor DPI behavior must remain visible in any handoff.

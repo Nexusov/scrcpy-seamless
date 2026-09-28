@@ -1,9 +1,10 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-27 Phase 5D local acceptance gate: Phases 5A–5C are
+Status at the 2026-09-28 Phase 5D local acceptance gate: Phases 5A–5C are
 integrated. PR #8 merged as `a3b1aa2b983cafbaa524a86502b1424315521582`,
 preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
-Phase 5D is in progress locally; overall Phase 5 remains incomplete. Phases
+Phase 5D manual checks are partly complete; a physical USB route-classification
+usability failure remains open. Overall Phase 5 remains incomplete. Phases
 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -273,7 +274,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Accepted and integrated through PR #8; historical hardware smoke remains tied to `g2b902065` |
-| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; manual acceptance pending |
+| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; partial manual acceptance recorded, USB profile-association usability failure open |
 
 Phase 5D integrated acceptance must check discovery when the reviewed package
 starts from an absent shared ADB server, with separate authorization before a
@@ -293,8 +294,8 @@ saving, physical-device identity inference or discarding pending edits.
 | 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected; actual Windows preview/settings/profile screenshots and UI Automation inspected; full screen-reader/multi-monitor checks remain open |
 | 5D.3a | Add bounded Settings shortcut reference and correct compact category width | Local read-only native reference with existing control-center editor link; compact results span the full width below the category picker; new package and manual acceptance remain separate evidence |
 | 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | New source `eb3de1c55b159b980643ee6235e000770134a1b3`; local `scrcpy-seamless-desktop-p05d-geb3de1c5.zip` verified and preview-launched after extraction with spaces, SHA-256 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`. Prior `g9a02818b` package retained; all 12 runtime hashes are identical. |
-| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | 405/405 .NET tests, 29/29 legacy suites; actual Windows preview screenshots of compact Settings and Shortcuts; [manual procedure](../../development/phase5d-manual-acceptance.md) updated; phone and new settings-only/device-enabled Windows checks remain pending |
-| 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | Pending user participation; no hardware acceptance claimed |
+| 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | 405/405 .NET tests, 29/29 legacy suites; actual Windows preview screenshots of compact Settings and Shortcuts; [manual procedure](../../development/phase5d-manual-acceptance.md) updated; partial settings-only/device-enabled Windows checks recorded in the [acceptance matrix](../../development/phase5-acceptance.md#current-artifact-manual-observations) |
+| 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | One exact-artifact USB to Wi-Fi recovery passed at sampled PID/HWND checkpoints; disabled-fallback and running-mirror activation/close checks completed. A separately authorized absent-server start selected bundled Openscreen ADB and found the advertised pairing service. The physical USB route was classified `Unknown`, blocking automatic profile association. No Phase 5 acceptance claimed |
 
 ### Phase 5C dependency-ordered checkpoints
 
