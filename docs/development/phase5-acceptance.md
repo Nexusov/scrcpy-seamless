@@ -165,6 +165,12 @@ graceful reason, no-forced-stop and unrelated-child safety assertions remain.
 Production native-host behavior and the DEV binaries did not change. The
 controlled defects are corrected; the original hosted file-lock owner remains
 unknown. Local validation passed 30/30 independent double-Stop runs, three
-18/18 native-host class runs and 441/441 .NET tests. The updated hosted PR
-result is a separate gate. The test-only change leaves the identified DEV
-artifact and its artifact-specific hardware evidence unchanged.
+18/18 native-host class runs and 441/441 .NET tests. On follow-up source
+`95966b4367259dc4a763b56675bddf1b0d535545`, hosted PR #9 runs
+`36447117561` and `36447117867` each passed `test`, `native`,
+`android-server` and `desktop`; each `desktop` job passed 441/441 tests. Their
+synthetic merge was `f0dfe741925b9ed091d2cbd5eafafadf721e68ca` with
+parents `a3b1aa2b983cafbaa524a86502b1424315521582` and
+`95966b4367259dc4a763b56675bddf1b0d535545`.
+The test-only change leaves the identified DEV artifact and its
+artifact-specific hardware evidence unchanged.

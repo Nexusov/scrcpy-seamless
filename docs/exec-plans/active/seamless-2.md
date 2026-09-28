@@ -9,9 +9,10 @@ Mirror/Stop retest on `gda35a1bd`; other coverage dispositions remain pending.
 PR #9's first hosted `desktop` job failed in an unchanged synthetic native-host
 fixture during directory cleanup. A controlled test-only fixture correction
 passed local regressions, 30/30 repeated double-Stop runs and 441/441 .NET
-tests; the updated hosted result
-remains an explicit PR gate. The original CI log did not identify the file-lock
-owner, so the historical failure is not attributed to a particular process.
+tests. Both subsequent hosted runs at `95966b4367259dc4a763b56675bddf1b0d535545`
+passed all four jobs, including 441/441 `desktop` tests. The original CI log
+did not identify the file-lock owner, so the historical failure is not
+attributed to a particular process. PR #9 remains open for review.
 Overall Phase 5 remains incomplete. Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
