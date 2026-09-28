@@ -141,3 +141,30 @@ cold-start cycle was repeated on `gda35a1bd`; those results belong to
 `geb3de1c5`. Limited vertical workspace at 150% remains a usability limitation
 while content is reachable. Real screen-reader listening and multi-monitor DPI
 checks have not been established; abnormal parent-death cleanup remains Phase 6.
+
+## PR #9 hosted native-fixture incident
+
+The first PR #9 hosted run (`36439257814`, synthetic merge
+`c5266d90557905b071737a54557976de6d596edd`) passed `test`, `native` and
+`android-server`. Its `desktop` job (`108985156585`) built without warnings,
+then passed 434/435 .NET tests. The unchanged native-host test
+`StopTwiceGracefullyReapsOnlyOwnedChild` reported an `IOException` while its
+`finally` deleted `ready.txt`: Windows said another process was using the file.
+The retained log locates directory deletion at `LegacyNativeHostTests.cs:290`.
+It does not contain the fixture's path/PID, handle owner, HResult or evidence
+that distinguishes a primary failure from one obscured by `finally`.
+
+Controlled tests at the PR head demonstrated two fixture vulnerabilities:
+`File.Exists` could report the final marker while its writer still held it,
+and a pre-Stop failure reached directory deletion before implicit session
+disposal, masking the injected primary exception. A test-only follow-up now
+publishes the marker by closing a temporary file before a same-directory move.
+It settles the exact child/session before directory deletion, and retains both
+primary and cleanup exceptions when each fails. The original concurrent Stop,
+graceful reason, no-forced-stop and unrelated-child safety assertions remain.
+Production native-host behavior and the DEV binaries did not change. The
+controlled defects are corrected; the original hosted file-lock owner remains
+unknown. Local validation passed 30/30 independent double-Stop runs, three
+18/18 native-host class runs and 441/441 .NET tests. The updated hosted PR
+result is a separate gate. The test-only change leaves the identified DEV
+artifact and its artifact-specific hardware evidence unchanged.

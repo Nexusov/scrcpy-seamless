@@ -6,6 +6,12 @@ preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
 Phase 5D is ready for independent PR review. The physical USB association
 failure on `geb3de1c5` was corrected and passed one targeted USB/profile/
 Mirror/Stop retest on `gda35a1bd`; other coverage dispositions remain pending.
+PR #9's first hosted `desktop` job failed in an unchanged synthetic native-host
+fixture during directory cleanup. A controlled test-only fixture correction
+passed local regressions, 30/30 repeated double-Stop runs and 441/441 .NET
+tests; the updated hosted result
+remains an explicit PR gate. The original CI log did not identify the file-lock
+owner, so the historical failure is not attributed to a particular process.
 Overall Phase 5 remains incomplete. Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
