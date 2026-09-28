@@ -868,8 +868,7 @@ public sealed partial class DevicesViewModel
 
             foreach (AdbDevice device in devices.Value)
             {
-                ObservedDevices.Add(new ObservedDeviceChoice(device,
-                    $"{device.Model ?? device.Serial} · {device.Serial} · {device.State}"));
+                ObservedDevices.Add(new ObservedDeviceChoice(device, DescribeObservedDevice(device)));
             }
 
             SelectedDeviceChoice = ObservedDevices.FirstOrDefault(choice => choice.Device.Serial == selectedSerial);
@@ -906,6 +905,25 @@ public sealed partial class DevicesViewModel
         OnPropertyChanged(nameof(PairingDiscoveryStatusLabel));
         NotifyPairEligibility();
         OnPropertyChanged(nameof(CanConnect));
+    }
+
+    /// <summary>Labels model, route and actual ADB selector separately without equating their identities.</summary>
+    private string DescribeObservedDevice(AdbDevice device)
+    {
+        string model = device.Model ?? text.Get("devices.live.unknownModel");
+        string route = text.Get(device.TransportKind switch
+        {
+            AdbTransportKind.Usb => "devices.live.routeUsb",
+            AdbTransportKind.Network => "devices.live.routeNetwork",
+            _ => "devices.live.routeUnknown",
+        });
+        string selector = text.Get(device.TransportKind switch
+        {
+            AdbTransportKind.Usb => "devices.live.usbSelector",
+            AdbTransportKind.Network => "devices.live.networkSelector",
+            _ => "devices.live.adbSelector",
+        });
+        return $"{model} · {route} · {selector}: {device.Serial} · {device.State}";
     }
 
     /// <summary>Preserves a previously observed list on failure and marks it non-authoritative.</summary>

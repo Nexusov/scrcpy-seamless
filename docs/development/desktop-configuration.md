@@ -47,6 +47,27 @@ mDNS discovery is unavailable. Pairing and Connect neither save a profile nor
 start mirroring; use the Profiles editor and its existing revision-checked Apply
 to persist changes.
 
+Phase 5D labels a discovered row with its model, route and actual ADB selector
+as separate concepts. In the normal Profiles editor, **Use selected ADB
+transport in this profile draft** copies a fresh, explicitly selected USB
+serial into only the USB field, or a concrete network endpoint into only the
+connection field. An opaque or unknown route remains manual; its display name
+is never treated as identity. The action refuses to replace an unstaged editor
+buffer. It neither pairs nor saves: Save to draft and Apply remain separate,
+revision-checked steps. The pairing endpoint remains distinct from the
+connection endpoint.
+
+Some ADB long listings omit the USB devpath. For an otherwise unknown row with
+one valid `transport_id`, discovery asks the configured ADB server once for
+`adb -d transport-id`: `-d` selects a USB transport, and the returned ID must
+uniquely match that row in a stable second listing before it is labelled USB.
+The probe is bounded and cancellable; failed, missing, duplicate, changed or
+ambiguous evidence leaves the route unresolved. A transport ID is scoped to the
+current ADB server and is never persisted as a device/profile identity. This
+does not change the independently reported ADB authorization state or select a
+row on the user's behalf. Multiple USB devices without explicit devpaths can
+remain Unknown when ADB cannot select a unique USB transport.
+
 Mirror requires a selected saved profile, a fresh explicitly selected eligible
 ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before
@@ -129,6 +150,10 @@ rendering; shortcut edits become active only after successful Apply. The
 requested font remains saved even when the local font is unavailable and a
 system font renders instead. Only implemented local command IDs can be bound;
 disabled shortcuts have an explicit empty binding.
+Settings → Shortcuts links to this existing Desktop editor and presents a
+read-only, offline [native mirror shortcut reference](desktop-shortcuts.md).
+The native modifier remains the generated `shortcut-mod` mirroring option;
+the reference cannot change bindings or a running mirror.
 
 The v2 document has `SchemaVersion: 2`, a list of `Profiles`, and global
 `Mirroring` preferences (`Reconnect` and `Options`). A profile has a stable

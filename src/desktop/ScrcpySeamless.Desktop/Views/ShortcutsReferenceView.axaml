@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.ShortcutsReferenceView"
+             x:DataType="vm:SettingsViewModel">
+  <!-- A reference only: rows have no click, key binding, process or device command. -->
+  <ScrollViewer Name="ShortcutReferenceScroll" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Spacing="{DynamicResource SectionGap}">
+      <StackPanel Spacing="5">
+        <TextBlock Classes="pageTitle" Text="{Binding ShortcutReference.Title}" TextWrapping="Wrap" />
+        <TextBlock Classes="muted" Text="{Binding ShortcutReference.Subtitle}" TextWrapping="Wrap" />
+      </StackPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="9">
+          <TextBlock Classes="sectionTitle" Text="{Binding ShortcutReference.ControlCenterTitle}" />
+          <TextBlock Text="{Binding ShortcutReference.ControlCenterDescription}" TextWrapping="Wrap" />
+          <Button Content="{Binding ShortcutReference.EditControlCenterLabel}"
+                  Command="{Binding ShowDesktopCommand}" IsVisible="{Binding IsPersistent}"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.AutomationId="shortcuts.editControlCenter"
+                  AutomationProperties.Name="{Binding ShortcutReference.EditControlCenterLabel}" />
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="sectionTitle" Text="{Binding ShortcutReference.MirrorTitle}" />
+          <TextBlock Text="{Binding ShortcutReference.MirrorDescription}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ShortcutReference.ModifierLegend}" TextWrapping="Wrap" />
+          <Button Content="{Binding ShortcutReference.ModifierOptionLabel}"
+                  Command="{Binding ShowShortcutModifierCommand}" HorizontalAlignment="Left"
+                  AutomationProperties.AutomationId="shortcuts.modifierOption"
+                  AutomationProperties.Name="{Binding ShortcutReference.ModifierOptionLabel}" />
+          <TextBlock Text="{Binding ShortcutReference.ReadOnlyNote}" Classes="muted" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+      <ItemsControl ItemsSource="{Binding ShortcutReference.Groups}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:NativeShortcutGroup">
+            <Border Classes="card" Margin="0,0,0,12">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="{Binding Title}" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Rows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NativeShortcutRow">
+                      <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                              Padding="0,8" AutomationProperties.Name="{Binding Action}">
+                        <StackPanel Spacing="3">
+                          <WrapPanel ItemSpacing="12" LineSpacing="3">
+                            <TextBlock Text="{Binding Action}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Gesture}" TextWrapping="Wrap" />
+                          </WrapPanel>
+                          <TextBlock Text="{Binding Condition}" IsVisible="{Binding HasCondition}"
+                                     Classes="muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

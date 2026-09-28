@@ -8,6 +8,14 @@ public enum AdbDeviceState
     Other,
 }
 
+/// <summary>ADB route evidence; unknown must not be stored as a USB or network selector.</summary>
+public enum AdbTransportKind
+{
+    Unknown,
+    Usb,
+    Network,
+}
+
 public enum AdbServiceKind
 {
     Pairing,
@@ -29,7 +37,9 @@ public enum AdbFailureKind
     DeviceSerialPropertyMismatch,
 }
 
-public sealed record AdbDevice(string Serial, AdbDeviceState State, string? Model);
+/** One transient ADB observation; transport IDs are server-scoped and never profile identities. */
+public sealed record AdbDevice(string Serial, AdbDeviceState State, string? Model,
+    AdbTransportKind TransportKind = AdbTransportKind.Unknown, ulong? TransportId = null);
 
 public sealed record AdbMdnsService(string InstanceName, AdbServiceKind Kind, NetworkEndpoint Endpoint);
 

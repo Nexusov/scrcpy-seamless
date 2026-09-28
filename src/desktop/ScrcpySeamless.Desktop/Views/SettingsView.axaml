@@ -8,11 +8,12 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Spacing="5">
         <TextBlock Name="SettingsEyebrow" Classes="eyebrow" Text="{Binding Eyebrow}" />
-        <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+        <!-- The preview title must reflow before the adjacent Reset action at minimum width. -->
+        <TextBlock Name="SettingsTitle" Classes="pageTitle" Text="{Binding Title}" />
         <TextBlock Name="SettingsSubtitle" Classes="muted" Text="{Binding Subtitle}" />
       </StackPanel>
       <Button Name="ResetDraftButton" Grid.Column="1" Content="{Binding ResetLabel}" Command="{Binding ResetDraftCommand}"
-              IsVisible="{Binding IsPreview}"
+              IsVisible="{Binding ShowResetDraftButton}"
               VerticalAlignment="Bottom" AutomationProperties.AutomationId="settings.resetDraft"
               AutomationProperties.Name="{Binding ResetLabel}" />
     </Grid>
@@ -50,11 +51,16 @@
                   IsVisible="{Binding Configuration.HasPreparedMigration}"
                   AutomationProperties.AutomationId="configuration.migration.cancel" />
         </WrapPanel>
-        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8">
+        <WrapPanel IsVisible="{Binding IsPersistent}" ItemSpacing="8" LineSpacing="8">
           <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}"
-                  AutomationProperties.AutomationId="settings.section.mirroring" />
+                  AutomationProperties.AutomationId="settings.section.mirroring"
+                  AutomationProperties.Name="{Binding MirroringSectionLabel}" />
           <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}"
-                  AutomationProperties.AutomationId="settings.section.desktop" />
+                  AutomationProperties.AutomationId="settings.section.desktop"
+                  AutomationProperties.Name="{Binding DesktopSectionLabel}" />
+          <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+                  AutomationProperties.AutomationId="settings.section.shortcuts"
+                  AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
         </WrapPanel>
       </StackPanel>
     </Border>
@@ -63,34 +69,60 @@
             Background="{DynamicResource SurfaceSubtleBrush}" CornerRadius="8" Padding="8">
       <StackPanel Spacing="4" ToolTip.Tip="{Binding ConfigurationStatusMessage}"
                   AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}">
-        <TextBlock Text="{Binding ConfigurationStatusMessage}" TextWrapping="NoWrap"
-                   TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="configuration.compactStatus" />
+        <!-- Keep the two draft decisions visible; secondary actions remain reachable in the disclosure. -->
         <WrapPanel ItemSpacing="6">
           <Button Name="CompactConfigurationApplyButton" Content="{Binding ConfigurationApplyLabel}" Command="{Binding Configuration.ApplyCommand}"
                   AutomationProperties.AutomationId="configuration.compactApply" />
           <Button Name="CompactConfigurationCancelButton" Content="{Binding ConfigurationCancelLabel}" Command="{Binding Configuration.CancelCommand}"
                   AutomationProperties.AutomationId="configuration.compactCancel" />
-          <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
-                  AutomationProperties.AutomationId="configuration.compactReload" />
-          <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
-                  IsVisible="{Binding Configuration.CanPrepareMigration}"
-                  AutomationProperties.AutomationId="configuration.compactMigration" />
         </WrapPanel>
-        <WrapPanel ItemSpacing="6">
-          <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
-          <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
-        </WrapPanel>
-        <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
-          <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
-                     TextWrapping="NoWrap" MaxWidth="220" VerticalAlignment="Center"
-                     ToolTip.Tip="{Binding MigrationSummaryMessage}" />
-          <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
-                  AutomationProperties.AutomationId="configuration.compactMigrationCommit" />
-          <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
-                  AutomationProperties.AutomationId="configuration.compactMigrationCancel" />
-        </WrapPanel>
+        <Expander Name="CompactSettingsMoreActions" AutomationProperties.AutomationId="configuration.compactMore"
+                  AutomationProperties.HelpText="{Binding ConfigurationStatusMessage}">
+          <Expander.Header>
+            <TextBlock Text="{Binding ConfigurationStatusMessage}" TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis" MaxWidth="270"
+                       ToolTip.Tip="{Binding ConfigurationStatusMessage}"
+                       AutomationProperties.AutomationId="configuration.compactStatus" />
+          </Expander.Header>
+          <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="4">
+            <WrapPanel ItemSpacing="6">
+              <Button Content="{Binding ConfigurationReloadLabel}" Command="{Binding Configuration.ReloadCommand}"
+                      AutomationProperties.AutomationId="configuration.compactReload" />
+              <Button Content="{Binding MigrationPrepareLabel}" Command="{Binding Configuration.PrepareMigrationCommand}"
+                      IsVisible="{Binding Configuration.CanPrepareMigration}"
+                      AutomationProperties.AutomationId="configuration.compactMigration" />
+            </WrapPanel>
+            <WrapPanel ItemSpacing="6" LineSpacing="6">
+              <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}" />
+              <Button Content="{Binding DesktopSectionLabel}" Command="{Binding ShowDesktopCommand}" />
+              <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+                      AutomationProperties.AutomationId="settings.compactShortcuts"
+                      AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
+            </WrapPanel>
+            <WrapPanel IsVisible="{Binding Configuration.HasPreparedMigration}" ItemSpacing="6">
+              <TextBlock Text="{Binding MigrationSummaryMessage}" TextTrimming="CharacterEllipsis"
+                         TextWrapping="NoWrap" MaxWidth="220" VerticalAlignment="Center"
+                         ToolTip.Tip="{Binding MigrationSummaryMessage}" />
+              <Button Content="{Binding MigrationCommitLabel}" Command="{Binding Configuration.CommitMigrationCommand}"
+                      AutomationProperties.AutomationId="configuration.compactMigrationCommit" />
+              <Button Content="{Binding MigrationCancelLabel}" Command="{Binding Configuration.CancelMigrationCommand}"
+                      AutomationProperties.AutomationId="configuration.compactMigrationCancel" />
+            </WrapPanel>
+          </StackPanel>
+          </ScrollViewer>
+        </Expander>
       </StackPanel>
     </Border>
+    <!-- Preview has no persistence toolbar, but can still open the read-only reference. -->
+    <WrapPanel Grid.Row="1" IsVisible="{Binding IsPreview}" ItemSpacing="8" LineSpacing="8">
+      <Button Content="{Binding MirroringSectionLabel}" Command="{Binding ShowMirroringCommand}"
+              AutomationProperties.AutomationId="settings.section.mirroring"
+              AutomationProperties.Name="{Binding MirroringSectionLabel}" />
+      <Button Content="{Binding ShortcutsSectionLabel}" Command="{Binding ShowShortcutsCommand}"
+              AutomationProperties.AutomationId="settings.section.shortcuts"
+              AutomationProperties.Name="{Binding ShortcutsSectionLabel}" />
+    </WrapPanel>
     <Grid Name="SettingsColumns" Grid.Row="2" ColumnDefinitions="160,*" ColumnSpacing="18"
           IsVisible="{Binding IsMirroringSection}" IsEnabled="{Binding IsOptionEditorAvailable}">
       <Grid Name="CategoryNavigation" Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
@@ -142,5 +174,7 @@
     </Grid>
     <ContentControl Grid.Row="2" Content="{Binding Preferences}"
                     IsVisible="{Binding IsDesktopSection}" />
+    <views:ShortcutsReferenceView Grid.Row="2" DataContext="{Binding}"
+                                  IsVisible="{Binding IsShortcutsSection}" />
   </Grid>
 </UserControl>

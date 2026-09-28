@@ -198,7 +198,8 @@ public partial class MainWindow : Window
             Text = string.Format(CultureInfo.CurrentCulture, closeText.Get("close.unsavedMessage"), groups),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         });
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        // Wrapped actions remain individually reachable when application metrics are enlarged.
+        WrapPanel actions = new() { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8 };
 
         foreach ((string label, string automationId, CloseDecision decision) in new[]
         {
@@ -234,6 +235,16 @@ public partial class MainWindow : Window
                 Text = closeText.Get("close.failureMessage"),
             },
         };
+        dialog.KeyDown += (_, keyEventArgs) =>
+        {
+            if (keyEventArgs.Key != Key.Escape)
+            {
+                return;
+            }
+
+            keyEventArgs.Handled = true;
+            dialog.Close();
+        };
         await dialog.ShowDialog(this);
     }
 
@@ -257,6 +268,16 @@ public partial class MainWindow : Window
                     ? "Native stopped, but an owned ADB operation has not settled. Device actions remain disabled; wait for it to finish and retry Close. Drafts remain in memory."
                     : "The owned native session could not be confirmed stopped and cleaned up. The control center remains open; review its status and retry Stop.",
             },
+        };
+        dialog.KeyDown += (_, keyEventArgs) =>
+        {
+            if (keyEventArgs.Key != Key.Escape)
+            {
+                return;
+            }
+
+            keyEventArgs.Handled = true;
+            dialog.Close();
         };
         await dialog.ShowDialog(this);
     }

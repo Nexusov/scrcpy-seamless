@@ -760,6 +760,51 @@ public sealed class NormalCompositionTests
         }
     }
 
+    /// <summary>Keeps saved-configuration actions and the option editor usable at the declared minimum window size.</summary>
+    [AvaloniaFact]
+    public async Task MinimumNormalWindowKeepsSettingsActionsAndEditorReachableAtEnlargedMetrics()
+    {
+        using TemporaryDataRoot root = new();
+        App application = Assert.IsType<App>(Avalonia.Application.Current);
+        application.ApplyMetricScale(1.5);
+        NormalDesktopComposition composition = Create(root.Path);
+        MainWindow window = new(composition.Shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            await composition.InitializeAsync(CancellationToken.None);
+            window.UpdateLayout();
+            ScrcpySeamless.Desktop.Views.SettingsView settings = Assert.Single(
+                window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            ScrollViewer options = settings.FindControl<ScrollViewer>("OptionScroll")!;
+            Button apply = settings.FindControl<Button>("CompactConfigurationApplyButton")!;
+            Button cancel = settings.FindControl<Button>("CompactConfigurationCancelButton")!;
+            Expander moreActions = settings.FindControl<Expander>("CompactSettingsMoreActions")!;
+
+            Assert.True(options.Viewport.Height > 0,
+                $"Options viewport at minimum: {options.Viewport}, settings={settings.Bounds}, " +
+                $"root={settings.FindControl<Grid>("SettingsRoot")!.Bounds}, toolbar=" +
+                $"{settings.FindControl<Border>("CompactSettingsToolbar")!.Bounds}, columns=" +
+                $"{settings.FindControl<Grid>("SettingsColumns")!.Bounds}");
+            Assert.True(apply.Bounds.Height > 0 && cancel.Bounds.Height > 0);
+            Assert.True(apply.Bounds.Right <= settings.Bounds.Width && cancel.Bounds.Right <= settings.Bounds.Width,
+                $"Compact actions exceed Settings width: apply={apply.Bounds}, cancel={cancel.Bounds}, settings={settings.Bounds}");
+            moreActions.IsExpanded = true;
+            window.UpdateLayout();
+            Assert.True(moreActions.Bounds.Bottom <= settings.Bounds.Height,
+                $"Expanded secondary actions exceed minimum Settings height: actions={moreActions.Bounds}, settings={settings.Bounds}");
+            moreActions.IsExpanded = false;
+            window.UpdateLayout();
+            Assert.True(options.Viewport.Height > 0);
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Builds a real local settings shell with no native or network adapters.</summary>
     private static NormalDesktopComposition Create(string directory, string? legacyDirectory = null,
         Func<CancellationToken, Task>? beforePreferencesCommit = null)

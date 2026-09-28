@@ -105,6 +105,58 @@ public sealed class FoundationTests
         }
     }
 
+    /// <summary>Uses the full width below a compact category picker without losing draft or search focus.</summary>
+    [AvaloniaFact]
+    public void CompactCategoryResultsSpanAvailableWidth()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        object? selectedFontSize = application.Resources["BodyFontSize"];
+
+        try
+        {
+            ShellViewModel shell = DesktopComposition.Create(
+                new DesktopLaunchOptions(true, AppTheme.Light, null, true), _ => { });
+            MainWindow window = new(shell) { Width = 900, Height = 620 };
+            window.Show();
+            window.UpdateLayout();
+            ScrcpySeamless.Desktop.Views.SettingsView settings = Assert.Single(
+                window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            Grid columns = settings.FindControl<Grid>("SettingsColumns")!;
+            Grid results = settings.FindControl<Grid>("SettingsResults")!;
+            ComboBox picker = settings.FindControl<ComboBox>("CompactCategoryPicker")!;
+            TextBox search = settings.FindControl<TextBox>("OptionSearch")!;
+            ScrollViewer options = settings.FindControl<ScrollViewer>("OptionScroll")!;
+
+            Assert.True(picker.IsVisible);
+            Assert.Equal(0, Grid.GetRow(picker));
+            Assert.Equal(1, Grid.GetRow(results));
+            Assert.Equal(0, Grid.GetColumn(results));
+            Assert.InRange(Math.Abs(results.Bounds.Width - columns.Bounds.Width), 0, 1);
+            Assert.InRange(Math.Abs(search.Bounds.Width - results.Bounds.Width), 0, 1);
+            Assert.True(options.Extent.Height > options.Viewport.Height);
+            options.Offset = new Vector(0, 200);
+            window.UpdateLayout();
+            Assert.True(options.Offset.Y > 0);
+
+            OptionRowViewModel row = Assert.Single(shell.Settings.VisibleRows,
+                option => option.Id == "audio-output-buffer");
+            row.TextValue = "900";
+            picker.SelectedItem = shell.Settings.Categories[0];
+            search.Focus();
+            search.Text = "audio-output-buffer";
+            window.UpdateLayout();
+            Assert.True(search.IsFocused);
+            Assert.Equal("900", shell.Settings.DraftValues[row.Id].GetString());
+            Assert.Equal(selectedFontSize, application.Resources["BodyFontSize"]);
+            window.Close();
+        }
+        finally
+        {
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Uses the same preview metric tokens to validate enlarged controls at a small client size.</summary>
     [AvaloniaFact]
     public void EnlargedMetricsKeepNavigationAndSettingsReachable()
@@ -156,6 +208,43 @@ public sealed class FoundationTests
         }
     }
 
+    /// <summary>Wraps the preview title before the Reset action at the minimum supported size.</summary>
+    [AvaloniaFact]
+    public void MinimumPreviewSettingsHeaderKeepsTitleAndResetDistinctAtEnlargedMetrics()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.Light, null, true), _ => { });
+        MainWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            ScrcpySeamless.Desktop.Views.SettingsView settings = Assert.Single(
+                window.GetVisualDescendants().OfType<ScrcpySeamless.Desktop.Views.SettingsView>());
+            TextBlock title = Assert.Single(settings.GetVisualDescendants().OfType<TextBlock>(),
+                block => block.Text == shell.Settings.Title);
+            Button reset = settings.FindControl<Button>("ResetDraftButton")!;
+            Point? titlePosition = title.TranslatePoint(new Point(0, 0), settings);
+            Point? resetPosition = reset.TranslatePoint(new Point(0, 0), settings);
+
+            Assert.NotNull(titlePosition);
+            Assert.NotNull(resetPosition);
+            Assert.Equal(Avalonia.Media.TextWrapping.Wrap, title.TextWrapping);
+            Assert.True(title.Bounds.Height > title.FontSize * 1.5,
+                $"Title did not wrap at minimum size: title={title.Bounds}, font={title.FontSize}");
+            Assert.True(titlePosition.Value.X + title.Bounds.Width <= resetPosition.Value.X,
+                $"Preview title overlaps Reset: title={title.Bounds}, reset={reset.Bounds}");
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>Enlarged Settings exposes editing, validation, reset, and help through its scroll viewport.</summary>
     [AvaloniaFact]
     public void EnlargedSettingsOptionControlsRemainReachableByScrolling()
@@ -179,6 +268,10 @@ public sealed class FoundationTests
             var editor = option.FindControl<TextBox>("OptionEditor")!;
             var validation = Assert.Single(option.GetVisualDescendants().OfType<TextBlock>(),
                 block => block.Text == row.ValidationMessage);
+            Assert.Equal($"{row.AutomationId}.validation",
+                Avalonia.Automation.AutomationProperties.GetAutomationId(validation));
+            Assert.Equal(row.ValidationMessage,
+                Avalonia.Automation.AutomationProperties.GetName(validation));
             var reset = Assert.Single(option.GetVisualDescendants().OfType<Button>(),
                 button => button.Content?.ToString() == row.ResetLabel);
             var help = Assert.Single(option.GetVisualDescendants().OfType<Expander>());
@@ -203,7 +296,9 @@ public sealed class FoundationTests
                 Assert.NotNull(position);
                 Assert.InRange(position.Value.Y, -2, scroll.Viewport.Height);
                 Assert.True(position.Value.Y + control.Bounds.Height <= scroll.Viewport.Height + 2,
-                    $"{control.GetType().Name} remains below the enlarged option viewport");
+                    $"{control.GetType().Name} remains below the enlarged option viewport: " +
+                    $"text={(control as TextBlock)?.Text}, position={position}, control={control.Bounds}, " +
+                    $"viewport={scroll.Viewport}, offset={scroll.Offset}, extent={scroll.Extent}");
             }
 
             Assert.True(editor.Focus());
@@ -317,6 +412,82 @@ public sealed class FoundationTests
         window.Close();
     }
 
+    /// <summary>Escape dismisses a close failure without closing the owner or hiding enlarged text.</summary>
+    [AvaloniaFact]
+    public async Task EnlargedCloseFailureDialogIsReadableAndSafelyDismissed()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.System, null, true), _ => { });
+        DialogProbeWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            Task pendingDialog = window.ShowCloseFailureForTest();
+            Window dialog = Assert.Single(window.OwnedWindows);
+            dialog.UpdateLayout();
+            TextBlock message = Assert.Single(dialog.GetVisualDescendants().OfType<TextBlock>());
+
+            Assert.True(message.Bounds.Bottom <= dialog.Bounds.Height,
+                $"Close failure text clipped: message={message.Bounds}, dialog={dialog.Bounds}");
+            dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            Assert.True(pendingDialog.IsCompleted);
+            Assert.True(window.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
+    /// <summary>Keeps all three dirty-close decisions inside the dialog at enlarged metrics.</summary>
+    [AvaloniaFact]
+    public async Task EnlargedDirtyCloseDialogKeepsActionsVisibleAndEscapeMeansStay()
+    {
+        App application = Assert.IsType<App>(Application.Current);
+        application.ApplyMetricScale(1.5);
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.System, null, true), _ => { });
+        DialogProbeWindow window = new(shell) { Width = 660, Height = 460 };
+
+        try
+        {
+            window.Show();
+            Task<bool> pendingDecision = window.AskCloseDecisionForTest("configuration and desktop preferences");
+            Window dialog = Assert.Single(window.OwnedWindows);
+            dialog.UpdateLayout();
+            Button[] buttons = dialog.GetVisualDescendants().OfType<Button>().ToArray();
+            Assert.Equal(3, buttons.Length);
+
+            foreach (Button button in buttons)
+            {
+                Point? position = button.TranslatePoint(new Point(0, 0), dialog);
+                Assert.NotNull(position);
+                Assert.True(position.Value.X + button.Bounds.Width <= dialog.Bounds.Width,
+                    $"Close action exceeds enlarged dialog width: action={button.Content}, position={position}, dialog={dialog.Bounds}");
+                Assert.True(position.Value.Y + button.Bounds.Height <= dialog.Bounds.Height,
+                    $"Close action exceeds enlarged dialog height: action={button.Content}, position={position}, dialog={dialog.Bounds}");
+            }
+
+            dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            Assert.True(await pendingDecision);
+            Assert.True(window.IsVisible);
+
+            Task<bool> windowCloseDecision = window.AskCloseDecisionForTest("configuration");
+            Assert.Single(window.OwnedWindows).Close();
+            Assert.True(await windowCloseDecision);
+            Assert.True(window.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+            application.ApplyMetricScale(1);
+        }
+    }
+
     /// <summary>System request inherits framework changes; explicit choices keep their variant.</summary>
     [AvaloniaFact]
     public void ThemeChoiceUsesFrameworkInheritance()
@@ -428,4 +599,15 @@ public sealed class FoundationTests
             Assert.True(resources.RootElement.TryGetProperty(descriptor.DescriptionResourceKey, out _));
         }
     }
+}
+
+/// <summary>Exposes only the close failure dialog for deterministic headless keyboard checks.</summary>
+internal sealed class DialogProbeWindow(ShellViewModel shell) : MainWindow(shell)
+{
+    /// <summary>Shows the same owner-bound failure dialog as the normal close path.</summary>
+    public Task ShowCloseFailureForTest() => ShowCloseFailureAsync();
+
+    /// <summary>Reports whether Escape kept the existing dirty draft in the owner window.</summary>
+    public async Task<bool> AskCloseDecisionForTest(string groups) =>
+        await AskCloseDecisionAsync(groups) == CloseDecision.Stay;
 }

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows.Input;
 using ScrcpySeamless.Core;
+using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Infrastructure.Configuration;
 
@@ -19,6 +20,7 @@ public sealed class ProfilesViewModel : ObservableViewModel
 {
     private readonly PresentationText text;
     private readonly ConfigurationEditSession? session;
+    private DevicesViewModel? observedDevices;
     private ConfigurationWorkspaceViewModel? workspace;
     private readonly IReadOnlyList<DeviceProfile> previewBaseline;
     private readonly List<DeviceProfile> previewDraft;
@@ -76,7 +78,10 @@ public sealed class ProfilesViewModel : ObservableViewModel
         ConfirmDeleteLabel = text.Get("profiles.confirmDelete");
         KeepLabel = text.Get("profiles.keep");
         PreviewLabel = text.Get("profiles.preview");
+        UseObservedTransportLabel = text.Get("profiles.useObservedTransport");
+        ObservedTransportHint = text.Get("profiles.observedTransportHint");
         NewCommand = new ActionCommand(BeginNewProfile);
+        UseObservedTransportCommand = new ActionCommand(() => TryUseSelectedTransport());
         SaveDraftCommand = new ActionCommand(SaveToDraft);
         CancelCommand = new ActionCommand(Cancel);
         CancelEditorCommand = new ActionCommand(CancelEditorChanges);
@@ -106,9 +111,12 @@ public sealed class ProfilesViewModel : ObservableViewModel
     public string ConfirmDeleteLabel { get; }
     public string KeepLabel { get; }
     public string PreviewLabel { get; }
+    public string UseObservedTransportLabel { get; }
+    public string ObservedTransportHint { get; }
     public ObservableCollection<SavedProfileChoice> Profiles { get; }
     public IReadOnlyList<ProfileTransportChoice> TransportChoices { get; }
     public ICommand NewCommand { get; }
+    public ICommand UseObservedTransportCommand { get; }
     public ICommand SaveDraftCommand { get; }
     public ICommand CancelCommand { get; }
     public ICommand CancelEditorCommand { get; }
@@ -116,6 +124,7 @@ public sealed class ProfilesViewModel : ObservableViewModel
     public ICommand ConfirmDeleteCommand { get; }
     public ICommand KeepCommand { get; }
     public bool IsPreview => session is null;
+    public bool HasObservedTransportSource => observedDevices is not null;
     public bool CanEdit => session is null || session.Draft is not null && !session.IsBusy &&
         !session.RequiresReload && (workspace?.CanEdit ?? true);
     public bool IsEditing => editingId.HasValue;
@@ -129,6 +138,67 @@ public sealed class ProfilesViewModel : ObservableViewModel
     public bool IsDirty => HasUnstagedChanges || (session?.IsDirty ??
         !previewDraft.SequenceEqual(previewBaseline));
     public string? EditingId => editingId?.ToString();
+
+    /// <summary>Offers fresh Devices observations to the normal editor without starting discovery.</summary>
+    public void AttachObservedDevices(DevicesViewModel source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (IsPreview || observedDevices is not null)
+        {
+            throw new InvalidOperationException("Only one live transport source may be attached to a normal profile editor.");
+        }
+
+        observedDevices = source;
+        OnPropertyChanged(nameof(HasObservedTransportSource));
+    }
+
+    /// <summary>Copies one proven selected ADB route into only its matching visible profile field.</summary>
+    public bool TryUseSelectedTransport()
+    {
+        if (!CanEdit || !IsEditing || observedDevices is null)
+        {
+            StatusMessage = text.Get("profiles.associationUnavailable");
+            return false;
+        }
+
+        if (HasUnstagedChanges && !IsPristineNewEditor())
+        {
+            StatusMessage = text.Get("profiles.associationUnstaged");
+            return false;
+        }
+
+        AdbDevice? selectedDevice = observedDevices.SelectedObservedDevice;
+
+        if (selectedDevice is null || selectedDevice.State != AdbDeviceState.Device)
+        {
+            StatusMessage = text.Get("profiles.associationSelectFresh");
+            return false;
+        }
+
+        if (selectedDevice.TransportKind == AdbTransportKind.Usb)
+        {
+            UsbSerial = selectedDevice.Serial;
+            StatusMessage = text.Get("profiles.associationUsbDraft");
+            return true;
+        }
+
+        if (selectedDevice.TransportKind == AdbTransportKind.Network)
+        {
+            if (!NetworkEndpoint.TryParse(selectedDevice.Serial, out NetworkEndpoint? endpoint))
+            {
+                StatusMessage = text.Get("profiles.associationNetworkNeedsEndpoint");
+                return false;
+            }
+
+            ConnectionEndpoint = endpoint.ToString();
+            StatusMessage = text.Get("profiles.associationNetworkDraft");
+            return true;
+        }
+
+        StatusMessage = text.Get("profiles.associationUnknownRoute");
+        return false;
+    }
 
     /// <summary>Routes group Apply and Cancel through the owner that synchronizes options and profiles.</summary>
     public void AttachWorkspace(ConfigurationWorkspaceViewModel configuration)
@@ -602,6 +672,12 @@ public sealed class ProfilesViewModel : ObservableViewModel
     private string LabelFor(DeviceProfile profile) => profile.Alias ??
         profile.UsbIdentity?.Value ?? profile.MdnsIdentity?.Value ??
         profile.ConnectionEndpoint?.ToString() ?? profile.Id.ToString();
+
+    /// <summary>Lets a new empty editor acquire its first selector without replacing entered text.</summary>
+    private bool IsPristineNewEditor() => selectedBaseline is null && editingId.HasValue &&
+        alias.Length == 0 && usbSerial.Length == 0 && mdnsService.Length == 0 &&
+        pairingEndpoint.Length == 0 && connectionEndpoint.Length == 0 &&
+        selectedTransport.Value == TransportPreference.Automatic && allowFallback;
 
     /// <summary>Compares visible fields to the staged profile before switching selection.</summary>
     private bool EditorMatchesSelectedBaseline() => selectedBaseline is not null &&

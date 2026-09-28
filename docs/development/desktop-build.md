@@ -149,5 +149,41 @@ The last command can affect the previously authorized shared ADB daemon only
 after a user selects Refresh/Pair/Connect/Mirror. Keep one active mirror during the
 initial hardware smoke. Session-scoped sanitized lifecycle JSONL is written
 under `.dev-data/p05c/native-sessions/`; its timestamps are local receive
-times, not native event-emission times. Device video/audio/control and
-USB-to-Wi-Fi recovery remain hardware-unverified until a manual run.
+times, not native event-emission times. The later successful Phase 5C device
+smoke is recorded against its exact earlier source/package in the
+[device smoke report](phase5c-device-smoke.md), not against a Phase 5D build.
+
+### Phase 5D acceptance bundle
+
+Phase 5D stages a separate self-contained directory from a **clean committed
+source tree** under `dist/dev/scrcpy-seamless-desktop-p05d-g<short SHA>`.
+The reviewed native client and Android server are reused only when their
+source fingerprints and artifact hashes still match. The staging step keeps
+project and imported-runtime notices, and excludes publish PDBs that are not
+needed for manual acceptance. The ZIP step writes a full per-file hash inventory
+and a SHA-256 sidecar, then verifies extraction to a temporary path containing
+spaces. These checks establish local consistency with the recorded manifest;
+they are not a signature or a public distribution-license review.
+
+After code and documentation commits, run the following from the repository
+root. Neither script overwrites an existing package or archive:
+
+```powershell
+$sourceSha = (git rev-parse HEAD).Trim()
+$shortSha = $sourceSha.Substring(0, 8)
+$package = Join-Path (Resolve-Path '.\dist\dev').Path "scrcpy-seamless-desktop-p05d-g$shortSha"
+$archive = "$package.zip"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\stage-desktop-device-dev.ps1 -PackageDirectory $package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-desktop-device-dev.ps1 -PackageDirectory $package -SourceSha $sourceSha -ArchivePath $archive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-desktop-device-dev.ps1 -SourceSha $sourceSha -ArchivePath $archive -VerifyOnly
+```
+
+For local Phase 5D use the separate root
+`D:\My Projects\scrcpy-seamless\.dev-data\p05d`; create it only if absent,
+never reseed it from earlier DEV or personal installations. The exact frozen
+artifact commands and pending phone/cold-start checks are in the
+[acceptance procedure](phase5d-manual-acceptance.md); results and limitations
+are in the [acceptance matrix](phase5-acceptance.md). Preview remains entirely
+in-memory; settings-only mode needs the data root but no device runtime;
+device-enabled mode adds `--device-runtime=<package>\runtime` and still requires
+an explicit user action before discovery, pairing, connection or mirroring.

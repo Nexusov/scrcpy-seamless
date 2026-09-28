@@ -29,7 +29,9 @@
           <TextBox Name="OptionEditor" IsVisible="{Binding IsText}" IsEnabled="{Binding CanEdit}"
                    Text="{Binding TextValue, Mode=TwoWay}" AutomationProperties.Name="{Binding Label}" />
           <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource WarningBrush}"
-                     FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding HasValidation}" />
+                     FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding HasValidation}"
+                     AutomationProperties.AutomationId="{Binding ValidationAutomationId}"
+                     AutomationProperties.Name="{Binding ValidationMessage}" />
           <Button Content="{Binding ResetLabel}" Command="{Binding ResetCommand}"
                   IsVisible="{Binding HasOverride}" HorizontalAlignment="Left"
                   AutomationProperties.Name="{Binding ResetLabel}" />

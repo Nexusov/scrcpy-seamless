@@ -1,3 +1,4 @@
+using System.Globalization;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 
@@ -20,6 +21,7 @@ public static class AdbResponseParser
     private const string MdnsVersionPrefix = "mdns daemon version [";
     private const string MdnsDaemonUnavailable = "ERROR: mdns daemon unavailable";
     private const string MdnsDiscoveryDisabled = "ERROR: mdns discovery disabled";
+    private const string ConnectionServiceSerialSuffix = "._adb-tls-connect._tcp";
 
     /** Distinguishes ADB errors on stderr from routine daemon startup notices. */
     public static bool HasErrorDiagnostics(string standardError)
@@ -70,7 +72,21 @@ public static class AdbResponseParser
             string? model = modelField is null
                 ? null
                 : modelField["model:".Length..].Replace('_', ' ');
-            devices.Add(new AdbDevice(fields[0], state.Value, model));
+            bool hasUsbRoute = fields.Skip(2).Any(field =>
+                field.StartsWith("usb:", StringComparison.Ordinal) && field.Length > "usb:".Length);
+            string[] transportIdFields = fields.Skip(2)
+                .Where(field => field.StartsWith("transport_id:", StringComparison.Ordinal)).ToArray();
+            ulong? transportId = transportIdFields.Length == 1 &&
+                ulong.TryParse(transportIdFields[0]["transport_id:".Length..], NumberStyles.None,
+                    CultureInfo.InvariantCulture, out ulong parsedId) && parsedId > 0
+                    ? parsedId : null;
+            AdbTransportKind transportKind = hasUsbRoute
+                ? AdbTransportKind.Usb
+                : NetworkEndpoint.TryParse(fields[0], out _) ||
+                  fields[0].EndsWith(ConnectionServiceSerialSuffix, StringComparison.OrdinalIgnoreCase)
+                    ? AdbTransportKind.Network
+                    : AdbTransportKind.Unknown;
+            devices.Add(new AdbDevice(fields[0], state.Value, model, transportKind, transportId));
         }
 
         return new AdbParseResult<AdbDevice>(devices, malformedLineCount);

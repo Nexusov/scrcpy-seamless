@@ -291,6 +291,7 @@ public static class NormalDesktopFactory
                     adbChildEnvironment));
                 devices.AttachLiveServices(new AdbDiscoveryService(gateway), new AdbPairingService(gateway),
                     action => Dispatcher.UIThread.Post(action), gateway);
+                profiles.AttachObservedDevices(devices);
             }
         }
 

@@ -40,6 +40,11 @@ The Phase 5C Desktop DEV staging script admits only exact hashed runtime
 components and a self-contained Desktop publish under `dist/dev`. Its manifest
 is not the canonical 1.x release manifest; never copy a whole prior DEV `app/`
 directory because it may contain personal configuration or logs.
+Phase 5D staging requires a clean committed tree. The separate Desktop DEV ZIP
+check keeps a complete file-hash inventory, fixed archive entry ordering and
+timestamps, a SHA-256 sidecar, and an independent extraction check in a path
+with spaces. These are development artifacts, not official release packages;
+the bundled notices do not replace the later Desktop dependency-license review.
 
 ## Provenance
 
