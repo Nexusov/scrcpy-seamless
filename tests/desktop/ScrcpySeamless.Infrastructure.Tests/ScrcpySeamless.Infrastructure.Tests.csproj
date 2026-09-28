@@ -10,5 +10,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Fixtures/**/*.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../spec/desktop-native/golden/*.json"
+             Link="NativeProtocolGolden/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

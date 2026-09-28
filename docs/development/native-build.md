@@ -83,3 +83,23 @@ ordering and normalized UTF-8 line endings. Git-ignored Gradle/Meson output is
 excluded. Packaging rejects an incomplete build, changed source, changed
 executable or mismatched reviewed runtime input. Source/hash provenance does
 not establish a reproducible compiler or dependency-build attestation.
+
+## Phase 6A isolated Desktop/native contract check
+
+The [protocol specification](../../spec/desktop-native/PROTOCOL.md), golden
+payloads and C/C# codecs can be checked without starting scrcpy, connecting a
+device or touching the shared ADB server. After restoring the pinned native
+toolchain and .NET SDK above, run from the repository root:
+
+```powershell
+$sdk = .\scripts\bootstrap-dotnet.ps1
+.\scripts\test-ipc-contract.ps1 `
+  -CompilerPath .\work\native\w64devkit\bin\gcc.exe `
+  -DotnetPath $sdk
+```
+
+The script compiles an isolated C harness, verifies the independently authored
+payload corpus and framing limits, then checks C-produced frames with the C#
+codec and C#-produced frames with the C codec. The native Meson debug test
+target also runs the C harness. Phase 6A does not link the codec into the
+shipped native executable or change the existing Desktop launch path.

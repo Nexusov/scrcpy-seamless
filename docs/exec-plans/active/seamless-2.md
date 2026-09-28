@@ -610,7 +610,7 @@ rules; these slices do not renumber later Phases.
 
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
-| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/malformed vectors; no application process route | In progress locally on `2.0/p06a-ipc-contract` |
+| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/malformed vectors; no application process route | Implemented locally on `2.0/p06a-ipc-contract`; 9 cross-language vectors, 17/17 native Meson tests, 448/448 .NET and 29/29 legacy suites pass. Hosted CI remains unrun until separately authorized publication. |
 | 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Not started |
 | 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
 

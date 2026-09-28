@@ -1,5 +1,9 @@
 # scrcpy Seamless agent guide
 
+The canonical Desktop/native protocol and golden payloads live under
+spec/desktop-native/. Phase 6A codecs are isolated; application machine IPC
+remains Phase 6B/C.
+
 This file is the short entry point for coding agents and contributors. It is
 not the project encyclopedia. Detailed rules live under `docs/`.
 

@@ -1,5 +1,9 @@
 # Build, package, and release tooling agent guide
 
+The Phase 6A cross-language check is scripts/test-ipc-contract.ps1 with the
+pinned GCC and .NET paths. It compiles a pure C harness and tests both codec
+directions without ADB or a device.
+
 Scope: `scripts/`.
 
 Build/release code is security- and provenance-sensitive. Read:

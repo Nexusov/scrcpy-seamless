@@ -58,6 +58,8 @@ configuration versions. Capabilities in v1 are `stop`, `focus-window` and
 `lifecycle-v1`; strings are sorted ordinally in canonical output. Native
 accepts the same major if all required capabilities are supported, ignores
 unknown *optional* supported capabilities, and negotiates the smaller minor.
+Every required capability must also appear in `supportedCapabilities`;
+otherwise the `hello` is malformed and is rejected before negotiation.
 `helloResult.status` is one of `accepted`, `productMismatch`,
 `majorMismatch`, `requiredCapabilityMissing`; on rejection `capabilities` is
 empty and no command may be executed. A major/product/required-capability

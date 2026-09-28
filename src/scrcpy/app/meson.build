@@ -318,6 +318,16 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    ipc_test = executable('test_ipc_contract', [
+        'tests/test_ipc_contract.c',
+        'src/ipc/ipc_frame.c',
+        'src/ipc/ipc_json.c',
+        'vendor/yyjson/yyjson.c',
+    ], include_directories: src_dir,
+       c_args: ['-DSC_TEST', '-DYYJSON_READER_DEPTH_LIMIT=2'])
+    test('test_ipc_contract', ipc_test,
+         args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
 endif
 
 if meson.version().version_compare('>= 0.58.0')

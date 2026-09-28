@@ -1,10 +1,9 @@
 # Seamless 2.0 target architecture
 
-Status: accepted target with Phases 0–4 integrated into `seamless-2.0` through
-PR #5 (`d9617610388668715934083edfe9589ce15463ac`). Phase 5A develops the
-bounded UI foundation; real application effects and complete workflow parity
-remain later Phase 5 slices. IPC, native lifetime and ConnectionManager remain
-future phases. See the
+Status: accepted target; Phase 5 is integrated through PR #9 merge
+`3d171eb40b59860717cd3dfa8f853638c41683cc` for continued development.
+The local Phase 6A slice defines and tests a protocol; no application process
+uses it yet. Native lifetime and ConnectionManager remain Phases 7–8. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
@@ -127,6 +126,9 @@ handling. Select and pin a mature permissively licensed C JSON library after
 review; do not build a fragile private JSON parser.
 
 Handshake includes product identity, protocolMajor/minor and capabilities.
+The [protocol v1 specification](../../spec/desktop-native/PROTOCOL.md) owns
+the exact Phase 6A byte, field, limit and compatibility rules. Its C and C#
+codecs are isolated from the current application runtime until Phase 6B/C.
 Messages carry messageType, requestId where applicable, sessionId and
 connectionAttemptId. Lifecycle machine events also carry a per-process sequence
 number, UTC timestamp, monotonic process timestamp, subsystem, event type and

@@ -1,5 +1,11 @@
 # Specification agent guide
 
+The Phase 6A Desktop/native source of truth is
+desktop-native/PROTOCOL.md with independently authored golden payloads and
+byte counts under desktop-native/golden/. It is separate from option metadata
+and the Android device protocol. Do not generate expected vectors from one
+codec and call that cross-language validation.
+
 Scope: `spec/`.
 
 Read the root `AGENTS.md` and [option development guide](../docs/development/options.md) before changing option metadata.
