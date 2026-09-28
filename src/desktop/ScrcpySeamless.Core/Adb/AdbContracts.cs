@@ -37,8 +37,9 @@ public enum AdbFailureKind
     DeviceSerialPropertyMismatch,
 }
 
+/** One transient ADB observation; transport IDs are server-scoped and never profile identities. */
 public sealed record AdbDevice(string Serial, AdbDeviceState State, string? Model,
-    AdbTransportKind TransportKind = AdbTransportKind.Unknown);
+    AdbTransportKind TransportKind = AdbTransportKind.Unknown, ulong? TransportId = null);
 
 public sealed record AdbMdnsService(string InstanceName, AdbServiceKind Kind, NetworkEndpoint Endpoint);
 

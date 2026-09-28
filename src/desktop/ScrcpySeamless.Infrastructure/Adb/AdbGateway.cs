@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
@@ -29,8 +30,14 @@ public sealed class AdbGateway(IAdbProcessRunner runner) : IAdbGateway
             }
 
             AdbParseResult<AdbDevice> parsed = AdbResponseParser.ParseDevices(process.StandardOutput);
-            return parsed.MalformedLineCount > 0 && parsed.Items.Count == 0
-                ? AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.MalformedResponse)
+
+            if (parsed.MalformedLineCount > 0 && parsed.Items.Count == 0)
+            {
+                return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.MalformedResponse);
+            }
+
+            return parsed.MalformedLineCount == 0
+                ? await EnrichUsbRouteAsync(parsed.Items, cancellationToken)
                 : AdbResult<IReadOnlyList<AdbDevice>>.Success(parsed.Items);
         }
         catch (TimeoutException)
@@ -41,6 +48,118 @@ public sealed class AdbGateway(IAdbProcessRunner runner) : IAdbGateway
         {
             return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.Unavailable);
         }
+    }
+
+    /** Resolves one unknown route only when ADB identifies its live USB transport ID. */
+    private async Task<AdbResult<IReadOnlyList<AdbDevice>>> EnrichUsbRouteAsync(
+        IReadOnlyList<AdbDevice> snapshot, CancellationToken cancellationToken)
+    {
+        if (!snapshot.Any(device => device.TransportKind == AdbTransportKind.Unknown
+            && device.TransportId.HasValue))
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        AdbProcessResult probe;
+
+        try
+        {
+            // -d is USB-scoped on the bundled ADB; no -s/-t selector is combined with it.
+            probe = await runner.RunAsync(["-d", "transport-id"], DiscoveryTimeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+        catch (Win32Exception)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+        catch (IOException)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        string reply = probe.StandardOutput.Trim();
+        bool parsedTransportId = ulong.TryParse(reply, NumberStyles.None,
+            CultureInfo.InvariantCulture, out ulong usbTransportId);
+        bool validProbe = probe.ExitCode == 0 && !probe.OutputTruncated
+            && string.IsNullOrWhiteSpace(probe.StandardError)
+            && parsedTransportId && usbTransportId > 0;
+
+        if (!validProbe)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        int[] matchingIndexes = Enumerable.Range(0, snapshot.Count)
+            .Where(index => snapshot[index].TransportId == usbTransportId).Take(2).ToArray();
+
+        if (matchingIndexes.Length != 1)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        int matchingIndex = matchingIndexes[0];
+
+        if (snapshot[matchingIndex].TransportKind != AdbTransportKind.Unknown)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        AdbDevice candidate = snapshot[matchingIndex];
+
+        if (snapshot.Count(device => device.Serial == candidate.Serial) != 1)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(snapshot);
+        }
+
+        // Recheck the same server before publishing a verdict across a disconnect.
+        AdbProcessResult current;
+
+        try
+        {
+            current = await runner.RunAsync(["devices", "-l"], DiscoveryTimeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.TimedOut);
+        }
+        catch (Win32Exception)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.Unavailable);
+        }
+        catch (IOException)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.ProcessFailed);
+        }
+
+        bool invalidCurrentResponse = current.ExitCode != 0 || current.OutputTruncated ||
+            AdbResponseParser.HasErrorDiagnostics(current.StandardError);
+
+        if (invalidCurrentResponse)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.ProcessFailed);
+        }
+
+        AdbParseResult<AdbDevice> currentSnapshot = AdbResponseParser.ParseDevices(current.StandardOutput);
+
+        if (currentSnapshot.MalformedLineCount > 0)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Error(AdbFailureKind.MalformedResponse);
+        }
+
+        bool snapshotChanged = currentSnapshot.Items.Count != snapshot.Count ||
+            !currentSnapshot.Items.SequenceEqual(snapshot);
+
+        if (snapshotChanged)
+        {
+            return AdbResult<IReadOnlyList<AdbDevice>>.Success(currentSnapshot.Items);
+        }
+
+        AdbDevice[] enriched = snapshot.ToArray();
+        enriched[matchingIndex] = candidate with { TransportKind = AdbTransportKind.Usb };
+        return AdbResult<IReadOnlyList<AdbDevice>>.Success(enriched);
     }
 
     public async Task<AdbResult<IReadOnlyList<AdbMdnsService>>> GetServicesAsync(CancellationToken cancellationToken)

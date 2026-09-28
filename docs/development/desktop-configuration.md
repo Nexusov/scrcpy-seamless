@@ -57,6 +57,17 @@ buffer. It neither pairs nor saves: Save to draft and Apply remain separate,
 revision-checked steps. The pairing endpoint remains distinct from the
 connection endpoint.
 
+Some ADB long listings omit the USB devpath. For an otherwise unknown row with
+one valid `transport_id`, discovery asks the configured ADB server once for
+`adb -d transport-id`: `-d` selects a USB transport, and the returned ID must
+uniquely match that row in a stable second listing before it is labelled USB.
+The probe is bounded and cancellable; failed, missing, duplicate, changed or
+ambiguous evidence leaves the route unresolved. A transport ID is scoped to the
+current ADB server and is never persisted as a device/profile identity. This
+does not change the independently reported ADB authorization state or select a
+row on the user's behalf. Multiple USB devices without explicit devpaths can
+remain Unknown when ADB cannot select a unique USB transport.
+
 Mirror requires a selected saved profile, a fresh explicitly selected eligible
 ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before

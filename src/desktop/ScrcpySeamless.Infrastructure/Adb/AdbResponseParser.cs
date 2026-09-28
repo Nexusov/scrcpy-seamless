@@ -1,3 +1,4 @@
+using System.Globalization;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 
@@ -73,13 +74,19 @@ public static class AdbResponseParser
                 : modelField["model:".Length..].Replace('_', ' ');
             bool hasUsbRoute = fields.Skip(2).Any(field =>
                 field.StartsWith("usb:", StringComparison.Ordinal) && field.Length > "usb:".Length);
+            string[] transportIdFields = fields.Skip(2)
+                .Where(field => field.StartsWith("transport_id:", StringComparison.Ordinal)).ToArray();
+            ulong? transportId = transportIdFields.Length == 1 &&
+                ulong.TryParse(transportIdFields[0]["transport_id:".Length..], NumberStyles.None,
+                    CultureInfo.InvariantCulture, out ulong parsedId) && parsedId > 0
+                    ? parsedId : null;
             AdbTransportKind transportKind = hasUsbRoute
                 ? AdbTransportKind.Usb
                 : NetworkEndpoint.TryParse(fields[0], out _) ||
                   fields[0].EndsWith(ConnectionServiceSerialSuffix, StringComparison.OrdinalIgnoreCase)
                     ? AdbTransportKind.Network
                     : AdbTransportKind.Unknown;
-            devices.Add(new AdbDevice(fields[0], state.Value, model, transportKind));
+            devices.Add(new AdbDevice(fields[0], state.Value, model, transportKind, transportId));
         }
 
         return new AdbParseResult<AdbDevice>(devices, malformedLineCount);

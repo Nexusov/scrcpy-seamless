@@ -97,6 +97,22 @@ screen-reader test. The Android version was not captured.
 | Normal close while Mirror ran | Closing the primary Desktop window left no processes from the exact DEV Desktop/native executable paths. The shared ADB server remained PID `34800` listening on port 5037. | Does not exercise abnormal parent death or deliberately failed child cleanup. |
 | Cold-start discovery | **Passed in the controlled check**: after separately authorized `kill-server`, both ADB process and port-5037 listener were absent. Desktop PID `32500` requested discovery and started bundled ADB PID `49044`; `mdns check` reported Openscreen. With the phone's pairing-code screen open, DEV UI found the pairing service and `mdns services` counted one. Closing Desktop left ADB available. | One cold-start cycle. Pairing was deliberately not repeated; this does not test every network environment or subsequent daemon restart. |
 
+## USB route correction pending hardware retest
+
+The `geb3de1c5` physical association failure above remains the observed result
+for that artifact. A later sanitized no-devpath `adb devices -l` shape reproduces
+the failure through the real discovery and profile-association path in a
+deterministic test. The parser correctly retained Unknown because that listing
+did not identify a route; the discovery gateway had no other positive USB
+evidence. The local correction queries the same configured ADB server for a
+USB-scoped transport ID, matches it uniquely to the current listing and checks
+that the listing has not changed before publishing USB. It does not change
+profile storage, launch selection or fallback policy. Synthetic passing tests
+establish the corrected data flow and failure boundaries, not physical success.
+The exact new artifact identity and validation results belong here after local
+staging; manual USB classification, explicit draft association and one
+Mirror/Stop remain **not run** on that artifact.
+
 Phase 5D and overall Phase 5 acceptance remain open. The route-classification
-usability defect, limited compact-window vertical space, and untested real
+hardware retest, limited compact-window vertical space, and untested real
 screen-reader and multi-monitor DPI behavior must remain visible in any handoff.
