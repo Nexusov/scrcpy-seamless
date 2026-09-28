@@ -57,8 +57,8 @@ and DEV package `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop
 The ZIP at the same path plus `.zip` has SHA-256
 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`.
 The earlier `g9a02818b` package is retained as historical local evidence,
-not as a hardware pass for this one. Its 12 runtime files have identical
-SHA-256 hashes in the current package; the managed Desktop build changed.
+not as a hardware pass for `geb3de1c5`. Its 12 runtime files have identical
+SHA-256 hashes in that package; the managed Desktop build changed.
 The isolated data root is `D:\My Projects\scrcpy-seamless\.dev-data\p05d`;
 it was created empty and must not be reseeded from earlier DEV or personal
 installations. Keep one active mirror at a time. Do not share pairing codes,
@@ -83,7 +83,7 @@ preview opened from a working directory outside the checkout. Actual Windows
 preview captures for compact Settings and light/dark Shortcuts are under
 `work/phase5d/shortcuts-visual-review/geb3de1c5/`. The preview did not use
 ADB or the p05d data root. The later partial manual results on this same
-artifact are recorded in the [integrated matrix](phase5-acceptance.md#current-artifact-manual-observations).
+artifact are recorded in the [integrated matrix](phase5-acceptance.md#earlier-geb3de1c5-manual-observations).
 
 ## Cold-start discovery precondition and separate permission
 
@@ -97,7 +97,7 @@ started from this package; its UI discovery request started the package's
 phone advertised its pairing service, the DEV UI displayed that service and
 `adb mdns services` counted one pairing service. No pairing was attempted.
 The Desktop window was closed normally afterward; ADB PID 49044 remained
-available. See the [current artifact observations](phase5-acceptance.md#current-artifact-manual-observations).
+available. See the [earlier artifact observations](phase5-acceptance.md#earlier-geb3de1c5-manual-observations).
 
 For any future repeat, stopping a shared server still requires new separate
 authorization at a safe moment. It can temporarily interrupt ADB connections

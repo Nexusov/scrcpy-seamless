@@ -15,7 +15,7 @@ environment lacks a required condition; **not run** means execution is reserved
 for manual acceptance. A headless test is never labelled a Windows UI Automation
 or audible-output observation.
 
-Previous Phase 5D code/artifact: source `9a02818b35aa300a4625edcd97a8794f69149613`,
+Earlier Phase 5D UI-review code/artifact: source `9a02818b35aa300a4625edcd97a8794f69149613`,
 `dist/dev/scrcpy-seamless-desktop-p05d-g9a02818b.zip` SHA-256
 `95ac4a39dc8d99609f652642c29ae2b35e0cd4c067b0f3195414c1bb1d7de058`.
 Its reviewed runtime identities and hashes are in the package-relative
@@ -29,9 +29,10 @@ Final local validation passed locked restore, zero-warning Release build,
 the ZIP verifier and extracted Windows startup/activation checks. Native and
 Android server sources did not change in 5D, so their accepted tests are reused
 as earlier evidence, not reported as new runs. There are no failing executed
-final synthetic checks. Required physical-device checks remain outstanding.
+final synthetic checks. Physical-device checks were outstanding for this
+earlier UI-review artifact; later artifacts have separate results below.
 
-Current manual-acceptance target: source
+Earlier broad Phase 5D manual-acceptance artifact: source
 `eb3de1c55b159b980643ee6235e000770134a1b3`,
 `dist/dev/scrcpy-seamless-desktop-p05d-geb3de1c5.zip` SHA-256
 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`.
@@ -46,9 +47,11 @@ width and the read-only Shortcuts tab at light/150% and dark/100%; see
 Automation's named/focusable tab do not establish screen-reader behavior or
 multi-monitor DPI. Subsequent device-enabled Windows/phone and authorized
 cold-start checks used this same artifact; their results appear below.
-The table below retains the previous package's separate, artifact-specific
-observations; the [current manual procedure](phase5d-manual-acceptance.md)
-targets `geb3de1c5`.
+The table below retains the earlier UI-review package's separate evidence;
+the broad [manual procedure](phase5d-manual-acceptance.md#earlier-exact-artifact-acceptance-procedure-and-evidence)
+and observations below identify `geb3de1c5` separately. The corrected
+`gda35a1bd` artifact and its targeted result are summarized in the final
+section of this matrix.
 
 | Requirement / scenario | Layer and expected result | Actual result and status | Source/artifact | Remaining limit |
 | --- | --- | --- | --- | --- |
@@ -68,15 +71,15 @@ targets `geb3de1c5`.
 | 660×460 minimum and 150% application scale | Headless/Windows layout; errors/footer actions remain reachable | **Passed at inspected layers**: headless viewport/actions, wrapped dialog/title bounds; actual Windows light/150% screenshot shows distinct title and Reset | `g9a02818b` | The real window's reported minimum was 1012×746 pixels during this application-scale check; display DPI was not varied |
 | Light/dark and stored font fallback | Headless/Windows presentation; no compounded scale | **Passed at inspected layers**: actual dark Devices and light Settings preview; stored font/scale fixture passed | `g9a02818b` | OS theme switching not performed; no second monitor available |
 | DEV ZIP provenance, privacy and clean extraction with spaces | Artifact audit; exact source/runtime hashes, no private data | **Passed**: package fixture rejects private/tampered inputs; real 62 MB ZIP verified, extracted in a path with spaces and launched outside checkout | `g9a02818b` ZIP SHA above | Local DEV artifact is not signed or a public-release license attestation |
-| Cold-start mDNS from absent shared ADB server | Physical Windows/phone; product starts server under reviewed process-local policy | **Blocked**: existing shared ADB PID 34800 still listens on 127.0.0.1:5037 | `g9a02818b` not run | Requires separately authorized controlled stop or naturally absent server |
-| USB Mirror, Wi-Fi recovery, audio/video/control and Stop | Physical Android; independent channels and exact PID/start/HWND checkpoints | **Not run** on final Phase 5D artifact | `g9a02818b` | Old `g2b902065` success is historical only |
-| Disabled cross-transport fallback after USB removal | Physical Android; session does not silently switch to saved Wi-Fi route | **Not run** on final Phase 5D artifact | `g9a02818b` | Retain saved endpoint; inspect actual request evidence |
+| Cold-start mDNS from absent shared ADB server | Physical Windows/phone; product starts server under reviewed process-local policy | **Blocked for this artifact**: existing shared ADB PID 34800 still listened on 127.0.0.1:5037 | `g9a02818b` not run | Later authorized check on `geb3de1c5` is recorded below |
+| USB Mirror, Wi-Fi recovery, audio/video/control and Stop | Physical Android; independent channels and exact PID/start/HWND checkpoints | **Not run** on this earlier artifact | `g9a02818b` | Later `geb3de1c5` result is recorded below |
+| Disabled cross-transport fallback after USB removal | Physical Android; session does not silently switch to saved Wi-Fi route | **Not run** on this earlier artifact | `g9a02818b` | Later `geb3de1c5` result is recorded below |
 | Multi-monitor DPI and screen-reader listening | Windows hardware/assistive technology | **Blocked / not run**: only one display was available; no screen-reader listening was requested | `g9a02818b` | Do not infer from headless resize or accessibility tree |
 
-The [manual procedure](phase5d-manual-acceptance.md) identifies the current
-artifact and actions before any phone or shared-server test.
+The [manual procedure](phase5d-manual-acceptance.md) identifies each artifact
+and its distinct observed or pending checks.
 
-## Current artifact manual observations
+## Earlier geb3de1c5 manual observations
 
 All observations below used `scrcpy-seamless-desktop-p05d-geb3de1c5` from
 source `eb3de1c55b159b980643ee6235e000770134a1b3`, the isolated
@@ -110,7 +113,7 @@ that the listing has not changed before publishing USB. It does not change
 profile storage, launch selection or fallback policy. Synthetic tests establish
 the corrected data flow and failure boundaries independently of the physical
 result recorded below.
-The new local code artifact is `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`,
+The corrected PR-review code artifact is `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`,
 `dist/dev/scrcpy-seamless-desktop-p05d-gda35a1bd.zip`, SHA-256
 `5a14f48b83b507aa19398a34c84fcc3063cdcd651495b4a62721e0a7ffea3cb5`.
 The verified package reuses all 12 runtime files byte-for-byte from
@@ -132,6 +135,9 @@ native executable had no remaining process. This is one USB launch/Stop cycle,
 not a reconnect test. The old recovery, fallback and cold-start observations
 remain assigned only to `geb3de1c5`.
 
-Phase 5D and overall Phase 5 acceptance remain open. Limited compact-window
-vertical space and untested real screen-reader and multi-monitor DPI behavior
-must remain visible in any handoff.
+Phase 5D is ready for independent PR review: the USB association defect passed
+its targeted retest. Final Phase 5 acceptance remains open. No USB-to-Wi-Fi or
+cold-start cycle was repeated on `gda35a1bd`; those results belong to
+`geb3de1c5`. Limited vertical workspace at 150% remains a usability limitation
+while content is reachable. Real screen-reader listening and multi-monitor DPI
+checks have not been established; abnormal parent-death cleanup remains Phase 6.
