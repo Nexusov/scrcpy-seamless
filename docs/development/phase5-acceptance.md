@@ -109,9 +109,17 @@ USB-scoped transport ID, matches it uniquely to the current listing and checks
 that the listing has not changed before publishing USB. It does not change
 profile storage, launch selection or fallback policy. Synthetic passing tests
 establish the corrected data flow and failure boundaries, not physical success.
-The exact new artifact identity and validation results belong here after local
-staging; manual USB classification, explicit draft association and one
-Mirror/Stop remain **not run** on that artifact.
+The new local code artifact is `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`,
+`dist/dev/scrcpy-seamless-desktop-p05d-gda35a1bd.zip`, SHA-256
+`5a14f48b83b507aa19398a34c84fcc3063cdcd651495b4a62721e0a7ffea3cb5`.
+The verified package reuses all 12 runtime files byte-for-byte from
+`geb3de1c5`. Locked restore, zero-warning Release build, 435/435 .NET tests,
+29/29 legacy suites, SpecGen verify, DocsCheck, build metadata and ZIP
+verification passed locally. These checks did not use a phone or query ADB.
+The [short targeted retest](phase5d-manual-acceptance.md#targeted-usb-route-retest)
+is pending: physical USB classification, explicit draft association and one
+Mirror/Stop remain **not run** on this artifact. The old recovery, fallback and
+cold-start observations remain assigned only to `geb3de1c5`.
 
 Phase 5D and overall Phase 5 acceptance remain open. The route-classification
 hardware retest, limited compact-window vertical space, and untested real

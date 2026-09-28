@@ -1,6 +1,49 @@
 # Phase 5D manual acceptance (in progress)
 
-Use only the current Phase 5D source `eb3de1c55b159b980643ee6235e000770134a1b3`
+## Targeted USB route retest
+
+The corrected local DEV package is
+`D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-gda35a1bd`
+from code `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`. Its verified ZIP
+SHA-256 is `5a14f48b83b507aa19398a34c84fcc3063cdcd651495b4a62721e0a7ffea3cb5`.
+All 12 bundled native/server/ADB/SDL/FFmpeg/image files match the earlier
+`geb3de1c5` package. Do not apply that package's phone or cold-start results
+to this build. Keep the existing `.dev-data\p05d` root and its saved profile
+untouched; this retest uses a separate empty DEV root. Do not restart the shared
+ADB server, pair again or use the personal installation.
+
+```powershell
+$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-gda35a1bd'
+$devData = 'D:\My Projects\scrcpy-seamless\.dev-data\p05d-usb-route-da35a1bd'
+& "$package\ScrcpySeamless.Desktop.exe" "--dev-data-dir=$devData" "--device-runtime=$package\runtime" --page=devices
+```
+
+1. With the USB cable attached, click Refresh and explicitly select the intended
+   USB observation. Report whether its row says `USB route` rather than `Route
+   unknown`. Do not copy the selector, IP address or pairing code into a report.
+2. Open Profiles → New profile with a clean editor. Click **Use selected ADB
+   transport in this profile draft**. Confirm that only USB serial fills; the
+   pairing and connection endpoints remain empty and no profile/file has been
+   saved yet. Enter a friendly alias, then click Save to draft → Apply. Confirm
+   the saved profile has that exact USB selector. Do not transcribe it manually.
+3. Return to Devices, explicitly select the USB observation and the new saved
+   profile, then click Mirror once. Confirm changing video, usable PC control
+   and audible PC sound independently. Click Stop and confirm the native window
+   closes and Desktop reports stopped.
+
+Report the package suffix and these three outcomes. If the row is still
+Unknown, stop before saving or launching and retain the visible error/status.
+This fix changes only discovery classification; it does not change launch
+selection or fallback policy, so the prior enabled/disabled fallback checks
+need not be repeated automatically. Add a separate supervised fallback check
+only if the corrected selected-route workflow produces a new launch target or
+fallback behavior inconsistent with the saved profile. This targeted retest
+does not close the separate screen-reader, multi-monitor DPI or compact-window
+vertical-density acceptance items.
+
+## Earlier exact-artifact acceptance procedure and evidence
+
+The earlier Phase 5D checks used source `eb3de1c55b159b980643ee6235e000770134a1b3`
 and DEV package `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-geb3de1c5`.
 The ZIP at the same path plus `.zip` has SHA-256
 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`.
