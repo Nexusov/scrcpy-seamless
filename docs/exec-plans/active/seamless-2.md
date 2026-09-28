@@ -3,9 +3,10 @@
 Status at the 2026-09-28 Phase 5D local acceptance gate: Phases 5A–5C are
 integrated. PR #8 merged as `a3b1aa2b983cafbaa524a86502b1424315521582`,
 preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
-Phase 5D manual checks are partly complete; a physical USB route-classification
-usability failure remains open. Overall Phase 5 remains incomplete. Phases
-6–13 have not started.
+Phase 5D manual checks are partly complete. The physical USB association
+failure on `geb3de1c5` was corrected and passed one targeted USB/profile/
+Mirror/Stop retest on `gda35a1bd`; other acceptance limits remain. Overall
+Phase 5 remains incomplete. Phases 6–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -274,7 +275,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Accepted and integrated through PR #8; historical hardware smoke remains tied to `g2b902065` |
-| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; partial manual acceptance recorded, USB profile-association usability failure open |
+| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; targeted USB association retest passed on `gda35a1bd`, while other manual acceptance limits remain open |
 
 Phase 5D integrated acceptance must check discovery when the reviewed package
 starts from an absent shared ADB server, with separate authorization before a
@@ -290,7 +291,7 @@ saving, physical-device identity inference or discarding pending edits.
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
 | 5D.1 | Reconcile implemented Phase 5 scope with existing synthetic and hardware evidence | Integrated matrix recorded; prior phone results remain artifact-specific |
-| 5D.2 | Make selected transport and saved-profile association explicit without transcribing the model as a serial | Physical USB association failed on `geb3de1c5` when its route was Unknown. Local code `da35a1bd` adds USB-scoped transport-ID enrichment and a deterministic discovery-to-draft regression; targeted hardware retest on the separately verified `gda35a1bd` package remains open. |
+| 5D.2 | Make selected transport and saved-profile association explicit without transcribing the model as a serial | Physical USB association failed on `geb3de1c5` when its route was Unknown. Local code `da35a1bd` adds USB-scoped transport-ID enrichment and a deterministic discovery-to-draft regression. One targeted physical USB classification, explicit profile association and USB Mirror/Stop cycle passed on the separately verified `gda35a1bd` package; no reconnect claim transfers to it. |
 | 5D.3 | Check and correct implemented keyboard, accessibility, navigation and supported layouts | Headless minimum-scale/dialog failures corrected; actual Windows preview/settings/profile screenshots and UI Automation inspected; full screen-reader/multi-monitor checks remain open |
 | 5D.3a | Add bounded Settings shortcut reference and correct compact category width | Local read-only native reference with existing control-center editor link; compact results span the full width below the category picker; new package and manual acceptance remain separate evidence |
 | 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | New source `eb3de1c55b159b980643ee6235e000770134a1b3`; local `scrcpy-seamless-desktop-p05d-geb3de1c5.zip` verified and preview-launched after extraction with spaces, SHA-256 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`. Prior `g9a02818b` package retained; all 12 runtime hashes are identical. |

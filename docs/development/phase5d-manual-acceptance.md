@@ -2,6 +2,15 @@
 
 ## Targeted USB route retest
 
+**Completed once on 2026-09-28.** The physical USB row was labelled USB, the
+explicit association populated only the new profile's USB serial, and the
+configuration file remained absent until Apply. The same artifact launched a
+USB native mirror; video and PC control were observed, audible PC audio was
+confirmed by the owner, and Stop removed the native process. The exact evidence
+and limits are in the [acceptance matrix](phase5-acceptance.md#usb-route-correction-and-targeted-hardware-retest).
+The procedure below is retained to identify the tested steps; it does not
+authorize another device cycle or imply USB-to-Wi-Fi recovery on this artifact.
+
 The corrected local DEV package is
 `D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p05d-gda35a1bd`
 from code `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`. Its verified ZIP

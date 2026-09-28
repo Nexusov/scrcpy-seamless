@@ -97,7 +97,7 @@ screen-reader test. The Android version was not captured.
 | Normal close while Mirror ran | Closing the primary Desktop window left no processes from the exact DEV Desktop/native executable paths. The shared ADB server remained PID `34800` listening on port 5037. | Does not exercise abnormal parent death or deliberately failed child cleanup. |
 | Cold-start discovery | **Passed in the controlled check**: after separately authorized `kill-server`, both ADB process and port-5037 listener were absent. Desktop PID `32500` requested discovery and started bundled ADB PID `49044`; `mdns check` reported Openscreen. With the phone's pairing-code screen open, DEV UI found the pairing service and `mdns services` counted one. Closing Desktop left ADB available. | One cold-start cycle. Pairing was deliberately not repeated; this does not test every network environment or subsequent daemon restart. |
 
-## USB route correction pending hardware retest
+## USB route correction and targeted hardware retest
 
 The `geb3de1c5` physical association failure above remains the observed result
 for that artifact. A later sanitized no-devpath `adb devices -l` shape reproduces
@@ -107,8 +107,9 @@ did not identify a route; the discovery gateway had no other positive USB
 evidence. The local correction queries the same configured ADB server for a
 USB-scoped transport ID, matches it uniquely to the current listing and checks
 that the listing has not changed before publishing USB. It does not change
-profile storage, launch selection or fallback policy. Synthetic passing tests
-establish the corrected data flow and failure boundaries, not physical success.
+profile storage, launch selection or fallback policy. Synthetic tests establish
+the corrected data flow and failure boundaries independently of the physical
+result recorded below.
 The new local code artifact is `da35a1bdffb5d90fe02d81e9e965a4195dc1b692`,
 `dist/dev/scrcpy-seamless-desktop-p05d-gda35a1bd.zip`, SHA-256
 `5a14f48b83b507aa19398a34c84fcc3063cdcd651495b4a62721e0a7ffea3cb5`.
@@ -117,10 +118,20 @@ The verified package reuses all 12 runtime files byte-for-byte from
 29/29 legacy suites, SpecGen verify, DocsCheck, build metadata and ZIP
 verification passed locally. These checks did not use a phone or query ADB.
 The [short targeted retest](phase5d-manual-acceptance.md#targeted-usb-route-retest)
-is pending: physical USB classification, explicit draft association and one
-Mirror/Stop remain **not run** on this artifact. The old recovery, fallback and
-cold-start observations remain assigned only to `geb3de1c5`.
+then **passed on this artifact**. With a physical USB connection, Refresh
+displayed distinct USB and network rows; the selected USB row said `USB route`
+and `Device`. In a separate empty DEV data root, the selected-transport action
+filled only USB serial in a new profile editor. No configuration file existed
+after that action or after Save to draft; Apply saved the profile with pairing,
+wireless service and connection endpoint still empty. An explicit USB/profile
+Mirror started this package's native process (PID `42352`, UTC start
+`2026-09-28T14:10:22.9714926Z`, HWND `5312272`). The agent observed live video
+and a PC-issued Back navigation changing the phone screen; the owner confirmed
+audible PC sound. Desktop Stop reported `Native session stopped`, and the exact
+native executable had no remaining process. This is one USB launch/Stop cycle,
+not a reconnect test. The old recovery, fallback and cold-start observations
+remain assigned only to `geb3de1c5`.
 
-Phase 5D and overall Phase 5 acceptance remain open. The route-classification
-hardware retest, limited compact-window vertical space, and untested real
-screen-reader and multi-monitor DPI behavior must remain visible in any handoff.
+Phase 5D and overall Phase 5 acceptance remain open. Limited compact-window
+vertical space and untested real screen-reader and multi-monitor DPI behavior
+must remain visible in any handoff.
