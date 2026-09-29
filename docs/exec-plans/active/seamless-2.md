@@ -1,14 +1,15 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-29 Phase 6A PR review: Phase 5 is accepted for
+Status at the 2026-09-29 Phase 6B start: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
 Final hosted PR checks passed. The [Phase 5 acceptance record](../../development/phase5-acceptance.md#phase-5-engineering-acceptance-and-carry-forward)
 retains exact-artifact hardware results and unverified coverage. This is not
-public-prerelease, RC or stable acceptance. Phase 6A is under review in
-[PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10); application
-IPC integration and Phases 7–13 have not started.
+public-prerelease, RC or stable acceptance. Phase 6A was integrated by
+[PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10) at merge
+`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is local work;
+the normal Desktop IPC route and Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -19,10 +20,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The local `2.0/p06a-ipc-contract` branch starts from the verified PR #9 merge.
-The Phase 6A branch was published only for PR review, not merged or released.
-Keep the current launcher, Desktop native-host adapter and imported
-runtime fallback functional. Phase 6B/C process integration, Phase 7 native
+The local `2.0/p06b-ipc-runtime` branch starts from the verified PR #10 merge.
+Keep the current launcher, Desktop legacy native-host adapter and imported
+runtime fallback functional. Phase 6C Desktop cutover, Phase 7 native
 lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
@@ -611,9 +611,20 @@ rules; these slices do not renumber later Phases.
 
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
-| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Implemented on `2.0/p06a-ipc-contract`, PR #10 open for review. The original nine golden vectors remain byte-exact; shared positive/negative cases and bidirectional semantic frames cover the bounded conformance correction. Final-head hosted checks gate acceptance. |
-| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Not started |
+| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
+| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | In local development on `2.0/p06b-ipc-runtime`; checkpoints below govern the implementation. |
 | 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
+
+Phase 6B checkpoints, in dependency order:
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 6B.1 | Inspect integration seams and specify bootstrap/session binding, channel state, ownership and finite budgets | In progress |
+| 6B.2 | Activate explicit native machine mode with binary stdout, isolated diagnostics and safe Windows handle setup | Pending |
+| 6B.3 | Build the reusable bounded ordered channel and managed process host with handshake and request correlation | Pending |
+| 6B.4 | Dispatch native Stop/Focus and emit lifecycle observations at existing runtime seams with stable session/attempt identity | Pending |
+| 6B.5 | Settle EOF/failure and abnormal parent death through exact-process ownership | Pending |
+| 6B.6 | Prove real-pipe/process invariants, wire build/CI checks and prepare the local review handoff | Pending |
 
 Phase 7 retains native app/session/presentation/input lifetime restructuring;
 Phase 8 retains ConnectionManager. Phase 6B must transport honest lifecycle
