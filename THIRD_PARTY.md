@@ -22,11 +22,11 @@ exception; it does not change the stated scrcpy or FFmpeg license.
 
 ## Development tools
 
-The isolated Phase 6A native protocol test target uses yyjson 0.12.0,
+The native machine protocol and its isolated test target use yyjson 0.12.0,
 commit 8b4a38dc994a110abaec8a400615567bd996105f, under MIT. Its
 unmodified source, exact SHA-256 values and complete LICENSE are under
-src/scrcpy/app/vendor/yyjson/. The shipped native executable does not
-compile this dependency in Phase 6A.
+src/scrcpy/app/vendor/yyjson/. Phase 6B links it into the native executable
+for explicitly activated Desktop-owned machine sessions.
 
 | Component | Version | License / notices |
 | --- | --- | --- |

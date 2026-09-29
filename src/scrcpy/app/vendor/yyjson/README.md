@@ -1,4 +1,4 @@
-# yyjson source for Phase 6A native protocol tests
+# yyjson source for the native machine protocol
 
 Source: https://github.com/ibireme/yyjson
 
@@ -16,9 +16,9 @@ Imported without modifications:
 License: MIT, copyright YaoYuan, with the complete upstream notice in
 LICENSE. The library is a maintained, compact C parser/writer with strict
 UTF-8 defaults, explicit parse errors, a maximum-memory estimate and caller
-allocator. Phase 6A compiles it only into an isolated Meson test target; the
-current native executable and packages do not yet include it. Phase 6B must
-review the shipped binary/notice boundary when connecting the runtime.
+allocator. Phase 6A compiled it only into an isolated Meson test target.
+Phase 6B links the same unmodified source into the explicit machine-mode
+native executable and retains the isolated codec test target.
 
 The protocol module rejects payloads over 1,048,576 bytes before parsing.
 With read flags 0, yyjson's pool estimate is `13 * payload_bytes + 256`,
