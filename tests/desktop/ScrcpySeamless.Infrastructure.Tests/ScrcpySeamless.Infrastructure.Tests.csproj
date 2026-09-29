@@ -13,5 +13,8 @@
     <Content Include="../../../spec/desktop-native/golden/*.json"
              Link="NativeProtocolGolden/%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../spec/desktop-native/conformance.tsv"
+             Link="NativeProtocolConformance/conformance.tsv"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

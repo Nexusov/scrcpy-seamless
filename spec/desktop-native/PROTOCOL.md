@@ -17,21 +17,44 @@ at any byte; consecutive frames may be coalesced. EOF between frames is clean;
 EOF in a header or payload is truncated input. Oversized input is a protocol
 failure, not an instruction to allocate or skip its claimed length. Stream
 cancellation is separate from EOF and from the future child-stop policy.
+The Phase 6A C# read/write primitives do not retain partial-frame progress
+between calls. After cancellation or I/O failure mid-frame, a future
+connection owner must abandon that channel or provide an explicitly stateful,
+tested continuation; it cannot assume the next byte starts a new frame.
 
 JSON is strict RFC 8259 UTF-8, with no BOM or trailing non-whitespace data.
-The root is an object of at most 32 unique properties, with at most two levels
-(the root and flat capability arrays), 256 UTF-8 bytes per ordinary string,
-64 bytes per capability, and at most 16 distinct capabilities per array.
-Unknown optional root fields with bounded scalar values are ignored for a
-same-major peer. Nested unknown objects/arrays and duplicate keys, including
-unknown duplicates, are rejected. Known fields with missing, null or wrong
-types are rejected unless the table explicitly permits null. Parsers must
-reject embedded NUL and invalid UTF-8; diagnostics contain codes and bounded
-field names, never a payload dump or secrets.
+An accepted message has an object root of at most 32 unique properties and
+at most two levels (the root and flat capability arrays), 256 UTF-8 bytes
+per ordinary string, 64 bytes per capability, and at most 16 distinct
+capabilities per array. Unknown optional root fields may contain null,
+booleans, strings of 0..256 UTF-8 bytes, or JSON numbers whose IEEE-754
+binary64 conversion is finite (including underflow to zero). Their values
+are ignored; numeric rounding never changes known fields. Unknown nested objects/arrays
+and duplicate keys, including escaped-equivalent names, are rejected. Field
+names, required semantic strings and capability tokens must be nonempty.
+Known fields with missing, null or wrong types are rejected unless the table
+explicitly permits null. Parsers reject embedded NUL and invalid UTF-8;
+diagnostics contain codes and bounded field names, never a payload dump or
+secrets.
+
+The native yyjson reader parses strict JSON with flags 0 before the schema
+rejects disallowed nested values. It has no configured depth-two parser
+cutoff. A native payload is limited to 1,048,576 bytes before parsing, and
+its estimated yyjson pool (`13 * payload_bytes + 256` with these flags) is
+limited to 32 MiB; at maximum payload the estimate is 13,631,744 bytes.
+The C# JsonDocument has an actual parser `MaxDepth` of two. Both decoders
+enforce the same accepted v1 shape, although deeper bounded inputs may be
+rejected at different stages. The payload/frame buffer and other allocations
+are separate from the native yyjson pool.
 
 All names and enum tokens below are case-sensitive. Canonical encoders emit
 compact JSON in table order and lowercase GUIDs; decoders accept property
-reordering. `requestId`, `sequence` and `monotonicMicroseconds` are canonical
+reordering. Capability arrays are sorted by unsigned UTF-8 byte order in
+canonical output. Equivalent Unicode characters may have different JSON
+escape spelling across encoders; byte-identical output is required for the
+nine authored golden payloads, while other messages require semantic
+interoperability and the stated field/capability order. `requestId`,
+`sequence` and `monotonicMicroseconds` are canonical
 base-10 **strings** with no sign or leading zeros. They represent unsigned
 64-bit integers; `requestId` and `sequence` start at 1, while monotonic time
 may be 0. This preserves all 64 bits across C and C# regardless of a JSON
@@ -53,9 +76,11 @@ process's machine stream and must not reset on reconnect.
 | `lifecycle` native → Desktop | `messageType`, `sequence`, `utc`, `monotonicMicroseconds`, `sessionId`, `connectionAttemptId`, `subsystem`, `eventType`, `reason`, `error` | `connectionAttemptId` only | An observation at the stated native emission boundary. |
 
 `product` is `scrcpy-seamless`; protocol version is major 1, minor 0. Version
-fields are nonnegative JSON integers in 0..65535, independent of product and
-configuration versions. Capabilities in v1 are `stop`, `focus-window` and
-`lifecycle-v1`; strings are sorted ordinally in canonical output. Native
+fields are unsigned decimal JSON integer tokens containing only ASCII digits,
+with value 0..65535, independent of product and configuration versions.
+Negative-zero spelling, decimal points and exponent notation are invalid
+version tokens. Capabilities in v1 are `stop`, `focus-window` and
+`lifecycle-v1`. Native
 accepts the same major if all required capabilities are supported, ignores
 unknown *optional* supported capabilities, and negotiates the smaller minor.
 Every required capability must also appear in `supportedCapabilities`;

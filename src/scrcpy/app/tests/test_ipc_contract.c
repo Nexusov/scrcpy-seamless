@@ -1,5 +1,6 @@
 #include "ipc/ipc_frame.h"
 #include "ipc/ipc_json.h"
+#include "../vendor/yyjson/yyjson.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -219,8 +220,6 @@ check_invalid_messages(void) {
         "[]",
         "{\"messageType\":\"unknown\"}",
         "{\"messageType\":\"command\",\"requestId\":null}",
-        "{\"messageType\":\"command\",\"requestId\":\"01\"}",
-        "{\"messageType\":\"command\",\"requestId\":\"18446744073709551616\"}",
         "{\"messageType\":\"command\",\"requestId\":\"1\",\"sessionId\":"
             "\"11111111-2222-3333-4444-555555555555\",\"command\":null}",
         "{\"messageType\":\"command\",\"messageType\":\"command\"}",
@@ -248,8 +247,6 @@ check_invalid_messages(void) {
         "{\"messageType\":\"hello\",\"product\":\"scrcpy-seamless\","
             "\"protocolMajor\":1,\"protocolMinor\":0,"
             "\"requiredCapabilities\":[\"stop\"],\"supportedCapabilities\":[]}",
-        "{\"messageType\":\"lifecycle\",\"sequence\":\"1\","
-            "\"utc\":\"2026-02-30T00:00:00.000Z\"}",
     };
     struct sc_ipc_message message;
     for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]);
@@ -266,6 +263,102 @@ check_invalid_messages(void) {
     assert(sc_ipc_json_decode((const uint8_t *) optional, strlen(optional),
                               &message) == SC_IPC_JSON_OK);
     assert(!strcmp(message.command, "Фокус"));
+}
+
+/** Exercises complete shared protocol messages and expected decoder results. */
+static void
+check_conformance(const char *golden_directory, const char *output_directory) {
+    char path[1024];
+    int count = snprintf(path, sizeof(path), "%s/../conformance.tsv",
+                         golden_directory);
+    assert(count > 0 && count < (int) sizeof(path));
+    FILE *cases = fopen(path, "rb");
+    assert(cases);
+    char line[16384];
+    size_t case_count = 0;
+    while (fgets(line, sizeof(line), cases)) {
+        size_t length = strlen(line);
+        assert(length && line[length - 1] == '\n');
+        line[--length] = '\0';
+        if (length && line[length - 1] == '\r') {
+            line[--length] = '\0';
+        }
+        char *name = strchr(line, '\t');
+        assert(name);
+        *name++ = '\0';
+        char *payload = strchr(name, '\t');
+        assert(payload);
+        *payload++ = '\0';
+        assert(*name && *payload);
+        bool accepted = !strcmp(line, "accept");
+        assert(accepted || !strcmp(line, "reject"));
+        if (!strcmp(name, "deep-unknown-object")) {
+            size_t pool_size = yyjson_read_max_memory_usage(strlen(payload), 0);
+            void *pool = malloc(pool_size);
+            assert(pool);
+            yyjson_alc allocator;
+            assert(yyjson_alc_pool_init(&allocator, pool, pool_size));
+            yyjson_doc *parsed = yyjson_read_opts(payload, strlen(payload),
+                                                  0, &allocator, NULL);
+            assert(parsed);
+            yyjson_doc_free(parsed);
+            free(pool);
+        }
+        struct sc_ipc_message message;
+        enum sc_ipc_json_status status = sc_ipc_json_decode(
+            (const uint8_t *) payload, strlen(payload), &message);
+        if ((status == SC_IPC_JSON_OK) != accepted) {
+            fprintf(stderr, "Conformance case %s returned status %d\n",
+                    name, status);
+        }
+        assert((status == SC_IPC_JSON_OK) == accepted);
+        if (accepted) {
+            if (!strcmp(name, "version-maximum")) {
+                assert(message.protocol_minor == UINT16_MAX);
+            }
+            if (!strcmp(name, "request-uint64-max")) {
+                assert(message.request_id == UINT64_MAX);
+            }
+            if (!strcmp(name, "monotonic-uint64-max")) {
+                assert(message.monotonic_microseconds == UINT64_MAX);
+            }
+            uint8_t *encoded;
+            size_t encoded_length;
+            assert(sc_ipc_json_encode(&message, &encoded, &encoded_length) ==
+                   SC_IPC_JSON_OK);
+            struct sc_ipc_message round_trip;
+            assert(sc_ipc_json_decode(encoded, encoded_length, &round_trip) ==
+                   SC_IPC_JSON_OK);
+            assert(round_trip.type == message.type);
+            if (message.type == SC_IPC_COMMAND) {
+                assert(round_trip.request_id == message.request_id);
+                assert(!strcmp(round_trip.session_id, message.session_id));
+                assert(!strcmp(round_trip.command, message.command));
+            }
+            if (!strcmp(name, "unicode-capability-order")) {
+                assert(round_trip.supported_capabilities.count == 2);
+                assert(!strcmp(round_trip.supported_capabilities.values[0],
+                               "\xee\x80\x80"));
+                assert(!strcmp(round_trip.supported_capabilities.values[1],
+                               "\xf0\x90\x80\x80"));
+            }
+            if (output_directory) {
+                uint8_t *frame;
+                size_t frame_length;
+                assert(sc_ipc_frame_encode(encoded, encoded_length, &frame,
+                                           &frame_length) == SC_IPC_FRAME_READY);
+                count = snprintf(path, sizeof(path), "%s/%s.frame",
+                                 output_directory, name);
+                assert(count > 0 && count < (int) sizeof(path));
+                write_file(path, frame, frame_length);
+                free(frame);
+            }
+            free(encoded);
+        }
+        ++case_count;
+    }
+    assert(feof(cases) && case_count > 0);
+    assert(!fclose(cases));
 }
 
 /** Normalizes one foreign frame with the native decoder and encoder. */
@@ -306,13 +399,14 @@ main(int argc, char **argv) {
         normalize(argv[2], argv[3]);
         return 0;
     }
-    assert(argc == 3 || argc == 4);
+    assert(argc == 3 || argc == 4 || argc == 5);
     assert(!strcmp(argv[1], "--golden"));
     for (size_t index = 0; index < sizeof(golden) / sizeof(golden[0]);
          ++index) {
-        check_golden(argv[2], argc == 4 ? argv[3] : NULL, &golden[index]);
+        check_golden(argv[2], argc >= 4 ? argv[3] : NULL, &golden[index]);
     }
     check_frame_edges();
     check_invalid_messages();
+    check_conformance(argv[2], argc == 5 ? argv[4] : NULL);
     return 0;
 }

@@ -1,13 +1,14 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-29 Phase 6A local foundation: Phase 5 is accepted for
+Status at the 2026-09-29 Phase 6A PR review: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
 Final hosted PR checks passed. The [Phase 5 acceptance record](../../development/phase5-acceptance.md#phase-5-engineering-acceptance-and-carry-forward)
 retains exact-artifact hardware results and unverified coverage. This is not
-public-prerelease, RC or stable acceptance. Phase 6A defines and tests the
-wire contract locally; application IPC integration and Phases 7–13 have not started.
+public-prerelease, RC or stable acceptance. Phase 6A is under review in
+[PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10); application
+IPC integration and Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -19,8 +20,8 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [release](../../development/release-process.md) policies remaining canonical.
 
 The local `2.0/p06a-ipc-contract` branch starts from the verified PR #9 merge.
-The maintainer authorized Phase 6A locally, without branch publication or a
-release. Keep the current launcher, Desktop native-host adapter and imported
+The Phase 6A branch was published only for PR review, not merged or released.
+Keep the current launcher, Desktop native-host adapter and imported
 runtime fallback functional. Phase 6B/C process integration, Phase 7 native
 lifetime and Phase 8 ConnectionManager remain separate work.
 
@@ -610,7 +611,7 @@ rules; these slices do not renumber later Phases.
 
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
-| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/malformed vectors; no application process route | Implemented locally on `2.0/p06a-ipc-contract`; 9 cross-language vectors, 17/17 native Meson tests, 448/448 .NET and 29/29 legacy suites pass. Hosted CI remains unrun until separately authorized publication. |
+| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Implemented on `2.0/p06a-ipc-contract`, PR #10 open for review. The original nine golden vectors remain byte-exact; shared positive/negative cases and bidirectional semantic frames cover the bounded conformance correction. Final-head hosted checks gate acceptance. |
 | 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Not started |
 | 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
 

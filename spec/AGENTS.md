@@ -2,7 +2,9 @@
 
 The Phase 6A Desktop/native source of truth is
 desktop-native/PROTOCOL.md with independently authored golden payloads and
-byte counts under desktop-native/golden/. It is separate from option metadata
+byte counts under desktop-native/golden/ and complete accepted/rejected cases
+under desktop-native/conformance.tsv. Both codecs consume the same case file;
+do not keep independent expected-result lists. It is separate from option metadata
 and the Android device protocol. Do not generate expected vectors from one
 codec and call that cross-language validation.
 

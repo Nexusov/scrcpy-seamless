@@ -321,7 +321,7 @@ decode_request(yyjson_val *root, struct sc_ipc_message *message) {
                       sizeof(message->command));
 }
 
-/** Decodes and validates one bounded UTF-8 JSON payload. */
+/** Parses within a bounded pool, then validates the accepted message shape. */
 enum sc_ipc_json_status
 sc_ipc_json_decode(const uint8_t *payload, size_t length,
                    struct sc_ipc_message *message) {
@@ -461,7 +461,7 @@ add_decimal(yyjson_mut_doc *document, yyjson_mut_val *root,
            yyjson_mut_obj_add_strcpy(document, root, name, digits);
 }
 
-/** Adds capability strings in canonical ordinal order. */
+/** Adds capability strings in canonical UTF-8 byte order. */
 static bool
 add_capabilities(yyjson_mut_doc *document, yyjson_mut_val *root,
                  const char *name,

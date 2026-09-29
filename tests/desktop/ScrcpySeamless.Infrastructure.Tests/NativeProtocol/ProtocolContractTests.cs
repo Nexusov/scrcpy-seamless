@@ -39,10 +39,11 @@ public sealed class ProtocolContractTests
                 TestContext.Current.CancellationToken);
             Assert.Equal(length, payload.Length);
             ProtocolMessage message = ProtocolJsonCodec.Decode(payload);
-            Assert.Equal(payload, ProtocolJsonCodec.Encode(message));
+            byte[] encoded = ProtocolJsonCodec.Encode(message);
+            Assert.Equal(payload, encoded);
 
             using MemoryStream frame = new();
-            await ProtocolFrameCodec.WriteAsync(frame, payload, TestContext.Current.CancellationToken);
+            await ProtocolFrameCodec.WriteAsync(frame, encoded, TestContext.Current.CancellationToken);
             byte[] bytes = frame.ToArray();
             Assert.Equal(Convert.FromHexString(prefix), bytes[..4]);
             Assert.Equal((uint)length, BinaryPrimitives.ReadUInt32LittleEndian(bytes));
@@ -65,6 +66,131 @@ public sealed class ProtocolContractTests
                     bytes, TestContext.Current.CancellationToken);
             }
         }
+    }
+
+    /// <summary>Checks one shared complete-message corpus against both language codecs.</summary>
+    [Fact]
+    public async Task CompleteMessageConformanceMatchesNativeFrames()
+    {
+        string? nativeFrames = Environment.GetEnvironmentVariable("SC_IPC_C_CONFORMANCE_FRAMES");
+        string? managedFrames = Environment.GetEnvironmentVariable("SC_IPC_MANAGED_CONFORMANCE_FRAMES");
+
+        if (managedFrames is not null)
+        {
+            Directory.CreateDirectory(managedFrames);
+        }
+
+        string corpus = Path.Combine(AppContext.BaseDirectory,
+            "NativeProtocolConformance", "conformance.tsv");
+        string[] cases = await File.ReadAllLinesAsync(corpus,
+            TestContext.Current.CancellationToken);
+        Assert.NotEmpty(cases);
+
+        foreach (string testCase in cases)
+        {
+            string[] columns = testCase.Split('\t', 3);
+            Assert.Equal(3, columns.Length);
+            (string expectation, string name, string input) =
+                (columns[0], columns[1], columns[2]);
+            byte[] payload = Encoding.UTF8.GetBytes(input);
+
+            if (expectation == "reject")
+            {
+                Exception? failure = Record.Exception(() => ProtocolJsonCodec.Decode(payload));
+                Assert.True(failure is ProtocolException,
+                    $"Conformance case {name} must be rejected by the codec.");
+                continue;
+            }
+
+            Assert.Equal("accept", expectation);
+            ProtocolMessage message;
+
+            try
+            {
+                message = ProtocolJsonCodec.Decode(payload);
+            }
+            catch (ProtocolException failure)
+            {
+                Assert.Fail($"Conformance case {name} was rejected: {failure.Failure}.");
+                throw;
+            }
+            byte[] encoded = ProtocolJsonCodec.Encode(message);
+            ProtocolMessage roundTrip = ProtocolJsonCodec.Decode(encoded);
+            AssertSameSemantics(message, roundTrip);
+
+            if (name == "version-maximum")
+            {
+                Assert.Equal(65535, message.ProtocolMinor);
+            }
+
+            if (name == "request-uint64-max")
+            {
+                Assert.Equal(ulong.MaxValue, message.RequestId);
+            }
+
+            if (name == "monotonic-uint64-max")
+            {
+                Assert.Equal(ulong.MaxValue, message.MonotonicMicroseconds);
+            }
+
+            if (name == "unicode-capability-order")
+            {
+                Assert.Equal(["\uE000", "\U00010000"], roundTrip.SupportedCapabilities);
+            }
+
+            if (nativeFrames is not null)
+            {
+                using MemoryStream nativeStream = new(await File.ReadAllBytesAsync(
+                    Path.Combine(nativeFrames, name + ".frame"),
+                    TestContext.Current.CancellationToken));
+                byte[]? nativePayload = await ProtocolFrameCodec.ReadAsync(
+                    nativeStream, TestContext.Current.CancellationToken);
+                ProtocolMessage nativeMessage = ProtocolJsonCodec.Decode(nativePayload!);
+                AssertSameSemantics(message, nativeMessage);
+
+                if (name == "unicode-capability-order")
+                {
+                    Assert.Equal(["\uE000", "\U00010000"],
+                        nativeMessage.SupportedCapabilities);
+                }
+            }
+
+            if (managedFrames is not null)
+            {
+                using MemoryStream managedStream = new();
+                await ProtocolFrameCodec.WriteAsync(managedStream, encoded,
+                    TestContext.Current.CancellationToken);
+                await File.WriteAllBytesAsync(Path.Combine(managedFrames, name + ".frame"),
+                    managedStream.ToArray(), TestContext.Current.CancellationToken);
+            }
+        }
+    }
+
+    /// <summary>Compares known message semantics while ignoring extension fields and array order.</summary>
+    private static void AssertSameSemantics(ProtocolMessage expected, ProtocolMessage actual)
+    {
+        Assert.Equal(expected.MessageType, actual.MessageType);
+        Assert.Equal(expected.Product, actual.Product);
+        Assert.Equal(expected.ProtocolMajor, actual.ProtocolMajor);
+        Assert.Equal(expected.ProtocolMinor, actual.ProtocolMinor);
+        Assert.Equal(expected.RequestId, actual.RequestId);
+        Assert.Equal(expected.SessionId, actual.SessionId);
+        Assert.Equal(expected.Command, actual.Command);
+        Assert.Equal(expected.Sequence, actual.Sequence);
+        Assert.Equal(expected.Utc, actual.Utc);
+        Assert.Equal(expected.MonotonicMicroseconds, actual.MonotonicMicroseconds);
+        Assert.Equal(expected.ConnectionAttemptId, actual.ConnectionAttemptId);
+        Assert.Equal(expected.Subsystem, actual.Subsystem);
+        Assert.Equal(expected.EventType, actual.EventType);
+        Assert.Equal(expected.Reason, actual.Reason);
+        Assert.Equal(expected.Error, actual.Error);
+        Assert.Equal(expected.Status, actual.Status);
+        Assert.Equal(expected.RequiredCapabilities?.Order(StringComparer.Ordinal).ToArray(),
+            actual.RequiredCapabilities?.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(expected.SupportedCapabilities?.Order(StringComparer.Ordinal).ToArray(),
+            actual.SupportedCapabilities?.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(expected.Capabilities?.Order(StringComparer.Ordinal).ToArray(),
+            actual.Capabilities?.Order(StringComparer.Ordinal).ToArray());
     }
 
     /// <summary>Ensures split headers, split UTF-8 and coalesced frames are independent of reads.</summary>
@@ -144,8 +270,6 @@ public sealed class ProtocolContractTests
             "[]",
             "{\"messageType\":\"unknown\"}",
             "{\"messageType\":\"command\",\"requestId\":null}",
-            "{\"messageType\":\"command\",\"requestId\":\"01\"}",
-            "{\"messageType\":\"command\",\"requestId\":\"18446744073709551616\"}",
             "{\"messageType\":\"command\",\"requestId\":\"1\",\"sessionId\":"
                 + "\"11111111-2222-3333-4444-555555555555\",\"command\":null}",
             "{\"messageType\":\"command\",\"messageType\":\"command\"}",
@@ -171,8 +295,6 @@ public sealed class ProtocolContractTests
                 + "\"sessionId\":\"11111111-2222-3333-4444-555555555555\","
                 + "\"connectionAttemptId\":null,\"subsystem\":\"connection\","
                 + "\"eventType\":\"Connecting\",\"reason\":\"none\",\"error\":\"none\"}",
-            "{\"messageType\":\"lifecycle\",\"sequence\":\"1\","
-                + "\"utc\":\"2026-02-30T00:00:00.000Z\"}",
         ];
 
         foreach (string input in invalid)

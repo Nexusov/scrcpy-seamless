@@ -20,7 +20,10 @@ allocator. Phase 6A compiles it only into an isolated Meson test target; the
 current native executable and packages do not yet include it. Phase 6B must
 review the shipped binary/notice boundary when connecting the runtime.
 
-The protocol module rejects oversized payloads before parse, caps yyjson's
-estimated pool at 32 MiB, uses a depth limit of two, and frees the document
-and pool on every path. It validates duplicate keys and semantic field types
-after JSON parsing. No permissive JSON flags are enabled.
+The protocol module rejects payloads over 1,048,576 bytes before parsing.
+With read flags 0, yyjson's pool estimate is `13 * payload_bytes + 256`,
+at most 13,631,744 bytes at the maximum payload, below the separate 32 MiB
+pool cap. It frees the document and pool on every path. The vendored reader
+has no `YYJSON_READER_DEPTH_LIMIT` definition or configured depth cutoff:
+the protocol module rejects disallowed nesting during message-shape validation
+after bounded parsing. No permissive JSON flags are enabled.

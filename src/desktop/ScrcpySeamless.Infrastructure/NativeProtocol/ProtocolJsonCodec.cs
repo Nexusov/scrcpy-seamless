@@ -15,6 +15,9 @@ public static class ProtocolJsonCodec
     private const string TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
 
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private static readonly IComparer<string> Utf8CapabilityOrder = Comparer<string>.Create(
+        (first, second) => StrictUtf8.GetBytes(first).AsSpan().SequenceCompareTo(
+            StrictUtf8.GetBytes(second)));
     private static readonly HashSet<string> KnownFields =
     ["messageType", "product", "protocolMajor", "protocolMinor",
         "requiredCapabilities", "supportedCapabilities", "capabilities", "status",
@@ -237,7 +240,14 @@ public static class ProtocolJsonCodec
 
                 if (property.Value.ValueKind == JsonValueKind.String)
                 {
-                    _ = CheckedString(property.Value.GetString()!, MaximumStringBytes);
+                    _ = CheckedString(property.Value.GetString()!, MaximumStringBytes,
+                        allowEmpty: true);
+                }
+
+                if (property.Value.ValueKind == JsonValueKind.Number &&
+                    (!property.Value.TryGetDouble(out double number) || !double.IsFinite(number)))
+                {
+                    throw Invalid("Unknown numeric field is outside the finite binary64 range.");
                 }
             }
         }
@@ -362,9 +372,11 @@ public static class ProtocolJsonCodec
     }
 
     /// <summary>Checks decoded text without depending on C string terminators.</summary>
-    private static string CheckedString(string value, int maximumBytes)
+    private static string CheckedString(string value, int maximumBytes,
+        bool allowEmpty = false)
     {
-        if (value.Length == 0 || value.Length > maximumBytes || value.Contains('\0') ||
+        if ((!allowEmpty && value.Length == 0) || value.Length > maximumBytes ||
+            value.Contains('\0') ||
             StrictUtf8.GetByteCount(value) > maximumBytes)
         {
             throw Invalid("Invalid string length or embedded NUL.");
@@ -391,7 +403,16 @@ public static class ProtocolJsonCodec
     private static int ReadVersion(Dictionary<string, JsonElement> fields, string name)
     {
         if (!fields.TryGetValue(name, out JsonElement value) ||
-            value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int version) ||
+            value.ValueKind != JsonValueKind.Number)
+        {
+            throw Invalid("Invalid protocol version.");
+        }
+
+        string token = value.GetRawText();
+
+        if (token.Length is < 1 or > 5 ||
+            token.Any(character => character is < '0' or > '9') ||
+            !value.TryGetInt32(out int version) ||
             version is < 0 or > 65535)
         {
             throw Invalid("Invalid protocol version.");
@@ -505,7 +526,7 @@ public static class ProtocolJsonCodec
 
         if (capabilities is not null)
         {
-            foreach (string capability in capabilities.Order(StringComparer.Ordinal))
+            foreach (string capability in capabilities.Order(Utf8CapabilityOrder))
             {
                 writer.WriteStringValue(capability);
             }

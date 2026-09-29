@@ -93,7 +93,8 @@ not establish a reproducible compiler or dependency-build attestation.
 ## Phase 6A isolated Desktop/native contract check
 
 The [protocol specification](../../spec/desktop-native/PROTOCOL.md), golden
-payloads and C/C# codecs can be checked without starting scrcpy, connecting a
+payloads, [complete-message conformance cases](../../spec/desktop-native/conformance.tsv)
+and C/C# codecs can be checked without starting scrcpy, connecting a
 device or touching the shared ADB server. After restoring the pinned native
 toolchain and .NET SDK above, run from the repository root:
 
@@ -104,8 +105,10 @@ $sdk = .\scripts\bootstrap-dotnet.ps1
   -DotnetPath $sdk
 ```
 
-The script compiles an isolated C harness, verifies the independently authored
-payload corpus and framing limits, then checks C-produced frames with the C#
-codec and C#-produced frames with the C codec. The native Meson debug test
+The script compiles an isolated C harness, verifies nine independently authored
+byte-exact golden payloads, shared accepted/rejected complete messages and
+framing limits. It exchanges the actual C/C# encoded frames in both directions;
+Unicode extension cases compare known semantics and native normalization,
+because the encoders may spell equivalent JSON escapes differently. The native Meson debug test
 target also runs the C harness. Phase 6A does not link the codec into the
 shipped native executable or change the existing Desktop launch path.

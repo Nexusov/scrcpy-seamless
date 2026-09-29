@@ -325,7 +325,7 @@ if get_option('buildtype') == 'debug'
         'src/ipc/ipc_json.c',
         'vendor/yyjson/yyjson.c',
     ], include_directories: src_dir,
-       c_args: ['-DSC_TEST', '-DYYJSON_READER_DEPTH_LIMIT=2'])
+       c_args: ['-DSC_TEST'])
     test('test_ipc_contract', ipc_test,
          args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
 endif
