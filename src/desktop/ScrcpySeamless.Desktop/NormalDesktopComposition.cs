@@ -1,5 +1,6 @@
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Core.Adb;
+using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Desktop.Presentation;
 using ScrcpySeamless.Infrastructure.Adb;
 using ScrcpySeamless.Infrastructure.Configuration;
@@ -272,10 +273,10 @@ public static class NormalDesktopFactory
             RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(options.DeviceRuntimeDirectory);
             bool enableOpenScreenMdnsCompatibility = runtime.Bundle is { } validatedBundle &&
                 BundledAdbCompatibility.RequiresOpenScreenMdns(validatedBundle.Manifest.Files["adb.exe"]);
-            LegacyNativeHost? nativeHost = runtime.Bundle is { } bundle
-                ? new LegacyNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
-                    bundle.AdbExecutablePath, Path.Combine(paths.Directory, "native-sessions"),
-                    enableOpenScreenMdnsCompatibility)
+            // Only a validated machine-capable bundle can supply the normal device-enabled host.
+            INativeHost? nativeHost = runtime.Bundle is { } bundle
+                ? new MachineNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
+                    bundle.AdbExecutablePath, enableOpenScreenMdnsCompatibility)
                 : null;
             deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
                 runtime, nativeHost, action => Dispatcher.UIThread.Post(action));

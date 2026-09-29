@@ -3,10 +3,16 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Desktop;
 using ScrcpySeamless.Desktop.Presentation;
 using ScrcpySeamless.Infrastructure.Configuration;
+using ScrcpySeamless.Infrastructure.NativeProtocol;
+using ScrcpySeamless.Infrastructure.Runtime;
 using Xunit;
 
 namespace ScrcpySeamless.Desktop.Tests;
@@ -90,6 +96,47 @@ public sealed class NormalCompositionTests
         Assert.Equal("1024", Assert.Single(composition.Settings.VisibleRows).TextValue);
         Assert.Equal(configurationBytes, await File.ReadAllBytesAsync(saved.DataPaths.ConfigurationFile));
         Assert.Equal(manifestBytes, await File.ReadAllBytesAsync(manifestPath));
+    }
+
+    /// <summary>A compatible explicit DEV bundle selects the machine host without starting its synthetic files.</summary>
+    [AvaloniaFact]
+    public async Task CompatibleDeviceRuntimeSelectsMachineHostWithoutLaunching()
+    {
+        using TemporaryDataRoot root = new();
+        string runtimeDirectory = CreateSyntheticRuntime(root.Path, machineCompatible: true);
+        DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
+            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: root.Path,
+            DeviceRuntimeDirectory: runtimeDirectory);
+
+        NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
+            _ => { }, _ => { }, requested => requested);
+        await composition.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal("MachineNativeHost", composition.DeviceSession!.NativeHostName);
+        Assert.False(composition.DeviceSession.HasOwnedSession);
+        Assert.True(composition.Configuration.CanEdit);
+        Assert.False(File.Exists(composition.DataPaths.ConfigurationFile));
+    }
+
+    /// <summary>A hash-valid old runtime remains usable only through its older Desktop, not a silent 6C fallback.</summary>
+    [AvaloniaFact]
+    public async Task OldRuntimeCannotSelectLegacyHostInDeviceEnabledComposition()
+    {
+        using TemporaryDataRoot root = new();
+        string runtimeDirectory = CreateSyntheticRuntime(root.Path, machineCompatible: false);
+        DesktopLaunchOptions options = new(false, AppTheme.System, null, true,
+            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: root.Path,
+            DeviceRuntimeDirectory: runtimeDirectory);
+
+        NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
+            _ => { }, _ => { }, requested => requested);
+        await composition.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal("Unavailable", composition.DeviceSession!.NativeHostName);
+        Assert.Contains(nameof(RuntimeBundleStatus.IncompatibleMachineContract), composition.DeviceSession.Status);
+        Assert.Contains("Choose a Phase 6C bundle", composition.DeviceSession.Status);
+        Assert.False(composition.Devices.IsLiveEnabled);
+        Assert.True(composition.Configuration.CanEdit);
     }
 
     /// <summary>Two Desktop writers retain a stale draft instead of losing an earlier commit.</summary>
@@ -677,7 +724,7 @@ public sealed class NormalCompositionTests
         window.Close();
     }
 
-    /// <summary>Preview composition ignores an explicitly supplied poisoned data root.</summary>
+    /// <summary>Preview composition ignores supplied poisoned data and runtime paths.</summary>
     [Fact]
     public void PreviewDoesNotOpenOrRewriteNearbyConfiguration()
     {
@@ -685,13 +732,16 @@ public sealed class NormalCompositionTests
         string file = Path.Combine(root.Path, "configuration.v2.json");
         File.WriteAllText(file, "{invalid synthetic document");
         byte[] before = File.ReadAllBytes(file);
+        string absentRuntime = Path.Combine(root.Path, "absent runtime");
         DesktopLaunchOptions options = new(true, AppTheme.System, null, true,
-            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: root.Path);
+            StorageMode: DesktopStorageMode.Development, DevelopmentDataDirectory: root.Path,
+            DeviceRuntimeDirectory: absentRuntime);
         ShellViewModel preview = DesktopComposition.Create(options, _ => { });
 
         Assert.True(preview.IsPreview);
         Assert.Equal(before, File.ReadAllBytes(file));
         Assert.False(File.Exists(Path.Combine(root.Path, "desktop-preferences.json")));
+        Assert.False(Directory.Exists(absentRuntime));
     }
 
     /// <summary>Every validated shortcut spelling activates the corresponding Avalonia key.</summary>
@@ -894,6 +944,54 @@ public sealed class NormalCompositionTests
             failureShown.TrySetResult();
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>Creates inert, hash-consistent component files for Desktop composition only.</summary>
+    private static string CreateSyntheticRuntime(string dataRoot, bool machineCompatible)
+    {
+        string directory = Path.Combine(dataRoot, "synthetic runtime with spaces");
+        Directory.CreateDirectory(directory);
+        string[] fileNames =
+        [
+            "scrcpy.exe", "scrcpy-server", "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll",
+            "SDL3.dll", "avcodec-62.dll", "avformat-62.dll", "avutil-60.dll",
+            "swresample-6.dll", "scrcpy.png", "disconnected.png",
+        ];
+        Dictionary<string, string> hashes = new(StringComparer.Ordinal);
+        Dictionary<string, string> origins = new(StringComparer.Ordinal);
+
+        foreach (string fileName in fileNames)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes("inert component: " + fileName);
+            File.WriteAllBytes(Path.Combine(directory, fileName), bytes);
+            hashes[fileName] = Convert.ToHexString(SHA256.HashData(bytes));
+            origins[fileName] = fileName is "scrcpy.exe" or "scrcpy-server"
+                ? "source-built"
+                : "reviewed-import";
+        }
+
+        DeviceRuntimeManifest manifest = new()
+        {
+            SchemaVersion = 1,
+            SourceSha = new string('a', 40),
+            NativeSourceFingerprint = new string('b', 64),
+            ServerSourceFingerprint = new string('c', 64),
+            Files = hashes,
+            Origins = origins,
+            MachineContract = machineCompatible ? new MachineRuntimeContract
+            {
+                Product = ProtocolCompatibility.Product,
+                ProtocolMajor = ProtocolCompatibility.Major,
+                ProtocolMinor = ProtocolCompatibility.Minor,
+                Capabilities = ProtocolCompatibility.RequiredCapabilities.ToArray(),
+            } : null,
+        };
+        File.WriteAllText(Path.Combine(directory, DeviceRuntimeBundle.ManifestFileName),
+            JsonSerializer.Serialize(manifest, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            }));
+        return directory;
     }
 
     /// <summary>Owns only synthetic test state and removes it after assertions.</summary>
