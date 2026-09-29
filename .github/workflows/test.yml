@@ -57,6 +57,7 @@ jobs:
         run: |
           ./scripts/test-ipc-runtime.ps1 `
             -NativeFixturePath ./work/native-tests/app/test_machine_child.exe `
+            -ProductionNativePath ./dist/scrcpy.exe `
             -RuntimeDirectory ./work/native/scrcpy-release/scrcpy-win64-v4.0 `
             -DotnetPath ./work/dotnet-sdk-10.0.401/dotnet.exe
       - name: Verify the native-backed package
