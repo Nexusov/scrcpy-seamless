@@ -1,9 +1,11 @@
 # Native scrcpy-derived tree agent guide
 
-Phase 6A adds an isolated Meson IPC test target with vendored MIT yyjson;
-the current native executable does not link it. Machine-mode stdout, owned
-process I/O and lifecycle emission remain Phase 6B. Exact wire rules live
-in ../../spec/desktop-native/PROTOCOL.md.
+Phase 6B links vendored MIT yyjson and the IPC codecs into the native client.
+Only explicit `--seamless-machine` activation uses framed binary stdio;
+ordinary CLI and the accepted legacy Desktop host remain separate. Native
+machine-mode ownership and event boundaries are documented in
+../../docs/development/desktop-native-runtime.md; exact wire rules live in
+../../spec/desktop-native/PROTOCOL.md.
 
 Scope: `src/scrcpy/`.
 

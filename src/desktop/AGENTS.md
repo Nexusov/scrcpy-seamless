@@ -1,9 +1,11 @@
 # Desktop scaffold agent guide
 
-Phase 6A adds pure Infrastructure framing and JSON codecs only. The running
-Desktop still uses LegacyNativeHost; Core domain types and side-effect-free
-preview do not acquire a machine transport. Exact wire rules live in
-../../spec/desktop-native/PROTOCOL.md.
+Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds an
+explicitly selected `MachineNativeHost` and typed Core interactive-session
+observations; normal Desktop composition still uses `LegacyNativeHost`.
+Preview must remain side-effect free. Exact wire rules live in
+../../spec/desktop-native/PROTOCOL.md and process policy in
+../../docs/development/desktop-native-runtime.md.
 
 Scope: `src/desktop/`.
 

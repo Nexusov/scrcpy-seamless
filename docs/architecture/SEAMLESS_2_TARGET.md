@@ -2,9 +2,9 @@
 
 Status: accepted target; Phase 6A is integrated through PR #10 merge
 `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` for continued development.
-Phase 6B develops an explicit machine process route alongside the unchanged
-normal Desktop legacy composition. Native lifetime and ConnectionManager remain
-Phases 7–8. See the
+Phase 6B implements an explicit machine process route locally alongside the
+unchanged normal Desktop legacy composition. Native lifetime and
+ConnectionManager remain Phases 7–8. See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 
@@ -129,7 +129,8 @@ review; do not build a fragile private JSON parser.
 Handshake includes product identity, protocolMajor/minor and capabilities.
 The [protocol v1 specification](../../spec/desktop-native/PROTOCOL.md) owns
 the exact Phase 6A byte, field, limit and compatibility rules. Its C and C#
-codecs are isolated from the current application runtime until Phase 6B/C.
+codecs are used by Phase 6B's explicitly selected process route. Normal
+Desktop composition remains legacy until Phase 6C.
 Messages carry messageType, requestId where applicable, sessionId and
 connectionAttemptId. Lifecycle machine events also carry a per-process sequence
 number, UTC timestamp, monotonic process timestamp, subsystem, event type and

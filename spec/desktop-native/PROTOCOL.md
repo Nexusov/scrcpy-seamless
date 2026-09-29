@@ -1,12 +1,15 @@
 # Desktop/native machine protocol v1
 
-Status: Phase 6A wire contract and codec tests. No application process uses
-this route yet. This contract is separate from the Android device protocol,
-saved configuration and product version.
+Status: Phase 6A wire contract and codec tests; Phase 6B implements an
+explicitly selected native process route, documented in the
+[runtime guide](../../docs/development/desktop-native-runtime.md). Normal
+Desktop composition still selects the legacy route until Phase 6C. This
+contract is separate from the Android device protocol, saved configuration
+and product version.
 
 ## Transport and limits
 
-The future Desktop parent writes commands to redirected native stdin. Native
+The machine-route Desktop parent writes commands to redirected native stdin. Native
 stdout contains only frames after explicit machine-mode activation; human
 diagnostics go to stderr, drained independently. Each frame is a four-byte
 **unsigned little-endian** payload byte length followed by that many UTF-8
@@ -16,7 +19,7 @@ validates the header before allocating the body. A complete frame may be split
 at any byte; consecutive frames may be coalesced. EOF between frames is clean;
 EOF in a header or payload is truncated input. Oversized input is a protocol
 failure, not an instruction to allocate or skip its claimed length. Stream
-cancellation is separate from EOF and from the future child-stop policy.
+cancellation is separate from EOF and from the owned child-stop policy.
 The Phase 6A C# read/write primitives do not retain partial-frame progress
 between calls. After cancellation or I/O failure mid-frame, a future
 connection owner must abandon that channel or provide an explicitly stateful,
@@ -104,7 +107,8 @@ the native main thread, **not** that Windows granted foreground focus.
 `Stop` is valid in ready/connecting/active/reconnecting states and becomes
 idempotent while stopping; `FocusWindow` is valid only while a presentation
 window exists, otherwise `noWindow`. Commands after terminal stop fail with
-`invalidState`. The concrete state dispatcher is Phase 6B.
+`invalidState`. Phase 6B implements this dispatcher for the explicitly
+selected machine route.
 
 Lifecycle `eventType` is one of `NativeReady`, `Connecting`, `StreamStarted`,
 `TransportLost`, `ReconnectScheduled`, `Reconnecting`, `StreamResumed`,
@@ -146,15 +150,15 @@ semantic fields are never optional. Neither generated native `OPT_*` ordinals,
 ViewModels, arbitrary configuration files, CLR names nor native pointers are
 wire values. Breaking field semantics requires a new major version.
 
-Phase 6B must explicitly enable machine mode, reroute native banner/library/
-child output away from framed stdout, serialize all stdout frames through one
-ordered writer, flush critical lifecycle events immediately, drain stderr
-concurrently, and bound queue count/bytes as well as frame size. It must
-handle deadlines, cancellation, broken pipes, duplicate requests, EOF and
-abnormal parent death with exact owned-child cleanup. A Job Object or other
-guard must not capture or kill shared ADB. FocusWindow must run on the native
-main thread and report no-window/failure truthfully. A partial machine-route
-failure must not silently launch a second legacy session. Phase 6C owns
-Desktop/package compatibility and synthetic/process/hardware acceptance of
-the integrated route. The current `LegacyNativeHost` remains the runtime path
-through Phase 6A.
+Phase 6B explicitly enables machine mode, reroutes native banner/library/child
+output away from framed stdout, serializes all stdout frames through one
+ordered writer, drains stderr independently and bounds queue count/bytes as
+well as frame size. Its finite channel and exact-child ownership policies
+cover deadlines, cancellation, broken pipes, duplicate requests, EOF and
+abnormal parent death without capturing shared ADB. FocusWindow runs on the
+native main thread and reports no-window/failure truthfully. A partial
+machine-route failure does not launch a second legacy session. See the
+[runtime guide](../../docs/development/desktop-native-runtime.md) for the
+tested process boundary and still-unknown media claims. Phase 6C owns
+Desktop/package compatibility and hardware acceptance of the integrated
+route. `LegacyNativeHost` remains the normal Desktop runtime path until then.

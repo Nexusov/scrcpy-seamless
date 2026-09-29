@@ -4,6 +4,10 @@ The Phase 6A cross-language check is scripts/test-ipc-contract.ps1 with the
 pinned GCC and .NET paths. It compiles a pure C harness and tests both codec
 directions using golden bytes and shared complete-message conformance cases,
 without ADB or a device.
+Phase 6B's scripts/test-ipc-runtime.ps1 runs a separate real-process fixture
+against production channel and native machine modules. It uses only the
+isolated `test_machine_child.exe`, a pinned runtime DLL directory and
+project-local scratch; it must never launch a device-enabled native client.
 
 Scope: `scripts/`.
 

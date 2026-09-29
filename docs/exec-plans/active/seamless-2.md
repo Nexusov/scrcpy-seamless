@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-29 Phase 6B start: Phase 5 is accepted for
+Status after local Phase 6B implementation on 2026-09-29: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
@@ -8,7 +8,8 @@ Final hosted PR checks passed. The [Phase 5 acceptance record](../../development
 retains exact-artifact hardware results and unverified coverage. This is not
 public-prerelease, RC or stable acceptance. Phase 6A was integrated by
 [PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10) at merge
-`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is local work;
+`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is implemented
+and validated locally, but has not been published or accepted;
 the normal Desktop IPC route and Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -612,23 +613,35 @@ rules; these slices do not renumber later Phases.
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
 | 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
-| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | In local development on `2.0/p06b-ipc-runtime`; checkpoints below govern the implementation. |
+| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Implemented and locally validated on `2.0/p06b-ipc-runtime`; not published or accepted. |
 | 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
 
 Phase 6B checkpoints, in dependency order:
 
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
-| 6B.1 | Inspect integration seams and specify bootstrap/session binding, channel state, ownership and finite budgets | In progress |
-| 6B.2 | Activate explicit native machine mode with binary stdout, isolated diagnostics and safe Windows handle setup | Pending |
-| 6B.3 | Build the reusable bounded ordered channel and managed process host with handshake and request correlation | Pending |
-| 6B.4 | Dispatch native Stop/Focus and emit lifecycle observations at existing runtime seams with stable session/attempt identity | Pending |
-| 6B.5 | Settle EOF/failure and abnormal parent death through exact-process ownership | Pending |
-| 6B.6 | Prove real-pipe/process invariants, wire build/CI checks and prepare the local review handoff | Pending |
+| 6B.1 | Inspect integration seams and specify bootstrap/session binding, channel state, ownership and finite budgets | Complete locally; see [runtime guide](../../development/desktop-native-runtime.md) |
+| 6B.2 | Activate explicit native machine mode with binary stdout, isolated diagnostics and safe Windows handle setup | Complete locally; native build and CLI tests pass |
+| 6B.3 | Build the reusable bounded ordered channel and managed process host with handshake and request correlation | Complete locally; managed unit and real-pipe tests pass |
+| 6B.4 | Dispatch native Stop/Focus and emit lifecycle observations at existing runtime seams with stable session/attempt identity | Complete locally for observable native seams; audio/control readiness remains unknown |
+| 6B.5 | Settle EOF/failure and abnormal parent death through exact-process ownership | Complete locally; three deterministic process scenarios pass without ADB |
+| 6B.6 | Prove real-pipe/process invariants, wire build/CI checks and prepare the local review handoff | Complete locally; hosted CI and hardware remain unverified |
 
 Phase 7 retains native app/session/presentation/input lifetime restructuring;
 Phase 8 retains ConnectionManager. Phase 6B must transport honest lifecycle
 observations without waiting for those rewrites.
+
+Phase 6B local validation: SpecGen verifies 113 native entries with the 1.x
+projection unchanged; the Phase 6A cross-language corpus passes nine golden
+vectors and 24 conformance frames; 17 native tests, three real-process tests,
+and all 29 PowerShell/package suites pass. A full .NET rerun passed 461/461.
+The first run passed 460/461: one previously tracked ADB fixture sharing
+violation recurred while opening its own `ready.txt`; an unchanged
+Infrastructure suite rerun passed 164/164 before the full clean rerun. The
+synthetic child proves machine channel and ownership
+behavior, not Android media or integrated Desktop cutover. Normal Desktop
+composition still selects `LegacyNativeHost`; no real-device validation was
+performed for Phase 6B.
 
 ## Validation boundaries
 
