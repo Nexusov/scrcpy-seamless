@@ -1,0 +1,10 @@
+name	payloadBytes	headerHex
+hello	182	b6000000
+hello-result	167	a7000000
+stop	128	80000000
+stop-result	154	9a000000
+focus	116	74000000
+focus-result	142	8e000000
+lifecycle	294	26010000
+fatal	308	34010000
+unicode-unknown-command	115	73000000

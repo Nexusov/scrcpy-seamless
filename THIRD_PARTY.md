@@ -22,6 +22,12 @@ exception; it does not change the stated scrcpy or FFmpeg license.
 
 ## Development tools
 
+The isolated Phase 6A native protocol test target uses yyjson 0.12.0,
+commit 8b4a38dc994a110abaec8a400615567bd996105f, under MIT. Its
+unmodified source, exact SHA-256 values and complete LICENSE are under
+src/scrcpy/app/vendor/yyjson/. The shipped native executable does not
+compile this dependency in Phase 6A.
+
 | Component | Version | License / notices |
 | --- | --- | --- |
 | YamlDotNet, used only by the .NET option specification generator | 18.1.0 | MIT, `licenses/YamlDotNet-LICENSE.txt` |

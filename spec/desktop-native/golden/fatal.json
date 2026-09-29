@@ -1,0 +1,1 @@
+{"messageType":"lifecycle","sequence":"18446744073709551615","utc":"2026-09-29T00:00:01.000Z","monotonicMicroseconds":"18446744073709551615","sessionId":"11111111-2222-3333-4444-555555555555","connectionAttemptId":null,"subsystem":"native","eventType":"FatalError","reason":"nativeFailure","error":"unknown"}

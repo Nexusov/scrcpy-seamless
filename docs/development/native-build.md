@@ -33,11 +33,17 @@ See [third-party notices](../../THIRD_PARTY.md) and
 Install Python **3.13.15** from the official Python distribution first, or use
 an existing trusted interpreter of exactly that version. The interpreter is
 the one host prerequisite; the bootstrap refuses any other patch version.
-From the repository root in PowerShell, replace the interpreter path below
-with its actual location:
+Put that interpreter on `PATH`. From the repository root in PowerShell,
+resolve the executable and check its exact patch version before bootstrap:
 
 ```powershell
-& 'C:\path\to\Python312\python.exe' .\scripts\bootstrap-native.py
+$pythonExecutable = (Get-Command python.exe -CommandType Application -ErrorAction Stop).Source
+$pythonVersion = & $pythonExecutable --version 2>&1
+if ($LASTEXITCODE -ne 0 -or "$pythonVersion".Trim() -ne 'Python 3.13.15') {
+    throw "Expected Python 3.13.15 on PATH; found $pythonVersion at $pythonExecutable"
+}
+& $pythonExecutable .\scripts\bootstrap-native.py
+if ($LASTEXITCODE -ne 0) { throw 'Native bootstrap failed.' }
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 `
   -ConfigPath .\work\native\build.local.json `
   -BuildDirectory .\work\native\client-build `
@@ -83,3 +89,26 @@ ordering and normalized UTF-8 line endings. Git-ignored Gradle/Meson output is
 excluded. Packaging rejects an incomplete build, changed source, changed
 executable or mismatched reviewed runtime input. Source/hash provenance does
 not establish a reproducible compiler or dependency-build attestation.
+
+## Phase 6A isolated Desktop/native contract check
+
+The [protocol specification](../../spec/desktop-native/PROTOCOL.md), golden
+payloads, [complete-message conformance cases](../../spec/desktop-native/conformance.tsv)
+and C/C# codecs can be checked without starting scrcpy, connecting a
+device or touching the shared ADB server. After restoring the pinned native
+toolchain and .NET SDK above, run from the repository root:
+
+```powershell
+$sdk = .\scripts\bootstrap-dotnet.ps1
+.\scripts\test-ipc-contract.ps1 `
+  -CompilerPath .\work\native\w64devkit\bin\gcc.exe `
+  -DotnetPath $sdk
+```
+
+The script compiles an isolated C harness, verifies nine independently authored
+byte-exact golden payloads, shared accepted/rejected complete messages and
+framing limits. It exchanges the actual C/C# encoded frames in both directions;
+Unicode extension cases compare known semantics and native normalization,
+because the encoders may spell equivalent JSON escapes differently. The native Meson debug test
+target also runs the C harness. Phase 6A does not link the codec into the
+shipped native executable or change the existing Desktop launch path.

@@ -174,3 +174,44 @@ parents `a3b1aa2b983cafbaa524a86502b1424315521582` and
 `95966b4367259dc4a763b56675bddf1b0d535545`.
 The test-only change leaves the identified DEV artifact and its
 artifact-specific hardware evidence unchanged.
+
+## Phase 5 engineering acceptance and carry-forward
+
+The maintainer accepted Phase 5 for continued development on 2026-09-29.
+PR #9 merged into `seamless-2.0` as
+`3d171eb40b59860717cd3dfa8f853638c41683cc`, with parents
+`a3b1aa2b983cafbaa524a86502b1424315521582` and
+`63cd2579ec71c9a11b0af8f49914446b6da75f3f`. All 15 Phase 5D commits
+remain in the second-parent history. Final hosted run `36448850910` passed
+`test`, `native`, `android-server` and `desktop` (441/441 .NET tests).
+
+The broad hardware observations belong to `geb3de1c5`: USB-to-Wi-Fi recovery,
+disabled fallback, same-root activation/normal close and controlled absent-
+server discovery. The targeted USB classification, profile association,
+USB Mirror and Stop retest belongs to `gda35a1bd`. The intervening USB fix is
+bounded to the reviewed discovery/evidence path and its consumers. The final
+fixture follow-up changes tests and documents, not shipped native-host behavior
+or those DEV binaries. No recovery or cold-start result transfers to the newer
+artifact without a new run.
+
+The following are non-blocking for development integration and Phase 6A, but
+remain **unverified or limited**, not passed:
+
+- Real screen-reader listening and mixed-DPI multi-monitor operation.
+- Actual OS-theme switching wherever the existing evidence does not cover it.
+- Compact Settings remains reachable but cramped at 150% scale.
+- The original hosted `ready.txt` lock owner and exact historical exception
+  chain remain unknown despite two corrected controlled fixture defects.
+- Independent older audio/flaky observations retain their existing
+  classifications; this decision does not establish an audio fix.
+- Abnormal parent-death cleanup remains a Phase 6 deliverable, not a Phase 5
+  guarantee.
+
+The Phase 12 UI/accessibility/hardware hardening gate must exercise a real
+screen reader through navigation, labels, status updates and dialogs; move a
+running window among monitors with different DPI and verify scale/focus/input;
+switch the OS theme while the app is open and verify contrast and retained
+state; and check compact Settings at 150% with keyboard navigation, reachable
+Apply/Cancel and visible results. Record outcomes against exact builds before
+RC/stable acceptance. A public prerelease requires a separate suitability and
+limitations decision and explicit publication authorization.

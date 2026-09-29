@@ -1,5 +1,10 @@
 # Native scrcpy-derived tree agent guide
 
+Phase 6A adds an isolated Meson IPC test target with vendored MIT yyjson;
+the current native executable does not link it. Machine-mode stdout, owned
+process I/O and lifecycle emission remain Phase 6B. Exact wire rules live
+in ../../spec/desktop-native/PROTOCOL.md.
+
 Scope: `src/scrcpy/`.
 
 This tree currently contains the scrcpy-derived desktop client and Android

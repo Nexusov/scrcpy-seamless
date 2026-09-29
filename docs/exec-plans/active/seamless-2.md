@@ -1,19 +1,14 @@
 # Seamless 2.0 execution plan
 
-Status at the 2026-09-28 Phase 5D local acceptance gate: Phases 5A–5C are
-integrated. PR #8 merged as `a3b1aa2b983cafbaa524a86502b1424315521582`,
-preserving approved head `10b7d80cba023ad823ec53384196d50ab281047f`.
-Phase 5D is ready for independent PR review. The physical USB association
-failure on `geb3de1c5` was corrected and passed one targeted USB/profile/
-Mirror/Stop retest on `gda35a1bd`; other coverage dispositions remain pending.
-PR #9's first hosted `desktop` job failed in an unchanged synthetic native-host
-fixture during directory cleanup. A controlled test-only fixture correction
-passed local regressions, 30/30 repeated double-Stop runs and 441/441 .NET
-tests. Both subsequent hosted runs at `95966b4367259dc4a763b56675bddf1b0d535545`
-passed all four jobs, including 441/441 `desktop` tests. The original CI log
-did not identify the file-lock owner, so the historical failure is not
-attributed to a particular process. PR #9 remains open for review.
-Overall Phase 5 remains incomplete. Phases 6–13 have not started.
+Status at the 2026-09-29 Phase 6A PR review: Phase 5 is accepted for
+continued development and integrated through PR #9 merge
+`3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
+`63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
+Final hosted PR checks passed. The [Phase 5 acceptance record](../../development/phase5-acceptance.md#phase-5-engineering-acceptance-and-carry-forward)
+retains exact-artifact hardware results and unverified coverage. This is not
+public-prerelease, RC or stable acceptance. Phase 6A is under review in
+[PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10); application
+IPC integration and Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -24,11 +19,11 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The local `2.0/p05d-acceptance` branch starts from the verified PR #8 merge.
-The maintainer authorized publishing this branch for Phase 5D PR review only;
-merge, tag, release and Phase 6 remain outside this gate. Keep the current launcher and
-imported runtime fallback functional. Phase 6 machine IPC,
-Phase 7 native lifetime and Phase 8 ConnectionManager remain separate work.
+The local `2.0/p06a-ipc-contract` branch starts from the verified PR #9 merge.
+The Phase 6A branch was published only for PR review, not merged or released.
+Keep the current launcher, Desktop native-host adapter and imported
+runtime fallback functional. Phase 6B/C process integration, Phase 7 native
+lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
 
@@ -282,7 +277,7 @@ interface here; broad competitive feature completion remains Phase 10.
 | 5A — UX and UI foundation | Accepted Phase 4 integration | Pinned UX reference audit; reusable Avalonia shell, Devices workspace and Settings preview; deterministic side-effect-free scenarios, tests and self-contained DEV preview | Accepted and integrated through PR #6 |
 | 5B — configuration integration | Accepted 5A | Canonical v2 draft, validation, Apply/Save revision conflicts and Cancel; profiles/settings integration; native-parity composite `port` grammar before enabling its editor | Accepted and integrated through PR #7 |
 | 5C — device/native integration | Accepted 5B | Real discovery and pairing; narrowly isolated legacy native-host compatibility adapter and honest channel readiness | Accepted and integrated through PR #8; historical hardware smoke remains tied to `g2b902065` |
-| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | In progress locally; targeted USB association retest passed on `gda35a1bd`, while other manual acceptance limits remain open |
+| 5D — integration and acceptance | Accepted 5C | Navigation, accessibility, package and real hardware acceptance for Phase 5; only then assess alpha eligibility | Accepted for continued development through PR #9; artifact-specific evidence and non-blocking coverage limits remain in the acceptance record; no public alpha decision |
 
 Phase 5D integrated acceptance must check discovery when the reviewed package
 starts from an absent shared ADB server, with separate authorization before a
@@ -303,7 +298,7 @@ saving, physical-device identity inference or discarding pending edits.
 | 5D.3a | Add bounded Settings shortcut reference and correct compact category width | Local read-only native reference with existing control-center editor link; compact results span the full width below the category picker; new package and manual acceptance remain separate evidence |
 | 5D.4 | Validate and freeze one isolated, traceable self-contained DEV package | Earlier `geb3de1c5` ZIP was verified and preview-launched after extraction with spaces (SHA-256 `cad4bcba0b4139ec13bfc36d9010fc6a4209343a19d0ba5ad8d152dccc49888f`). Corrected source `da35a1bdffb5d90fe02d81e9e965a4195dc1b692` has a separately verified `gda35a1bd` ZIP (SHA-256 `5a14f48b83b507aa19398a34c84fcc3063cdcd651495b4a62721e0a7ffea3cb5`); all 12 runtime files match the earlier package. Later documentation commits do not change that binary. |
 | 5D.5 | Run synthetic integration checks against that package and prepare Windows/phone acceptance steps | Earlier `geb3de1c5`: 405/405 .NET tests, 29/29 legacy suites and actual compact Settings/Shortcuts screenshots. Corrected `gda35a1bd`: 435/435 .NET tests, 29/29 legacy suites, warning-free Release build, SpecGen/DocsCheck/metadata and ZIP verification; [manual procedure](../../development/phase5d-manual-acceptance.md) and [acceptance matrix](../../development/phase5-acceptance.md#usb-route-correction-and-targeted-hardware-retest) retain exact-artifact limits. |
-| 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | On `geb3de1c5`, USB-to-Wi-Fi recovery, disabled fallback, running-mirror activation/close and an authorized absent-server Openscreen discovery check passed within recorded limits; physical USB association failed as Unknown. On `gda35a1bd`, one targeted USB classification, profile association and USB Mirror/video/control/audible-PC-output/Stop cycle passed. No reconnect or cold-start rerun occurred on the corrected artifact. Final Phase 5 acceptance remains pending. |
+| 5D.6 | Record real-device and cold-start discovery results only when observed during separately authorized manual checks | On `geb3de1c5`, USB-to-Wi-Fi recovery, disabled fallback, running-mirror activation/close and an authorized absent-server Openscreen discovery check passed within recorded limits; physical USB association failed as Unknown. On `gda35a1bd`, one targeted USB classification, profile association and USB Mirror/video/control/audible-PC-output/Stop cycle passed. No reconnect or cold-start rerun occurred on the corrected artifact. Phase 5 is accepted for development with these evidence limits. |
 
 ### Phase 5C dependency-ordered checkpoints
 
@@ -606,6 +601,23 @@ signals remain inside that adapter. Process existence is not proof of video,
 audio or control readiness; unknown readiness must stay visible as unknown.
 The native runtime retains reconnect execution until Phases 7–8; Desktop does
 not add another reconnect state machine. Phase 6 owns versioned machine IPC.
+
+## Phase 6 — Desktop/native machine IPC, in bounded slices
+
+Phase 6 replaces the legacy environment/HWND lifecycle authority only after
+the process path is explicitly integrated and validated. The [protocol v1
+contract](../../spec/desktop-native/PROTOCOL.md) is the source of exact wire
+rules; these slices do not renumber later Phases.
+
+| Slice | Dependency | Reviewable result | Status |
+| --- | --- | --- | --- |
+| 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Implemented on `2.0/p06a-ipc-contract`, PR #10 open for review. The original nine golden vectors remain byte-exact; shared positive/negative cases and bidirectional semantic frames cover the bounded conformance correction. Final-head hosted checks gate acceptance. |
+| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Not started |
+| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
+
+Phase 7 retains native app/session/presentation/input lifetime restructuring;
+Phase 8 retains ConnectionManager. Phase 6B must transport honest lifecycle
+observations without waiting for those rewrites.
 
 ## Validation boundaries
 

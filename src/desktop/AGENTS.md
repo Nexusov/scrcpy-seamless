@@ -1,5 +1,10 @@
 # Desktop scaffold agent guide
 
+Phase 6A adds pure Infrastructure framing and JSON codecs only. The running
+Desktop still uses LegacyNativeHost; Core domain types and side-effect-free
+preview do not acquire a machine transport. Exact wire rules live in
+../../spec/desktop-native/PROTOCOL.md.
+
 Scope: `src/desktop/`.
 
 Read the root `AGENTS.md`, the active Seamless 2.0 execution plan and the

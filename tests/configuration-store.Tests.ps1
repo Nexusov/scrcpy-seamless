@@ -5,7 +5,10 @@ $directory = Join-Path ([IO.Path]::GetTempPath()) ('scrcpy-store-' + [guid]::New
 $null = New-Item -ItemType Directory -Path $directory
 $phonePath = Join-Path $directory 'phone.json'
 $worker = $null
-$signal = [hashtable]::Synchronized(@{ Acquired = $false; Release = $false })
+$pending = $null
+$workerTimeout = [TimeSpan]::FromSeconds(15)
+$acquiredSignal = [Threading.ManualResetEvent]::new($false)
+$releaseSignal = [Threading.ManualResetEvent]::new($false)
 
 # Refuse regressions in atomic settings concurrency and reset scope.
 function Assert-Store { param($Condition, $Message)
@@ -43,27 +46,55 @@ try {
     Remove-Item -LiteralPath $phonePath
     $worker = [PowerShell]::Create()
     $null = $worker.AddScript({
-        param($StorePath, $Directory, $Signal)
+        param($StorePath, $Directory, $AcquiredSignal, $ReleaseSignal)
         . $StorePath
         Invoke-DeviceConfigurationLock -RootDirectory $Directory -Action {
-            $Signal.Acquired = $true
-            $deadline = [DateTime]::UtcNow.AddSeconds(5)
-            while (-not $Signal.Release -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 10 }
+            $null = $AcquiredSignal.Set()
+            $null = $ReleaseSignal.WaitOne()
         }
-    }).AddArgument([IO.Path]::GetFullPath($storePath)).AddArgument($directory).AddArgument($signal)
+    })
+    $null = $worker.AddArgument([IO.Path]::GetFullPath($storePath))
+    $null = $worker.AddArgument($directory)
+    $null = $worker.AddArgument($acquiredSignal)
+    $null = $worker.AddArgument($releaseSignal)
     $pending = $worker.BeginInvoke()
-    $deadline = [DateTime]::UtcNow.AddSeconds(3)
-    while (-not $signal.Acquired -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 10 }
-    Assert-Store $signal.Acquired 'Competing worker did not acquire store lock.'
-    Assert-StoreRejected { Save-PhoneConfiguration -RootDirectory $directory -Configuration $configuration } 'Concurrent store write bypassed lock.'
-    $signal.Release = $true
+    $firstSignal = [Threading.WaitHandle]::WaitAny(
+        [Threading.WaitHandle[]]@($acquiredSignal, $pending.AsyncWaitHandle), $workerTimeout)
+    if ($firstSignal -eq 1) {
+        $null = $worker.EndInvoke($pending)
+        if ($worker.Streams.Error.Count) {
+            throw $worker.Streams.Error[0]
+        }
+        throw 'Competing worker exited before acquiring the store lock.'
+    }
+    Assert-Store ($firstSignal -eq 0) 'Competing worker did not acquire store lock before timeout.'
+    $lockError = $null
+    try {
+        Save-PhoneConfiguration -RootDirectory $directory -Configuration $configuration
+    }
+    catch {
+        $lockError = $_.Exception.Message
+    }
+    Assert-Store ($lockError -eq 'Device settings are in use. Wait a moment and try again.') 'Concurrent store write did not reject the held lock.'
+    $null = $releaseSignal.Set()
     $null = $worker.EndInvoke($pending)
+    if ($worker.Streams.Error.Count) {
+        throw $worker.Streams.Error[0]
+    }
+    $pending = $null
     Save-PhoneConfiguration -RootDirectory $directory -Configuration $configuration -ExpectedSnapshot $null
     Assert-Store ((Get-PhoneConfiguration -RootDirectory $directory).UsbSerial -eq 'phone-B') 'Released lock was not reusable.'
     Write-Output 'PASS: absent/empty snapshots, competing writes, reset, malformed reads and cross-worker locking.'
 } finally {
-    $signal.Release = $true
-    if ($null -ne $worker) { $worker.Dispose() }
+    $null = $releaseSignal.Set()
+    if ($null -ne $worker) {
+        if ($null -ne $pending -and -not $pending.AsyncWaitHandle.WaitOne($workerTimeout)) {
+            $worker.Stop()
+        }
+        $worker.Dispose()
+    }
+    $acquiredSignal.Dispose()
+    $releaseSignal.Dispose()
     $resolvedDirectory = (Resolve-Path $directory).ProviderPath
     if ((Split-Path -Parent $resolvedDirectory) -ne [IO.Path]::GetTempPath().TrimEnd('\')) { throw 'Unexpected cleanup path.' }
     Remove-Item -LiteralPath $resolvedDirectory -Recurse -Force

@@ -1,0 +1,1 @@
+{"messageType":"lifecycle","sequence":"1","utc":"2026-09-29T00:00:00.123Z","monotonicMicroseconds":"0","sessionId":"11111111-2222-3333-4444-555555555555","connectionAttemptId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","subsystem":"video","eventType":"StreamStarted","reason":"none","error":"none"}
