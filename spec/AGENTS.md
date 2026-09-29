@@ -1,5 +1,10 @@
 # Specification agent guide
 
+Phase 6B `internalOnly` entries are native machine-bootstrap switches. Generate
+their native declarations, but exclude them from Core, Desktop resources,
+the legacy catalogue, public option reference and ordinary native help.
+Preserve the historical Phase 3 fixtures and test these entries separately.
+
 The Phase 6A Desktop/native source of truth is
 desktop-native/PROTOCOL.md with independently authored golden payloads and
 byte counts under desktop-native/golden/ and complete accepted/rejected cases

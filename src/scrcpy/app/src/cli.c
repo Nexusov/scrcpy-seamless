@@ -1,6 +1,7 @@
 #include "cli.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <getopt.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1944,6 +1945,34 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
             case 'x':
                 opts->flex_display = true;
                 break;
+            case OPT_SEAMLESS_MACHINE:
+                args->machine_mode = true;
+                break;
+            case OPT_SEAMLESS_SESSION_ID:
+                args->machine_session_id = optarg;
+                break;
+            case OPT_SEAMLESS_PARENT_PID: {
+                char *end = NULL;
+                errno = 0;
+                unsigned long long value = strtoull(optarg, &end, 10);
+                if (errno || !*optarg || *end || !value || value > UINT32_MAX) {
+                    LOGE("Invalid managed parent process ID");
+                    return false;
+                }
+                args->machine_parent_pid = (uint32_t) value;
+                break;
+            }
+            case OPT_SEAMLESS_PARENT_CREATED: {
+                char *end = NULL;
+                errno = 0;
+                unsigned long long value = strtoull(optarg, &end, 10);
+                if (errno || !*optarg || *end || !value) {
+                    LOGE("Invalid managed parent creation time");
+                    return false;
+                }
+                args->machine_parent_created = (uint64_t) value;
+                break;
+            }
             default:
                 // getopt prints the error message on stderr
                 return false;
@@ -1953,6 +1982,16 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
     int index = optind;
     if (index < argc) {
         LOGE("Unexpected additional argument: %s", argv[index]);
+        return false;
+    }
+
+    bool machine_metadata = args->machine_session_id ||
+                            args->machine_parent_pid || args->machine_parent_created;
+    if (args->machine_mode != machine_metadata ||
+            (args->machine_mode && (!args->machine_session_id ||
+             !args->machine_parent_pid || !args->machine_parent_created ||
+             args->help || args->version))) {
+        LOGE("Incomplete or unexpected managed machine bootstrap");
         return false;
     }
 

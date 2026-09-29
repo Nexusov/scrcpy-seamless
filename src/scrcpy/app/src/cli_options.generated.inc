@@ -91,6 +91,10 @@ enum {
     OPT_KEEP_ACTIVE = 1086,
     OPT_BACKGROUND_COLOR = 1087,
     OPT_RENDER_FIT = 1088,
+    OPT_SEAMLESS_MACHINE = 1089,
+    OPT_SEAMLESS_SESSION_ID = 1090,
+    OPT_SEAMLESS_PARENT_PID = 1091,
+    OPT_SEAMLESS_PARENT_CREATED = 1092,
 };
 
 static const struct sc_option options[] = {
@@ -701,5 +705,24 @@ static const struct sc_option options[] = {
         .shortopt = 'x',
         .longopt = "flex-display",
         .text = "Continuously resize the virtual display to match the window.",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_MACHINE,
+        .longopt = "seamless-machine",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_SESSION_ID,
+        .longopt = "seamless-session-id",
+        .argdesc = "guid",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_PARENT_PID,
+        .longopt = "seamless-parent-pid",
+        .argdesc = "pid",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_PARENT_CREATED,
+        .longopt = "seamless-parent-created",
+        .argdesc = "filetime",
     },
 };

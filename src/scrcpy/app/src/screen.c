@@ -1,4 +1,7 @@
 #include "screen.h"
+#ifdef _WIN32
+# include "ipc/machine.h"
+#endif
 
 #include <assert.h>
 #include <inttypes.h>
@@ -237,7 +240,7 @@ sc_screen_update_content_rect(struct sc_screen *screen) {
 //
 // Set the update_content_rect flag if the window or content size may have
 // changed, so that the content rectangle is recomputed
-static void
+static bool
 sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
     assert(screen->window_shown);
 
@@ -252,7 +255,8 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
 
     SDL_Texture *texture = screen->tex.texture;
     if (!texture) {
-        goto end;
+        sc_sdl_render_present(renderer);
+        return false;
     }
 
     float scale = SDL_GetWindowPixelDensity(screen->window);
@@ -306,9 +310,7 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
     if (!ok) {
         LOGE("Could not render texture: %s", SDL_GetError());
     }
-
-end:
-    sc_sdl_render_present(renderer);
+    return sc_sdl_render_present(renderer) && ok;
 }
 
 static void
@@ -1005,8 +1007,7 @@ sc_screen_apply_frame(struct sc_screen *screen, bool can_resize) {
         return false;
     }
 
-    sc_screen_render(screen, false);
-    return true;
+    return sc_screen_render(screen, false);
 }
 
 static bool
@@ -1037,6 +1038,12 @@ sc_screen_update_frame(struct sc_screen *screen) {
     sc_mutex_unlock(&screen->mutex);
     bool reconnecting = screen->reconnecting;
     bool ok = sc_screen_apply_frame(screen, can_resize && !reconnecting);
+#ifdef _WIN32
+    if (ok) {
+        // Only a newly consumed decoder frame, never a retained pause frame.
+        sc_machine_on_frame_presented();
+    }
+#endif
 
     if (ok && reconnecting) {
         screen->reconnecting = false;

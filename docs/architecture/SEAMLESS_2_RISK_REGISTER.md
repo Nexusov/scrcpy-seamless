@@ -30,6 +30,27 @@ remaining entries are open. A local containment does not close a risk.
 | R15 Medium: lifecycle observability deferred | The legacy DEV trace retained PID/HWND but native messages arrived in buffered batches and could not align transport events with perceived audio outcomes. Phase 0 and Phase 2 sample-drop messages are observations, not a proven cause of audible failure. Building diagnostics only after the 2.0 runtime would leave the new event contract and session identities untestable during migration. | Keep the local observer for legacy diagnosis; do not claim it supplies native event times or change production code for the unproven audio symptom. | 6: ordered typed IPC/lifecycle events and immediate critical flush. 7: generation-aware capture/demux/decode/regulator/SDL-sink lifetime. 8: transport and first audio packet/frame after reconnect with channel-specific readiness. 12: private JSONL bundles, aggregated drop/underflow/overflow metrics, Windows output state, rotation and hardware/soak correlation. |
 | R16 Medium: intermittent test/diagnostic failures | During Phase 4, one unchanged Infrastructure ADB cancellation test hit a sharing violation opening its GUID-scoped `ready.txt`, and one legacy dev-observer test missed classification in a GUID-scoped existing-log trace. The latter uses a fake native executable and no real ADB, so it does not itself prove a leaked product process. The failed traces did not retain enough evidence to identify the owner or precise cause. PR #9 later had a separate native-host fixture deletion failure; its original lock owner and exact historical exception chain also remain unknown. | Focused Phase 4 stress did not reproduce either older event: ADB exact test 40/40, ADB class 10/10 × 18, Infrastructure suite 5/5 × 39; observer exact test 20/20 and full legacy suite twice at 28/28. PR #9 controlled tests demonstrated and corrected two native-host fixture lifetime defects without product Stop changes; hosted run `36448850910` passed all jobs. This does not resolve the older ADB/observer observations or identify the original PR #9 file-lock owner. | Continue to watch CI for recurrence. If it recurs, retain the failing fixture/handle or trace evidence, then distinguish test resource lifetime from external file locking and repair the demonstrated cause under the debugging policy. The older observations remain non-blocking and unresolved. |
 
+Phase 6B local containment for R08 and R15: the opt-in Desktop/native machine
+route has a bounded owned process channel, typed ordered lifecycle observations
+and deterministic parent-death/Stop tests; normal Desktop composition remains
+legacy until Phase 6C. The new event seams identify native readiness,
+connection attempts, transport loss and first successfully presented video
+frame, but do not prove audible audio or control readiness. Three synthetic
+real-process scenarios pass without ADB. All four hosted jobs passed for
+PR #11's original Phase 6B head; follow-up correctness changes require their
+own final-head checks. Hardware remains unverified. R08/R15 stay open through their owning
+integration and later observability phases.
+
+R16 recurred once during Phase 6B validation in the unchanged
+`AdbTests.CancellationTerminatesTheOwnedChildAfterItStarts` fixture. The
+sharing violation occurred while reading its GUID-scoped `ready.txt`, not
+during marker deletion. The original run's console stack was captured, but no
+TRX, HResult, lock-owner identity or fixture PID was retained. Five later
+focused executions passed without reproducing the lock. The fixture writes a
+temporary marker and closes it before renaming; current evidence does not
+establish a cause or justify a product/fixture change. The passing reruns are
+not a fix, and R16 remains open for evidence-based investigation if it recurs.
+
 ## Acceptance and review
 
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware

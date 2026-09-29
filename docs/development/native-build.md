@@ -110,5 +110,30 @@ byte-exact golden payloads, shared accepted/rejected complete messages and
 framing limits. It exchanges the actual C/C# encoded frames in both directions;
 Unicode extension cases compare known semantics and native normalization,
 because the encoders may spell equivalent JSON escapes differently. The native Meson debug test
-target also runs the C harness. Phase 6A does not link the codec into the
+target also runs the C harness. Phase 6A did not link the codec into the
 shipped native executable or change the existing Desktop launch path.
+Phase 6B links the accepted codec into an explicitly selected machine route
+while normal Desktop composition remains on legacy. The
+[runtime guide](desktop-native-runtime.md) records its bootstrap, ownership,
+channel limits and lifecycle evidence.
+
+## Phase 6B isolated process check
+
+Build the native debug tests with `-NativeTests` as above. Then run the
+real-process regression harness with the native test child and reviewed
+runtime DLLs, without a device or shared ADB:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-ipc-runtime.ps1 `
+  -NativeFixturePath .\work\native\test-build\app\test_machine_child.exe `
+  -ProductionNativePath .\dist\scrcpy.exe `
+  -RuntimeDirectory .\work\native\scrcpy-release\scrcpy-win64-v4.0 `
+  -DotnetPath $sdk
+```
+
+The fixture links the production native machine modules; the managed harness
+uses the production process host. Separate checks execute the ordinary
+`dist/scrcpy.exe` entry point only on no-device CLI and pre-device rejection
+paths. Together they cover real redirected pipes, handshake, Focus/Stop
+correlation and exact-child cleanup on abnormal parent death. They do not
+exercise Android media, the shared ADB server or Phase 6C Desktop composition.

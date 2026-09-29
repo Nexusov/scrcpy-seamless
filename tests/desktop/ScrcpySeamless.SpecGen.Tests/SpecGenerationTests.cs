@@ -23,6 +23,26 @@ public sealed class SpecGenerationTests
         }
     }
 
+    /// <summary>Machine bootstrap remains parseable natively without entering saved or visible option catalogues.</summary>
+    [Fact]
+    public void InternalMachineBootstrapIsNativeOnlyProjection()
+    {
+        var specification = Load();
+        var internalOptions = specification.Options.Where(option => option.InternalOnly).ToArray();
+        Assert.Equal(4, internalOptions.Length);
+        Assert.All(internalOptions, option => Assert.Equal("managed", option.Classification));
+
+        var outputs = OutputGenerator.Generate(specification);
+        foreach (var option in internalOptions)
+        {
+            Assert.Contains($".longopt = \"{option.LongName}\"", outputs["src/scrcpy/app/src/cli_options.generated.inc"]);
+            Assert.DoesNotContain($"Id = \"{option.Id}\"", outputs["src/desktop/ScrcpySeamless.Core/Options/GeneratedOptionCatalog.g.cs"]);
+            Assert.DoesNotContain($"options.{option.Id}.label", outputs["src/desktop/ScrcpySeamless.Desktop/Resources/Options/GeneratedOptionResources.en.json"]);
+            Assert.DoesNotContain($"\"Name\": \"{option.LongName}\"", outputs["launcher/option-catalog.json"]);
+            Assert.DoesNotContain($"option-{option.Id}", outputs["docs/reference/options.md"]);
+        }
+    }
+
     /// <summary>Verify detects modified output without writing even one generated file.</summary>
     [Fact]
     public void VerifyDetectsDriftWithoutMutatingOutputs()

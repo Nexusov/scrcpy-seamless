@@ -25,7 +25,8 @@ public sealed class PreGeneratorParityTests
 
         var expectedOptions = baseline.GetProperty("options").EnumerateArray().ToArray();
         Assert.Equal(109, expectedOptions.Length);
-        Assert.Equal(expectedOptions.Length, specification.Options.Count);
+        Assert.Equal(expectedOptions.Length,
+            specification.Options.Count(option => !option.InternalOnly));
 
         for (var index = 0; index < expectedOptions.Length; index++)
         {

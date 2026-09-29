@@ -56,6 +56,7 @@ internal sealed class OptionEntry
     public List<string> Conflicts { get; set; } = [];
     public List<string> RuleIds { get; set; } = [];
     public string? BuildCapability { get; set; }
+    public bool InternalOnly { get; set; }
     public bool LegacyBasic { get; set; }
     public string? LegacyReason { get; set; }
     public bool LegacySeamlessCompatible { get; set; } = true;

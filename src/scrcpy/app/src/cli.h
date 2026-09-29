@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "options.h"
 
@@ -20,6 +21,10 @@ struct scrcpy_cli_args {
     bool help;
     bool version;
     enum sc_pause_on_exit pause_on_exit;
+    bool machine_mode;
+    const char *machine_session_id;
+    uint32_t machine_parent_pid;
+    uint64_t machine_parent_created;
 };
 
 void

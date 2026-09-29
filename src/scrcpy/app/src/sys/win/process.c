@@ -17,8 +17,8 @@ sc_process_execute_p(const char *const argv[], HANDLE *handle, unsigned flags,
     bool inherit_stdout = !pout && !(flags & SC_PROCESS_NO_STDOUT);
     bool inherit_stderr = !perr && !(flags & SC_PROCESS_NO_STDERR);
 
-    // Add 1 per non-NULL pointer
-    unsigned handle_count = !!pin || !!pout || !!perr;
+    // Every redirected child handle must be included in the inheritance list.
+    unsigned handle_count = !!pin + !!pout + !!perr;
 
     enum sc_process_result ret = SC_PROCESS_ERROR_GENERIC;
 

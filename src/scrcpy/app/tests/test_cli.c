@@ -45,14 +45,19 @@ static void test_flag_help(void) {
 // Check the option declarations compiled into the native parser.
 static void test_generated_option_table(void) {
     enum {
-        EXPECTED_OPTIONS = 109,
-        EXPECTED_LONG_OPTIONS = 106,
+        EXPECTED_OPTIONS = 113,
+        EXPECTED_LONG_OPTIONS = 110,
         EXPECTED_SHORT_OPTIONS = 20,
         EXPECTED_OPTIONAL_ARGUMENTS = 3,
     };
 
     assert(sc_cli_option_count() == EXPECTED_OPTIONS);
-    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory));
+    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory) + 4);
+
+    static const char *const internal_options[] = {
+        "seamless-machine", "seamless-session-id",
+        "seamless-parent-pid", "seamless-parent-created",
+    };
 
     size_t long_count = 0;
     size_t short_count = 0;
@@ -60,18 +65,27 @@ static void test_generated_option_table(void) {
     for (size_t index = 0; index < sc_cli_option_count(); ++index) {
         struct sc_cli_option_test_info option;
         assert(sc_cli_option_get_test_info(index, &option));
-        const struct sc_cli_option_test_info *baseline =
-            &phase3_cli_inventory[index];
-        assert(!!option.longopt == !!baseline->longopt);
-        if (baseline->longopt) {
-            assert(!strcmp(option.longopt, baseline->longopt));
+        if (index < ARRAY_LEN(phase3_cli_inventory)) {
+            const struct sc_cli_option_test_info *baseline =
+                &phase3_cli_inventory[index];
+            assert(!!option.longopt == !!baseline->longopt);
+            if (baseline->longopt) {
+                assert(!strcmp(option.longopt, baseline->longopt));
+            }
+            assert(option.shortopt == baseline->shortopt);
+            assert(option.has_arg == baseline->has_arg);
+            assert(option.optional_arg == baseline->optional_arg);
+            assert(option.documented == baseline->documented);
+            assert(option.documented);
+        } else {
+            size_t internal_index = index - ARRAY_LEN(phase3_cli_inventory);
+            assert(!strcmp(option.longopt, internal_options[internal_index]));
+            assert(!option.shortopt);
+            assert(option.has_arg == (internal_index != 0));
+            assert(!option.optional_arg);
+            assert(!option.documented);
         }
-        assert(option.shortopt == baseline->shortopt);
-        assert(option.has_arg == baseline->has_arg);
-        assert(option.optional_arg == baseline->optional_arg);
-        assert(option.documented == baseline->documented);
         assert(option.longopt || option.shortopt);
-        assert(option.documented);
         assert(!option.optional_arg || option.has_arg);
         long_count += !!option.longopt;
         short_count += !!option.shortopt;
@@ -80,7 +94,7 @@ static void test_generated_option_table(void) {
         if (index == 0) {
             assert(!strcmp(option.longopt, "always-on-top"));
         }
-        if (index == sc_cli_option_count() - 1) {
+        if (index == ARRAY_LEN(phase3_cli_inventory) - 1) {
             assert(!strcmp(option.longopt, "flex-display"));
             assert(option.shortopt == 'x');
         }

@@ -82,30 +82,48 @@ public sealed class WindowsControlCenterActivationTests
         ActivationRequest show = new(ActivationKind.ShowControlCenter);
         Assert.Equal(ActivationDisposition.PrimaryOwner,
             await primary.AcquireOrForwardAsync(show, TestContext.Current.CancellationToken));
+        using CancellationTokenSource observationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using IAsyncEnumerator<ActivationRequest> observed =
-            primary.ObserveRequestsAsync(TestContext.Current.CancellationToken)
-                .GetAsyncEnumerator(TestContext.Current.CancellationToken);
+            primary.ObserveRequestsAsync(observationCancellation.Token)
+                .GetAsyncEnumerator(observationCancellation.Token);
         Task<bool> next = observed.MoveNextAsync().AsTask();
 
-        Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, "FOCUS:00000000-0000-0000-0000-000000000000\n"));
         try
         {
-            Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, new string('X', 65) + "\n"));
-        }
-        catch (IOException)
-        {
-            // The bounded server may close before an oversized peer finishes writing.
-        }
-        Assert.False(next.IsCompleted);
+            Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, "FOCUS:00000000-0000-0000-0000-000000000000\n"));
+            try
+            {
+                Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, new string('X', 65) + "\n"));
+            }
+            catch (IOException)
+            {
+                // The bounded server may close before an oversized peer finishes writing.
+            }
+            Assert.False(next.IsCompleted);
 
-        SessionId sessionId = SessionId.New();
-        Assert.Equal(ActivationDisposition.ForwardedToPrimary,
-            await repeated.AcquireOrForwardAsync(
-                new ActivationRequest(ActivationKind.FocusSession, sessionId),
-                TestContext.Current.CancellationToken));
-        Assert.True(await next.WaitAsync(TestDeadline, TestContext.Current.CancellationToken));
-        Assert.Equal(ActivationKind.FocusSession, observed.Current.Kind);
-        Assert.Equal(sessionId, observed.Current.SessionId);
+            SessionId sessionId = SessionId.New();
+            Assert.Equal(ActivationDisposition.ForwardedToPrimary,
+                await repeated.AcquireOrForwardAsync(
+                    new ActivationRequest(ActivationKind.FocusSession, sessionId),
+                    TestContext.Current.CancellationToken));
+            Assert.True(await next.WaitAsync(TestDeadline, TestContext.Current.CancellationToken));
+            Assert.Equal(ActivationKind.FocusSession, observed.Current.Kind);
+            Assert.Equal(sessionId, observed.Current.SessionId);
+        }
+        finally
+        {
+            observationCancellation.Cancel();
+
+            try
+            {
+                await next;
+            }
+            catch (OperationCanceledException) when (observationCancellation.IsCancellationRequested)
+            {
+                // Settle MoveNext before disposing its async enumerator on any assertion path.
+            }
+        }
     }
 
     /// <summary>Disposal cancels a connected silent peer and releases the owner reservation.</summary>

@@ -21,6 +21,10 @@
 #include "demuxer.h"
 #include "events.h"
 #include "file_pusher.h"
+#ifdef _WIN32
+# include "ipc/machine.h"
+# include "ipc/machine_exit.h"
+#endif
 #include "keyboard_sdk.h"
 #include "mouse_sdk.h"
 #include "recorder.h"
@@ -109,6 +113,15 @@ sdl_configure_ctrl_c_windows(void) {
         LOGW("Could not set Ctrl+C handler");
     }
 }
+
+/** Record only an SDL quit that was not caused by a machine Stop. */
+static void
+sc_machine_observe_quit(Uint32 event_type) {
+    if (sc_machine_is_active()) {
+        sc_machine_exit_observe_event(event_type,
+                                      sc_machine_stop_requested());
+    }
+}
 #endif // _WIN32
 
 static enum scrcpy_exit_code
@@ -139,6 +152,9 @@ event_loop(struct scrcpy *s, bool has_screen, bool reconnect) {
                 return SCRCPY_EXIT_SUCCESS;
             case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
+#ifdef _WIN32
+                sc_machine_observe_quit(event.type);
+#endif
                 return SCRCPY_EXIT_SUCCESS;
             default:
                 if (has_screen) {
@@ -157,6 +173,9 @@ await_for_server(bool *connected, struct sc_screen *screen) {
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT:
+#ifdef _WIN32
+                sc_machine_observe_quit(event.type);
+#endif
                 if (connected) {
                     *connected = false;
                 }
@@ -195,6 +214,9 @@ sc_wait_reconnect(struct sc_screen *screen) {
         }
 
         if (event.type == SDL_EVENT_QUIT) {
+#ifdef _WIN32
+            sc_machine_observe_quit(event.type);
+#endif
             return false;
         }
 
@@ -355,6 +377,9 @@ scrcpy(struct scrcpy_options *options) {
 
     bool screen_initialized = false;
     bool retrying = false;
+#ifdef _WIN32
+    char machine_attempt_id[37] = {0};
+#endif
 
 restart_session:;
     enum scrcpy_exit_code ret = SCRCPY_EXIT_FAILURE;
@@ -380,6 +405,9 @@ restart_session:;
     bool timeout_initialized = false;
     bool timeout_started = false;
     bool disconnected = false;
+#ifdef _WIN32
+    bool reconnect_scheduled = false;
+#endif
 
     struct sc_acksync *acksync = NULL;
 
@@ -454,6 +482,9 @@ restart_session:;
         if (screen_initialized) {
             sc_screen_interrupt(&s->screen);
             sc_screen_join(&s->screen);
+#ifdef _WIN32
+            sc_machine_set_window(NULL);
+#endif
             sc_screen_destroy(&s->screen);
         }
         return SCRCPY_EXIT_FAILURE;
@@ -467,11 +498,31 @@ restart_session:;
     // SDL
     sc_sdl_set_hints(options->render_driver, options->disable_screensaver);
 
+#ifdef _WIN32
+    if (sc_machine_is_active()) {
+        if (!sc_machine_new_attempt_id(machine_attempt_id)) {
+            goto end;
+        }
+        sc_machine_set_attempt_id(machine_attempt_id, retrying);
+        if (sc_machine_stop_requested()) {
+            ret = SCRCPY_EXIT_SUCCESS;
+            goto end;
+        }
+    }
+#endif
     if (!sc_server_start(&s->server)) {
         goto end;
     }
 
     server_started = true;
+#ifdef _WIN32
+    if (sc_machine_is_active() &&
+            !sc_machine_emit_lifecycle(retrying ? "Reconnecting" :
+                                       "Connecting", "connection",
+                                       machine_attempt_id, "none", "none")) {
+        goto end;
+    }
+#endif
 
     if (options->list) {
         bool ok = await_for_server(NULL, NULL);
@@ -814,6 +865,11 @@ aoa_complete:
             }
             screen_initialized = true;
         }
+#ifdef _WIN32
+        if (sc_machine_is_active()) {
+            sc_machine_set_window(s->screen.window);
+        }
+#endif
 
         if (options->video_playback) {
             struct sc_frame_source *src = &s->video_decoder.frame_source;
@@ -932,8 +988,25 @@ aoa_complete:
     retry_session = reconnect && ret == SCRCPY_EXIT_DISCONNECTED;
 
     disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
+#ifdef _WIN32
+    if (sc_machine_is_active() && disconnected) {
+        sc_machine_emit_lifecycle("TransportLost", "connection",
+                                  machine_attempt_id, "transportLost", "none");
+        if (retry_session) {
+            sc_machine_emit_lifecycle("ReconnectScheduled", "connection",
+                                      NULL, "transportLost", "none");
+            reconnect_scheduled = true;
+        }
+    }
+#endif
 
 end:
+#ifdef _WIN32
+    if (sc_machine_is_active() && retry_session && !reconnect_scheduled) {
+        sc_machine_emit_lifecycle("ReconnectScheduled", "connection", NULL,
+                                  "unknown", "unknown");
+    }
+#endif
     if (retry_session && screen_initialized) {
         sc_screen_prepare_reconnect(&s->screen);
     }
@@ -1033,6 +1106,9 @@ end:
     // destruction
     if (screen_initialized && !retry_session) {
         sc_screen_join(&s->screen);
+#ifdef _WIN32
+        sc_machine_set_window(NULL);
+#endif
         sc_screen_destroy(&s->screen);
     }
 
@@ -1080,6 +1156,9 @@ end:
         if (screen_initialized) {
             sc_screen_interrupt(&s->screen);
             sc_screen_join(&s->screen);
+#ifdef _WIN32
+            sc_machine_set_window(NULL);
+#endif
             sc_screen_destroy(&s->screen);
         }
         ret = SCRCPY_EXIT_SUCCESS;

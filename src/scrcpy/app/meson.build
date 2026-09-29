@@ -83,6 +83,11 @@ if host_machine.system() == 'windows'
         'src/util/command.c',
         'src/sys/win/file.c',
         'src/sys/win/process.c',
+        'src/ipc/ipc_frame.c',
+        'src/ipc/ipc_json.c',
+        'src/ipc/machine_exit.c',
+        'src/ipc/machine.c',
+        'vendor/yyjson/yyjson.c',
         windows.compile_resources('scrcpy-windows.rc'),
     ]
     feature_test_macros += [
@@ -142,6 +147,7 @@ endif
 if host_machine.system() == 'windows'
     dependencies += cc.find_library('mingw32')
     dependencies += cc.find_library('ws2_32')
+    dependencies += cc.find_library('rpcrt4')
 endif
 
 check_functions = [
@@ -328,6 +334,26 @@ if get_option('buildtype') == 'debug'
        c_args: ['-DSC_TEST'])
     test('test_ipc_contract', ipc_test,
          args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
+
+    if host_machine.system() == 'windows'
+        machine_exit_test = executable('test_machine_exit', [
+            'tests/test_machine_exit.c',
+            'src/ipc/machine_exit.c',
+        ], include_directories: src_dir,
+           dependencies: [dependency('sdl3')],
+           c_args: ['-DSC_TEST'])
+        test('test_machine_exit', machine_exit_test)
+
+        executable('test_machine_child', [
+            'tests/test_machine_child.c',
+            'src/ipc/machine.c',
+            'src/ipc/ipc_frame.c',
+            'src/ipc/ipc_json.c',
+            'vendor/yyjson/yyjson.c',
+        ], include_directories: src_dir,
+           dependencies: [dependency('sdl3'), cc.find_library('rpcrt4')],
+           c_args: ['-DSC_TEST'])
+    endif
 endif
 
 if meson.version().version_compare('>= 0.58.0')

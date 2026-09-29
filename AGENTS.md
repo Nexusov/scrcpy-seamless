@@ -1,8 +1,10 @@
 # scrcpy Seamless agent guide
 
 The canonical Desktop/native protocol, golden payloads and shared conformance
-cases live under spec/desktop-native/. Phase 6A codecs are isolated; application machine IPC
-remains Phase 6B/C.
+cases live under spec/desktop-native/. Phase 6A codecs are integrated. Phase 6B
+adds an explicitly selected machine-process route; normal Desktop composition
+remains on the legacy adapter until Phase 6C. See
+docs/development/desktop-native-runtime.md for process ownership and limits.
 
 This file is the short entry point for coding agents and contributors. It is
 not the project encyclopedia. Detailed rules live under `docs/`.
@@ -56,8 +58,8 @@ For Seamless 2.0 work, read the active execution plan under
 - `launcher/` — current 1.x PowerShell/WinForms application and VBS wrappers.
 - `src/scrcpy/` — current native scrcpy-derived client and Android server tree.
 - `src/desktop/` — .NET/Avalonia Desktop with headless Core/Infrastructure
-  contracts, integrated Phase 5A–5C UI/settings/device compatibility, and
-  local Phase 5D acceptance work; machine IPC remains Phase 6 work.
+  contracts, integrated Phase 5 UI/settings/device compatibility, and an
+  opt-in Phase 6B machine host; normal composition remains legacy.
 - `spec/options/` — canonical static option data and its generated schema;
   read `spec/AGENTS.md` before changing the specification.
 - `tools/ScrcpySeamless.SpecGen/` — deterministic option metadata generator

@@ -129,3 +129,44 @@ public interface INativeSession : IAsyncDisposable
     /// <summary>Requests an idempotent graceful stop of this child only.</summary>
     Task StopAsync(NativeTerminationReason reason, CancellationToken cancellationToken);
 }
+
+/// <summary>Result of a native-window focus attempt, separate from OS foreground permission.</summary>
+public enum NativeFocusOutcome { Applied, NoWindow, InvalidState, Failed }
+
+/// <summary>Semantic native subsystem emitting one ordered lifecycle observation.</summary>
+public enum NativeLifecycleSubsystem { Protocol, Native, Connection, Video, Audio, Control }
+
+/// <summary>Lifecycle claims permitted by the negotiated native channel.</summary>
+public enum NativeLifecycleEventType
+{
+    NativeReady, Connecting, StreamStarted, TransportLost, ReconnectScheduled,
+    Reconnecting, StreamResumed, CapabilityDegraded, SessionStopped, FatalError,
+}
+
+/// <summary>Typed limit of evidence for the observed transition.</summary>
+public enum NativeLifecycleReason { None, UserStop, WindowClosed, TransportLost, ProtocolError, NativeFailure, Unknown }
+
+/// <summary>Typed native error classification without raw diagnostic payloads.</summary>
+public enum NativeLifecycleError { None, Unknown, InvalidMessage, Unsupported, InternalFailure }
+
+/// <summary>One native-process ordered event; attempt identity is absent only where the protocol permits it.</summary>
+public sealed record NativeLifecycleObservation(
+    SessionId SessionId,
+    ulong Sequence,
+    DateTimeOffset Utc,
+    ulong MonotonicMicroseconds,
+    ConnectionAttemptId? ConnectionAttemptId,
+    NativeLifecycleSubsystem Subsystem,
+    NativeLifecycleEventType EventType,
+    NativeLifecycleReason Reason,
+    NativeLifecycleError Error);
+
+/// <summary>Optional machine-session operations; legacy native sessions remain valid INativeSession instances.</summary>
+public interface INativeInteractiveSession : INativeSession
+{
+    /// <summary>Requests focus on the native main thread without claiming OS foreground success.</summary>
+    Task<NativeFocusOutcome> FocusWindowAsync(CancellationToken cancellationToken);
+
+    /// <summary>Consumes one bounded stream of ordered native observations.</summary>
+    IAsyncEnumerable<NativeLifecycleObservation> ObserveLifecycleAsync(CancellationToken cancellationToken);
+}
