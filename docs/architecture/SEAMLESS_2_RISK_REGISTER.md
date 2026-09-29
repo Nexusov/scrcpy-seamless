@@ -36,8 +36,9 @@ and deterministic parent-death/Stop tests; normal Desktop composition remains
 legacy until Phase 6C. The new event seams identify native readiness,
 connection attempts, transport loss and first successfully presented video
 frame, but do not prove audible audio or control readiness. Three synthetic
-real-process scenarios pass without ADB; hardware and hosted CI for this
-unpublished branch remain unverified. R08/R15 stay open through their owning
+real-process scenarios pass without ADB. All four hosted jobs passed for
+PR #11's original Phase 6B head; follow-up correctness changes require their
+own final-head checks. Hardware remains unverified. R08/R15 stay open through their owning
 integration and later observability phases.
 
 R16 recurred once during Phase 6B validation in the unchanged

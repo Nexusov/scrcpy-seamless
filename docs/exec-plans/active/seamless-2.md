@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Status after local Phase 6B implementation on 2026-09-29: Phase 5 is accepted for
+Status during Phase 6B PR review on 2026-09-29: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
@@ -8,9 +8,12 @@ Final hosted PR checks passed. The [Phase 5 acceptance record](../../development
 retains exact-artifact hardware results and unverified coverage. This is not
 public-prerelease, RC or stable acceptance. Phase 6A was integrated by
 [PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10) at merge
-`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is implemented
-and validated locally, but has not been published or accepted;
-the normal Desktop IPC route and Phases 7–13 have not started.
+`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is published as
+[PR #11](https://github.com/Nexusov/scrcpy-seamless/pull/11) for independent
+review, not merged or accepted. All four hosted jobs passed on its original
+head `60ed6b00c736a7bd491d7bc35a0b84d9243e2e8d`; subsequent bounded
+correctness commits require their own final-head checks. Normal Desktop still
+selects `LegacyNativeHost`; Phase 6C and Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -613,7 +616,7 @@ rules; these slices do not renumber later Phases.
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
 | 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
-| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Implemented and locally validated on `2.0/p06b-ipc-runtime`; not published or accepted. |
+| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Published as PR #11; bounded correctness follow-up under review, not merged or accepted. |
 | 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
 
 Phase 6B checkpoints, in dependency order:
@@ -625,7 +628,7 @@ Phase 6B checkpoints, in dependency order:
 | 6B.3 | Build the reusable bounded ordered channel and managed process host with handshake and request correlation | Complete locally; managed unit and real-pipe tests pass |
 | 6B.4 | Dispatch native Stop/Focus and emit lifecycle observations at existing runtime seams with stable session/attempt identity | Complete locally for observable native seams; audio/control readiness remains unknown |
 | 6B.5 | Settle EOF/failure and abnormal parent death through exact-process ownership | Complete locally; three deterministic process scenarios pass without ADB |
-| 6B.6 | Prove real-pipe/process invariants, wire build/CI checks and prepare the local review handoff | Complete locally; hosted CI and hardware remain unverified |
+| 6B.6 | Prove real-pipe/process invariants, wire build/CI checks and prepare the local review handoff | Original-head hosted CI passed all four jobs; final follow-up head requires hosted checks. Hardware remains unverified. |
 
 Phase 7 retains native app/session/presentation/input lifetime restructuring;
 Phase 8 retains ConnectionManager. Phase 6B must transport honest lifecycle
@@ -645,6 +648,30 @@ The synthetic child proves machine channel and ownership
 behavior, not Android media or integrated Desktop cutover. Normal Desktop
 composition still selects `LegacyNativeHost`; no real-device validation was
 performed for Phase 6B.
+
+PR #11's original head passed all four hosted jobs in Actions run
+`36584339711`, including the separate eight-case process lane and the
+bidirectional C/C# contract. Focused review then reproduced three source-derived
+defects with deterministic tests: later request IDs could publish first under
+concurrent Focus/Stop, an unanswered Focus could outlive a valid terminal event,
+and an observed SDL quit was reported as `unknown`. The request-order tests
+failed 2/2 before correction; the terminal test expected immediate `IOException`
+but timed out; native `test_machine_exit` failed, leaving Meson at 17/18.
+An adversarial terminal review also reproduced three related races: Dispose
+after `SessionStopped` but before process exit, Stop pending when the terminal
+event arrived, and a queued write failing after the terminal event each
+changed an observed `windowClosed` into `NativeFailure`. Separate real-pipe
+tests failed before their narrowly scoped correction and now pass.
+The corrections preserve the v1 wire format and legacy Desktop selection.
+Local follow-up validation passed 476/476 solution tests, 18/18 Meson tests,
+8/8 separate process cases, nine golden vectors and 24 bidirectional
+conformance frames, SpecGen verification and 29/29 package suites. Focused
+tests also cover the valid pending-command limit, lifecycle queue pressure,
+blocked/partial outgoing writes and concurrent Stop. These are synthetic
+tests, not new device evidence. The original ADB fixture read failure remains
+unresolved under R16; the passing follow-up suite does not identify its cause.
+PR #11 requires green hosted checks on its final published head and independent
+review before Phase 6B can be accepted or merged.
 
 ## Validation boundaries
 
