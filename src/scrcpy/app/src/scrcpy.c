@@ -23,6 +23,7 @@
 #include "file_pusher.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
+# include "ipc/machine_exit.h"
 #endif
 #include "keyboard_sdk.h"
 #include "mouse_sdk.h"
@@ -112,6 +113,15 @@ sdl_configure_ctrl_c_windows(void) {
         LOGW("Could not set Ctrl+C handler");
     }
 }
+
+/** Record only an SDL quit that was not caused by a machine Stop. */
+static void
+sc_machine_observe_quit(Uint32 event_type) {
+    if (sc_machine_is_active()) {
+        sc_machine_exit_observe_event(event_type,
+                                      sc_machine_stop_requested());
+    }
+}
 #endif // _WIN32
 
 static enum scrcpy_exit_code
@@ -142,6 +152,9 @@ event_loop(struct scrcpy *s, bool has_screen, bool reconnect) {
                 return SCRCPY_EXIT_SUCCESS;
             case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
+#ifdef _WIN32
+                sc_machine_observe_quit(event.type);
+#endif
                 return SCRCPY_EXIT_SUCCESS;
             default:
                 if (has_screen) {
@@ -160,6 +173,9 @@ await_for_server(bool *connected, struct sc_screen *screen) {
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
             case SDL_EVENT_QUIT:
+#ifdef _WIN32
+                sc_machine_observe_quit(event.type);
+#endif
                 if (connected) {
                     *connected = false;
                 }
@@ -198,6 +214,9 @@ sc_wait_reconnect(struct sc_screen *screen) {
         }
 
         if (event.type == SDL_EVENT_QUIT) {
+#ifdef _WIN32
+            sc_machine_observe_quit(event.type);
+#endif
             return false;
         }
 

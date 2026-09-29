@@ -12,6 +12,7 @@
 #include "events.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
+# include "ipc/machine_exit.h"
 #endif
 #include "options.h"
 #include "scrcpy.h"
@@ -119,6 +120,7 @@ main_scrcpy(int argc, char *argv[]) {
             ret = SCRCPY_EXIT_FAILURE;
             goto machine_cleanup;
         }
+        sc_machine_exit_reset();
     }
 #endif
 
@@ -179,10 +181,10 @@ main_scrcpy(int argc, char *argv[]) {
                                       "nativeFailure", "internalFailure");
         }
         sc_machine_emit_lifecycle("SessionStopped", "native", NULL,
-                                  sc_machine_stop_requested() ?
-                                  sc_machine_stop_reason() :
-                                  ret == SCRCPY_EXIT_SUCCESS ? "unknown" :
-                                  "nativeFailure", "none");
+                                  sc_machine_exit_reason(
+                                      ret == SCRCPY_EXIT_SUCCESS,
+                                      sc_machine_stop_requested(),
+                                      sc_machine_stop_reason()), "none");
     } else
 #endif
     sc_launcher_stop_destroy(&launcher_stop);

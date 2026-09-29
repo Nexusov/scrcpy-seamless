@@ -85,6 +85,7 @@ if host_machine.system() == 'windows'
         'src/sys/win/process.c',
         'src/ipc/ipc_frame.c',
         'src/ipc/ipc_json.c',
+        'src/ipc/machine_exit.c',
         'src/ipc/machine.c',
         'vendor/yyjson/yyjson.c',
         windows.compile_resources('scrcpy-windows.rc'),
@@ -335,6 +336,14 @@ if get_option('buildtype') == 'debug'
          args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
 
     if host_machine.system() == 'windows'
+        machine_exit_test = executable('test_machine_exit', [
+            'tests/test_machine_exit.c',
+            'src/ipc/machine_exit.c',
+        ], include_directories: src_dir,
+           dependencies: [dependency('sdl3')],
+           c_args: ['-DSC_TEST'])
+        test('test_machine_exit', machine_exit_test)
+
         executable('test_machine_child', [
             'tests/test_machine_child.c',
             'src/ipc/machine.c',
