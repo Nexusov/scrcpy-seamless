@@ -24,6 +24,9 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     private static readonly TimeSpan TerminalEofExitTimeout = TimeSpan.FromSeconds(2);
 
     private readonly Process process;
+    private readonly Stream standardInput;
+    // Test-only pause used to verify that reserved IDs and frame publication are atomic.
+    private readonly Action<ulong, string>? beforeRequestPublication;
     private readonly Channel<OutboundFrame> outgoing = Channel.CreateBounded<OutboundFrame>(
         new BoundedChannelOptions(MaximumQueuedFrames)
         {
@@ -43,6 +46,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     private readonly TaskCompletionSource ready = NewCompletion();
     private readonly TaskCompletionSource failed = NewCompletion();
     private readonly Dictionary<ulong, PendingCommand> pending = [];
+    private readonly HashSet<PendingCommand> activeDeadlines = [];
     private readonly object gate = new();
     private readonly Task readerTask;
     private readonly Task writerTask;
@@ -65,6 +69,16 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     public SessionId SessionId { get; }
     public int ProcessId { get; }
     public Task<NativeExit> Completion => completion;
+    internal (int Pending, int Deadlines) OwnedCommandCounts
+    {
+        get
+        {
+            lock (gate)
+            {
+                return (pending.Count, activeDeadlines.Count);
+            }
+        }
+    }
     public IAsyncEnumerable<NativeLifecycleObservation> ObserveLifecycleAsync(CancellationToken cancellationToken) =>
         lifecycle.Reader.ReadAllAsync(cancellationToken);
     public string StandardError { get; private set; } = string.Empty;
@@ -82,10 +96,22 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         public NativeExit? Exit { get; } = exit;
     }
 
-    private MachineNativeSession(SessionId sessionId, Process process)
+    /// <summary>Identifies a command displaced by an already observed terminal lifecycle.</summary>
+    private sealed class TerminalCommandException : IOException
+    {
+        public TerminalCommandException() : base("Native session stopped before the command returned a result.")
+        {
+        }
+    }
+
+    private MachineNativeSession(SessionId sessionId, Process process,
+        Action<ulong, string>? beforeRequestPublication, Func<Stream, Stream>? wrapStandardInput)
     {
         SessionId = sessionId;
         this.process = process;
+        standardInput = wrapStandardInput?.Invoke(process.StandardInput.BaseStream) ??
+            process.StandardInput.BaseStream;
+        this.beforeRequestPublication = beforeRequestPublication;
         ProcessId = process.Id;
         writerTask = WriteLoopAsync();
         readerTask = ReadLoopAsync();
@@ -95,7 +121,9 @@ public sealed class MachineNativeSession : INativeInteractiveSession
 
     /// <summary>Starts a real redirected child and proves the negotiated dispatcher is ready.</summary>
     internal static async Task<MachineNativeSession> StartAsync(
-        SessionId sessionId, ProcessStartInfo startInfo, CancellationToken cancellationToken)
+        SessionId sessionId, ProcessStartInfo startInfo, CancellationToken cancellationToken,
+        Action<ulong, string>? beforeRequestPublication = null,
+        Func<Stream, Stream>? wrapStandardInput = null)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
         cancellationToken.ThrowIfCancellationRequested();
@@ -122,7 +150,30 @@ public sealed class MachineNativeSession : INativeInteractiveSession
             throw;
         }
 
-        MachineNativeSession session = new(sessionId, process);
+        MachineNativeSession session;
+
+        try
+        {
+            session = new(sessionId, process, beforeRequestPublication, wrapStandardInput);
+        }
+        catch
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+
+                await process.WaitForExitAsync();
+            }
+            finally
+            {
+                process.Dispose();
+            }
+
+            throw;
+        }
 
         try
         {
@@ -220,11 +271,22 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     {
         Exception? gracefulFailure = null;
 
-        if (!process.HasExited)
+        bool alreadyTerminal;
+
+        lock (gate)
+        {
+            alreadyTerminal = terminalObserved;
+        }
+
+        if (!process.HasExited && !alreadyTerminal)
         {
             try
             {
                 await StopGracefullyAsync().WaitAsync(GracefulStopTimeout);
+            }
+            catch (TerminalCommandException)
+            {
+                // Native window closure won the Stop race; its terminal event owns the result.
             }
             catch (Exception exception)
             {
@@ -318,6 +380,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         }
 
         await SettleIoAsync();
+        await SettleDeadlinesAsync();
         process.Dispose();
         lifetimeCancellation.Dispose();
         disposed = true;
@@ -329,64 +392,105 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         cancellationToken.ThrowIfCancellationRequested();
         PendingCommand request;
         ulong requestId;
+        OutboundFrame frame;
+        Exception? priorFailure;
+        bool queued;
 
         lock (gate)
         {
-            if (!nativeReady || terminalObserved || channelFailure is not null ||
-                pending.Count >= MaximumPendingCommands || nextRequestId == 0)
+            cancellationToken.ThrowIfCancellationRequested();
+            bool channelUnavailable = !nativeReady || terminalObserved || channelFailure is not null ||
+                pending.Count >= MaximumPendingCommands || nextRequestId == 0;
+
+            if (channelUnavailable)
             {
+                if (terminalObserved)
+                {
+                    throw new TerminalCommandException();
+                }
+
                 throw new InvalidOperationException("The native command channel is unavailable.");
             }
 
             requestId = nextRequestId++;
-            request = new PendingCommand(command);
-            pending.Add(requestId, request);
-        }
-
-        ProtocolMessage message = new()
-        {
-            MessageType = "command",
-            RequestId = requestId,
-            SessionId = SessionId.Value,
-            Command = command,
-        };
-
-        try
-        {
-            await SendAsync(message, cancellationToken);
-            request.Sent = true;
-            Task<ProtocolMessage> response = request.Completion.Task;
-            _ = EnforceCommandDeadlineAsync(response);
-            return await response.WaitAsync(cancellationToken);
-        }
-        catch
-        {
-            if (!request.Sent)
+            ProtocolMessage message = new()
             {
-                lock (gate)
-                {
-                    pending.Remove(requestId);
-                }
-            }
+                MessageType = "command",
+                RequestId = requestId,
+                SessionId = SessionId.Value,
+                Command = command,
+            };
+            frame = new OutboundFrame(ProtocolJsonCodec.Encode(message));
+            beforeRequestPublication?.Invoke(requestId, command);
+            priorFailure = channelFailure;
+            queued = TryQueueFrameLocked(frame);
+            request = new PendingCommand(command);
 
-            throw;
+            if (queued)
+            {
+                pending.Add(requestId, request);
+            }
         }
+
+        if (!queued)
+        {
+            throw RejectOutputQueue(priorFailure);
+        }
+
+        await frame.Sent.Task;
+        Task<ProtocolMessage> response = request.Completion.Task;
+
+        lock (gate)
+        {
+            if (pending.TryGetValue(requestId, out PendingCommand? current) &&
+                ReferenceEquals(current, request))
+            {
+                activeDeadlines.Add(request);
+                request.DeadlineTask = EnforceCommandDeadlineAsync(requestId, request);
+            }
+        }
+
+        return await response.WaitAsync(cancellationToken);
     }
 
-    private async Task EnforceCommandDeadlineAsync(Task<ProtocolMessage> response)
+    /// <summary>Fails only a command still owned when its finite result budget expires.</summary>
+    private async Task EnforceCommandDeadlineAsync(ulong requestId, PendingCommand request)
     {
         try
         {
-            await response.WaitAsync(CommandTimeout);
+            await request.Completion.Task.WaitAsync(CommandTimeout);
         }
         catch (TimeoutException exception)
         {
-            FailChannel(exception);
-            KillOwnedProcess();
+            bool failedPending;
+
+            lock (gate)
+            {
+                failedPending = !terminalObserved && channelFailure is null &&
+                    pending.TryGetValue(requestId, out PendingCommand? current) &&
+                    ReferenceEquals(current, request);
+
+                if (failedPending)
+                {
+                    SetChannelFailureLocked(exception);
+                }
+            }
+
+            if (failedPending)
+            {
+                KillOwnedProcess();
+            }
         }
-        catch
+        catch (Exception) when (request.Completion.Task.IsCompleted)
         {
-            // The channel failure is already propagated to the request owner.
+            // The completed request already delivered its failure to the caller.
+        }
+        finally
+        {
+            lock (gate)
+            {
+                activeDeadlines.Remove(request);
+            }
         }
     }
 
@@ -396,34 +500,49 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         cancellationToken.ThrowIfCancellationRequested();
         byte[] payload = ProtocolJsonCodec.Encode(message);
         OutboundFrame frame = new(payload);
-        bool rejected;
         Exception? priorFailure;
+        bool queued;
 
         lock (gate)
         {
             priorFailure = channelFailure;
-            rejected = priorFailure is not null || queuedFrames >= MaximumQueuedFrames ||
-                queuedBytes > MaximumQueuedBytes - payload.Length - sizeof(uint) ||
-                !outgoing.Writer.TryWrite(frame);
-
-            if (!rejected)
-            {
-                queuedFrames++;
-                queuedBytes += payload.Length + sizeof(uint);
-            }
+            queued = TryQueueFrameLocked(frame);
         }
 
-        if (rejected)
+        if (!queued)
         {
-            IOException exception = process.HasExited
-                ? new IOException($"The native process exited before the next machine frame was sent " +
-                    $"(code 0x{process.ExitCode:X8}).", priorFailure)
-                : new IOException("The bounded native output queue is unavailable.", priorFailure);
-            FailChannel(exception);
-            throw exception;
+            throw RejectOutputQueue(priorFailure);
         }
 
         return frame.Sent.Task;
+    }
+
+    /// <summary>Publishes one bounded frame while the request-order gate is held.</summary>
+    private bool TryQueueFrameLocked(OutboundFrame frame)
+    {
+        int frameBytes = frame.Payload.Length + sizeof(uint);
+        bool queueUnavailable = channelFailure is not null || queuedFrames >= MaximumQueuedFrames ||
+            queuedBytes > MaximumQueuedBytes - frameBytes || !outgoing.Writer.TryWrite(frame);
+
+        if (queueUnavailable)
+        {
+            return false;
+        }
+
+        queuedFrames++;
+        queuedBytes += frameBytes;
+        return true;
+    }
+
+    /// <summary>Fails the exact channel when bounded frame publication is rejected.</summary>
+    private IOException RejectOutputQueue(Exception? priorFailure)
+    {
+        IOException exception = process.HasExited
+            ? new IOException($"The native process exited before the next machine frame was sent " +
+                $"(code 0x{process.ExitCode:X8}).", priorFailure)
+            : new IOException("The bounded native output queue is unavailable.", priorFailure);
+        FailChannel(exception);
+        return exception;
     }
 
     private async Task WriteLoopAsync()
@@ -438,9 +557,9 @@ public sealed class MachineNativeSession : INativeInteractiveSession
 
                 try
                 {
-                    await ProtocolFrameCodec.WriteAsync(process.StandardInput.BaseStream, frame.Payload,
+                    await ProtocolFrameCodec.WriteAsync(standardInput, frame.Payload,
                         deadline.Token);
-                    await process.StandardInput.BaseStream.FlushAsync(deadline.Token);
+                    await standardInput.FlushAsync(deadline.Token);
                     frame.Sent.TrySetResult();
                 }
                 catch (Exception exception)
@@ -460,7 +579,14 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         }
         catch (Exception exception)
         {
-            if (!lifetimeCancellation.IsCancellationRequested)
+            bool terminal;
+
+            lock (gate)
+            {
+                terminal = terminalObserved;
+            }
+
+            if (!lifetimeCancellation.IsCancellationRequested && !terminal)
             {
                 FailChannel(exception);
             }
@@ -572,6 +698,15 @@ public sealed class MachineNativeSession : INativeInteractiveSession
                         "protocolError" => NativeTerminationReason.ProtocolError,
                         _ => NativeTerminationReason.NativeFailure,
                     };
+
+                    TerminalCommandException terminalFailure = new();
+
+                    foreach (PendingCommand terminalRequest in pending.Values)
+                    {
+                        terminalRequest.Completion.TrySetException(terminalFailure);
+                    }
+
+                    pending.Clear();
                 }
                 else if (message.EventType == "FatalError")
                 {
@@ -680,6 +815,19 @@ public sealed class MachineNativeSession : INativeInteractiveSession
 
         await exit.WaitAsync(ForcedStopTimeout);
         await SettleIoAsync();
+        bool missingTerminal;
+
+        lock (gate)
+        {
+            missingTerminal = !terminalObserved && channelFailure is null;
+        }
+
+        if (missingTerminal)
+        {
+            FailChannel(new IOException("Native stdout ended without terminal lifecycle."));
+        }
+
+        await SettleDeadlinesAsync();
         NativeTerminationReason reason;
 
         lock (gate)
@@ -702,6 +850,19 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         }
     }
 
+    /// <summary>Joins command deadlines before releasing the owned Process and cancellation source.</summary>
+    private Task SettleDeadlinesAsync()
+    {
+        Task[] deadlines;
+
+        lock (gate)
+        {
+            deadlines = activeDeadlines.Select(request => request.DeadlineTask!).ToArray();
+        }
+
+        return Task.WhenAll(deadlines).WaitAsync(StreamSettleTimeout);
+    }
+
     private async Task SettleIoCoreAsync()
     {
         outgoing.Writer.TryComplete();
@@ -714,10 +875,12 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         {
             await lifetimeCancellation.CancelAsync();
             process.StandardInput.Dispose();
+            standardInput.Dispose();
             await writerTask.WaitAsync(StreamSettleTimeout);
         }
 
         process.StandardInput.Dispose();
+        standardInput.Dispose();
 
         try
         {
@@ -743,28 +906,39 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     /// <summary>Fails every waiter; no later frame can shift or reuse this channel.</summary>
     private void FailChannel(Exception exception)
     {
+        bool failedChannel;
+
         lock (gate)
         {
-            if (channelFailure is not null)
+            failedChannel = channelFailure is null;
+
+            if (failedChannel)
             {
-                return;
+                SetChannelFailureLocked(exception);
             }
-
-            channelFailure = exception;
-            hello.TrySetException(exception);
-            ready.TrySetException(exception);
-            failed.TrySetResult();
-
-            foreach (PendingCommand request in pending.Values)
-            {
-                request.Completion.TrySetException(exception);
-            }
-
-            pending.Clear();
-            outgoing.Writer.TryComplete(exception);
         }
 
-        KillOwnedProcess();
+        if (failedChannel)
+        {
+            KillOwnedProcess();
+        }
+    }
+
+    /// <summary>Publishes channel failure atomically with request admission.</summary>
+    private void SetChannelFailureLocked(Exception exception)
+    {
+        channelFailure = exception;
+        hello.TrySetException(exception);
+        ready.TrySetException(exception);
+        failed.TrySetResult();
+
+        foreach (PendingCommand request in pending.Values)
+        {
+            request.Completion.TrySetException(exception);
+        }
+
+        pending.Clear();
+        outgoing.Writer.TryComplete(exception);
     }
 
     /// <summary>Never terminates a process tree or an unrelated shared daemon.</summary>
@@ -809,9 +983,10 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         public TaskCompletionSource Sent { get; } = NewCompletion();
     }
 
-    private sealed record PendingCommand(string Command)
+    private sealed class PendingCommand(string command)
     {
+        public string Command { get; } = command;
         public TaskCompletionSource<ProtocolMessage> Completion { get; } = NewCompletion<ProtocolMessage>();
-        public bool Sent { get; set; }
+        public Task? DeadlineTask { get; set; }
     }
 }

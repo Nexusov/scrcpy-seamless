@@ -272,6 +272,128 @@ public sealed class MachineNativeSessionTests
         }
     }
 
+    /// <summary>Earlier reserved Focus IDs must reach the native pipe before later Focus IDs.</summary>
+    [Fact]
+    public async Task ConcurrentFocusRequestsPublishInRequestIdOrder()
+    {
+        await AssertReservedRequestPublishesFirstAsync(stopSecond: false);
+    }
+
+    /// <summary>A concurrent Stop cannot overtake an earlier Focus reservation.</summary>
+    [Fact]
+    public async Task ConcurrentFocusAndStopPublishInRequestIdOrder()
+    {
+        await AssertReservedRequestPublishesFirstAsync(stopSecond: true);
+    }
+
+    /// <summary>A caller cancelled before admission cannot occupy a request slot or consume an ID.</summary>
+    [Fact]
+    public async Task CancellationBeforeAdmissionLeavesNoPendingRequest()
+    {
+        string directory = CreateScratchDirectory();
+        SessionId sessionId = SessionId.New();
+        string scriptPath = Path.Combine(directory, "machine-fixture.ps1");
+        string orderPath = Path.Combine(directory, "request-order.txt");
+        File.WriteAllText(scriptPath, FixtureScript);
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, "record-order", orderPath),
+                TestContext.Current.CancellationToken);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                session.FocusWindowAsync(cancelled.Token));
+            Assert.Equal(NativeFocusOutcome.Applied,
+                await session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            await session.StopAsync(NativeTerminationReason.UserStop,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(["1", "2"], File.ReadAllLines(orderPath));
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static async Task AssertReservedRequestPublishesFirstAsync(bool stopSecond)
+    {
+        string directory = CreateScratchDirectory();
+        SessionId sessionId = SessionId.New();
+        string scriptPath = Path.Combine(directory, "machine-fixture.ps1");
+        string orderPath = Path.Combine(directory, "request-order.txt");
+        File.WriteAllText(scriptPath, FixtureScript);
+        using ManualResetEventSlim firstReserved = new(false);
+        using ManualResetEventSlim releaseFirst = new(false);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, "record-order", orderPath),
+                TestContext.Current.CancellationToken,
+                (requestId, _) =>
+                {
+                    if (requestId == 1)
+                    {
+                        firstReserved.Set();
+
+                        if (!releaseFirst.Wait(TimeSpan.FromSeconds(8)))
+                        {
+                            throw new TimeoutException("The first request publication was not released.");
+                        }
+                    }
+                });
+            MachineNativeSession activeSession = session;
+            Task<NativeFocusOutcome> first = Task.Run(() =>
+                activeSession.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.True(await Task.Run(() => firstReserved.Wait(TimeSpan.FromSeconds(5))));
+            Task later = stopSecond
+                ? Task.Run(() => activeSession.StopAsync(NativeTerminationReason.UserStop,
+                    TestContext.Current.CancellationToken))
+                : Task.Run(async () =>
+                {
+                    Assert.Equal(NativeFocusOutcome.Applied,
+                        await activeSession.FocusWindowAsync(TestContext.Current.CancellationToken));
+                });
+
+            // A later request must not reach the pipe while the earlier ID is reserved.
+            await Assert.ThrowsAsync<TimeoutException>(() => later.WaitAsync(TimeSpan.FromSeconds(2)));
+            releaseFirst.Set();
+            Assert.Equal(NativeFocusOutcome.Applied, await first.WaitAsync(TimeSpan.FromSeconds(5)));
+            await later.WaitAsync(TimeSpan.FromSeconds(5));
+
+            if (!stopSecond)
+            {
+                await session.StopAsync(NativeTerminationReason.UserStop,
+                    TestContext.Current.CancellationToken);
+            }
+
+            Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+            Assert.Equal(stopSecond ? ["1", "2"] : ["1", "2", "3"],
+                File.ReadAllLines(orderPath));
+            Assert.False(IsAlive(session.ProcessId));
+        }
+        finally
+        {
+            releaseFirst.Set();
+
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static async Task AssertMalformedResultFailsAsync(string mode)
     {
         string directory = CreateScratchDirectory();
@@ -352,7 +474,7 @@ public sealed class MachineNativeSessionTests
         param([string]$sessionId, [string]$mode, [string]$markerPath, [string]$focusReadyName, [string]$focusReleaseName)
         $inputPipe = [Console]::OpenStandardInput()
         $outputPipe = [Console]::OpenStandardOutput()
-        if ($markerPath) { [IO.File]::WriteAllText($markerPath, $PID.ToString()) }
+        if ($markerPath -and $mode -ne 'record-order') { [IO.File]::WriteAllText($markerPath, $PID.ToString()) }
         if ($mode -eq 'verbose-stderr') {
             $stderrPipe = [Console]::OpenStandardError()
             $noise = New-Object byte[] 131072
@@ -391,6 +513,7 @@ public sealed class MachineNativeSessionTests
         SendFrame ('{"messageType":"lifecycle","sequence":"1","utc":"2026-01-01T00:00:00.000Z","monotonicMicroseconds":"0","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"NativeReady","reason":"none","error":"none"}')
         while ($true) {
             $command = ReadFrame
+            if ($mode -eq 'record-order') { [IO.File]::AppendAllText($markerPath, $command.requestId + [Environment]::NewLine) }
             if ($mode -eq 'no-result') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 14 }
             if ($mode -eq 'no-stop-result' -and $command.command -eq 'Stop') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 16 }
             if ($mode -eq 'delayed-focus' -and $command.command -eq 'FocusWindow') {
