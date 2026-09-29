@@ -112,8 +112,8 @@ Unicode extension cases compare known semantics and native normalization,
 because the encoders may spell equivalent JSON escapes differently. The native Meson debug test
 target also runs the C harness. Phase 6A did not link the codec into the
 shipped native executable or change the existing Desktop launch path.
-Phase 6B links the accepted codec into an explicitly selected machine route
-while normal Desktop composition remains on legacy. The
+Phase 6B links the accepted codec into the owned machine route. Phase 6C
+selects that route for compatible explicit Desktop DEV runtimes. The
 [runtime guide](desktop-native-runtime.md) records its bootstrap, ownership,
 channel limits and lifecycle evidence.
 

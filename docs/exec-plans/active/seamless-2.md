@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Status during Phase 6B PR review on 2026-09-29: Phase 5 is accepted for
+Status during local Phase 6C development on 2026-09-30: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
@@ -8,12 +8,13 @@ Final hosted PR checks passed. The [Phase 5 acceptance record](../../development
 retains exact-artifact hardware results and unverified coverage. This is not
 public-prerelease, RC or stable acceptance. Phase 6A was integrated by
 [PR #10](https://github.com/Nexusov/scrcpy-seamless/pull/10) at merge
-`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B is published as
-[PR #11](https://github.com/Nexusov/scrcpy-seamless/pull/11) for independent
-review, not merged or accepted. All four hosted jobs passed on its original
-head `60ed6b00c736a7bd491d7bc35a0b84d9243e2e8d`; subsequent bounded
-correctness commits require their own final-head checks. Normal Desktop still
-selects `LegacyNativeHost`; Phase 6C and Phases 7–13 have not started.
+`7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`. Phase 6B
+[PR #11](https://github.com/Nexusov/scrcpy-seamless/pull/11) was integrated at
+the approved head `8a811b2080d139c4fe7956dd85a57da3bc5566f6` by merge
+commit `85197957352c1606ce4d96970bf7a20d3ee1f531` after all four required
+hosted jobs passed on that head. Phase 6C is being implemented locally on
+`2.0/p06c-desktop-ipc`; no Phase 6C phone validation or publication has occurred.
+Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
 ## Authority and scope
@@ -24,9 +25,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The local `2.0/p06b-ipc-runtime` branch starts from the verified PR #10 merge.
-Keep the current launcher, Desktop legacy native-host adapter and imported
-runtime fallback functional. Phase 6C Desktop cutover, Phase 7 native
+The local `2.0/p06c-desktop-ipc` branch starts from the verified PR #11 merge.
+Keep the current launcher, separate legacy native-host implementation and imported
+runtime fallback functional. Phase 6C Desktop integration, Phase 7 native
 lifetime and Phase 8 ConnectionManager remain separate work.
 
 ## Source baseline
@@ -616,8 +617,19 @@ rules; these slices do not renumber later Phases.
 | Slice | Dependency | Reviewable result | Status |
 | --- | --- | --- | --- |
 | 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
-| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Published as PR #11; bounded correctness follow-up under review, not merged or accepted. |
-| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, retained legacy route only where deliberately supported, synthetic/process/hardware validation of the new route | Not started |
+| 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Integrated through PR #11 merge `85197957352c1606ce4d96970bf7a20d3ee1f531`; final-head hosted checks passed. No phone/media claim. |
+| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, normal Desktop machine route, synthetic/process validation and prepared supervised hardware acceptance | In local development; hardware acceptance and publication pending. |
+
+Phase 6C checkpoints, in dependency order:
+
+| Checkpoint | Reviewable result | Status |
+| --- | --- | --- |
+| 6C.1 | Select the explicit normal Desktop machine route and define old-bundle compatibility without silent fallback | Complete locally; old hash-valid bundle is incompatible, not downgraded |
+| 6C.2 | Validate machine contract metadata while preserving source, path and hash checks | Complete locally; canonical claim parity and synthetic package tests pass |
+| 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass, phone behavior unverified |
+| 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
+| 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Pending |
+| 6C.6 | Prepare a supervised phone acceptance procedure against the exact artifact | Pending; no autonomous phone operation |
 
 Phase 6B checkpoints, in dependency order:
 
@@ -674,8 +686,11 @@ tests also cover the valid pending-command limit, lifecycle queue pressure,
 blocked/partial outgoing writes and concurrent Stop. These are synthetic
 tests, not new device evidence. The original ADB fixture read failure remains
 unresolved under R16; the passing follow-up suite does not identify its cause.
-PR #11 requires green hosted checks on its final published head and independent
-review before Phase 6B can be accepted or merged.
+PR #11 passed the `test`, `native`, `android-server` and `desktop` hosted jobs
+on the approved final head in run `36625173912`; the synthetic merge
+`a234d015584997e5f5dc6469c6cf0f377391b3b9` had the approved base and head
+as parents. Phase 6B was then integrated with a merge commit. This process
+evidence does not validate Android media or the Phase 6C Desktop cutover.
 
 ## Validation boundaries
 

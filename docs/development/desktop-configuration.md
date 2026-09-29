@@ -68,6 +68,14 @@ does not change the independently reported ADB authorization state or select a
 row on the user's behalf. Multiple USB devices without explicit devpaths can
 remain Unknown when ADB cannot select a unique USB transport.
 
+For a Phase 6C explicit device runtime, normal Desktop preflight additionally
+requires a machine-contract claim compatible with the current protocol and
+required capabilities. A hash-valid older DEV runtime without that claim is
+reported as incompatible while Settings and stored configuration stay available.
+No legacy child is launched as an automatic fallback. An explicit Mirror
+still negotiates the actual child; preflight metadata alone is not proof of
+runtime capability. Preview never constructs this validation path.
+
 Mirror requires a selected saved profile, a fresh explicitly selected eligible
 ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before

@@ -187,3 +187,36 @@ are in the [acceptance matrix](phase5-acceptance.md). Preview remains entirely
 in-memory; settings-only mode needs the data root but no device runtime;
 device-enabled mode adds `--device-runtime=<package>\runtime` and still requires
 an explicit user action before discovery, pairing, connection or mirroring.
+
+### Phase 6C machine-route DEV bundle
+
+Phase 6C stages a separate `p06c` bundle from a clean committed source tree.
+The build must use the newly source-built machine-capable production native
+executable; Android server and reviewed runtime imports may be reused only
+after the staging script verifies their unchanged inputs and exact hashes.
+The runtime manifest adds the machine contract from
+[`runtime-contract.json`](../../spec/desktop-native/runtime-contract.json),
+and the archive includes the yyjson MIT notice. The package verifier extracts
+the ZIP into a temporary path containing spaces and checks its complete file
+inventory. These are local consistency checks, not a signature or a public
+distribution review.
+
+After committing code and validation records, use a clean source tree and the
+exact commit SHA from `git rev-parse HEAD`:
+
+```powershell
+$sourceSha = (git rev-parse HEAD).Trim()
+$shortSha = $sourceSha.Substring(0, 8)
+$package = Join-Path (Resolve-Path '.\dist\dev').Path "scrcpy-seamless-desktop-p06c-g$shortSha"
+$archive = "$package.zip"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\stage-desktop-device-dev.ps1 -PackageDirectory $package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-desktop-device-dev.ps1 -PackageDirectory $package -SourceSha $sourceSha -ArchivePath $archive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-desktop-device-dev.ps1 -SourceSha $sourceSha -ArchivePath $archive -VerifyOnly
+```
+
+For local normal Desktop use `.dev-data/p06c`, creating it only if missing and
+never copying personal or earlier DEV profiles into it automatically. Preview
+still uses only in-memory state. Settings-only mode needs the selected data
+root but no device runtime; device-enabled mode adds the explicit compatible
+`--device-runtime=<package>\runtime` and still performs no discovery or Mirror
+on startup. A phone-backed acceptance run is separate from package verification.
