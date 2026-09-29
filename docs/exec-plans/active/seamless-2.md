@@ -633,12 +633,15 @@ observations without waiting for those rewrites.
 
 Phase 6B local validation: SpecGen verifies 113 native entries with the 1.x
 projection unchanged; the Phase 6A cross-language corpus passes nine golden
-vectors and 24 conformance frames; 17 native tests, three real-process tests,
+vectors and 24 conformance frames; 17 native tests, three production-linked
+machine-process tests and five no-device actual-native bootstrap cases,
 and all 29 PowerShell/package suites pass. A full .NET rerun passed 461/461.
 The first run passed 460/461: one previously tracked ADB fixture sharing
-violation recurred while opening its own `ready.txt`; an unchanged
+violation recurred while reading its own GUID-scoped `ready.txt`; an unchanged
 Infrastructure suite rerun passed 164/164 before the full clean rerun. The
-synthetic child proves machine channel and ownership
+original TRX/HResult/lock owner was not retained. Five later focused runs
+passed without reproducing the lock; no fix or cause has been established.
+The synthetic child proves machine channel and ownership
 behavior, not Android media or integrated Desktop cutover. Normal Desktop
 composition still selects `LegacyNativeHost`; no real-device validation was
 performed for Phase 6B.

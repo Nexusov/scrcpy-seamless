@@ -126,12 +126,14 @@ runtime DLLs, without a device or shared ADB:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-ipc-runtime.ps1 `
   -NativeFixturePath .\work\native\test-build\app\test_machine_child.exe `
+  -ProductionNativePath .\dist\scrcpy.exe `
   -RuntimeDirectory .\work\native\scrcpy-release\scrcpy-win64-v4.0 `
   -DotnetPath $sdk
 ```
 
 The fixture links the production native machine modules; the managed harness
-uses the production process host. It covers real redirected pipes, handshake,
-Focus/Stop correlation and exact-child cleanup on abnormal parent death. It
-does not exercise Android media, the shared ADB server or Phase 6C Desktop
-composition.
+uses the production process host. Separate checks execute the ordinary
+`dist/scrcpy.exe` entry point only on no-device CLI and pre-device rejection
+paths. Together they cover real redirected pipes, handshake, Focus/Stop
+correlation and exact-child cleanup on abnormal parent death. They do not
+exercise Android media, the shared ADB server or Phase 6C Desktop composition.

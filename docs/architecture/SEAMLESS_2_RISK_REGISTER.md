@@ -40,6 +40,16 @@ real-process scenarios pass without ADB; hardware and hosted CI for this
 unpublished branch remain unverified. R08/R15 stay open through their owning
 integration and later observability phases.
 
+R16 recurred once during Phase 6B validation in the unchanged
+`AdbTests.CancellationTerminatesTheOwnedChildAfterItStarts` fixture. The
+sharing violation occurred while reading its GUID-scoped `ready.txt`, not
+during marker deletion. The original run's console stack was captured, but no
+TRX, HResult, lock-owner identity or fixture PID was retained. Five later
+focused executions passed without reproducing the lock. The fixture writes a
+temporary marker and closes it before renaming; current evidence does not
+establish a cause or justify a product/fixture change. The passing reruns are
+not a fix, and R16 remains open for evidence-based investigation if it recurs.
+
 ## Acceptance and review
 
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
