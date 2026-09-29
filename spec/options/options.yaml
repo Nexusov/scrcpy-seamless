@@ -1388,3 +1388,51 @@ options:
     label: "Flex display"
     ruleIds:
       - "virtual-display-rules"
+  # Desktop/native machine bootstrap is process metadata, never a saved setting.
+  - id: "seamless-machine"
+    longName: "seamless-machine"
+    nativeId: "OPT_SEAMLESS_MACHINE"
+    nativeNumericId: 1089
+    argumentShape: "none"
+    nativeHelp: "Internal: run the Desktop-owned machine protocol on redirected stdio."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "boolean"
+    label: "Machine protocol"
+  - id: "seamless-session-id"
+    longName: "seamless-session-id"
+    nativeId: "OPT_SEAMLESS_SESSION_ID"
+    nativeNumericId: 1090
+    argumentShape: "required"
+    argumentHint: "guid"
+    nativeHelp: "Internal: identify the Desktop-owned native session."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "string"
+    label: "Machine session ID"
+  - id: "seamless-parent-pid"
+    longName: "seamless-parent-pid"
+    nativeId: "OPT_SEAMLESS_PARENT_PID"
+    nativeNumericId: 1091
+    argumentShape: "required"
+    argumentHint: "pid"
+    nativeHelp: "Internal: identify the Desktop parent process for lifetime supervision."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "unsignedInteger"
+    label: "Machine parent PID"
+  - id: "seamless-parent-created"
+    longName: "seamless-parent-created"
+    nativeId: "OPT_SEAMLESS_PARENT_CREATED"
+    nativeNumericId: 1092
+    argumentShape: "required"
+    argumentHint: "filetime"
+    nativeHelp: "Internal: bind the Desktop parent process creation time."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "unsignedInteger"
+    label: "Machine parent creation time"

@@ -33,6 +33,7 @@ internal static class SpecValidator
             Require(Regex.IsMatch(option.Id, "^[a-z][a-z0-9-]*$"), $"Invalid option ID: {option.Id}");
             Require(byId.Add(option.Id), $"Duplicate option ID: {option.Id}");
             Require(Classifications.Contains(option.Classification), $"Invalid classification: {option.Id}");
+            Require(!option.InternalOnly || option.Classification == "managed", $"Internal option must be managed: {option.Id}");
             Require(ArgumentShapes.Contains(option.ArgumentShape), $"Invalid argument shape: {option.Id}");
             Require(ValueKinds.Contains(option.ValueKind), $"Invalid value kind: {option.Id}");
             Require(Categories.Contains(option.Category), $"Invalid category: {option.Id}");

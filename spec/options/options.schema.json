@@ -205,6 +205,9 @@
               "null"
             ]
           },
+          "internalOnly": {
+            "type": "boolean"
+          },
           "legacyBasic": {
             "type": "boolean"
           },

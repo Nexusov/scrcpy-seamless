@@ -10,6 +10,13 @@ The canonical semantic `OptionId` is the invariant string `id` in the spec (equa
 
 Complex conditional semantics are implemented by named typed `RuleId` validators, not executable YAML. Examples include camera-source combinations, recording/playback constraints and virtual-display requirements. The temporary 1.x reconnect restrictions remain in the legacy catalogue/store; they are not permanent Core rules. The desktop validation layer returns machine-readable diagnostics for early feedback; native remains the final runtime authority. `MirroringPreferences.Options` retains its bool/string JSON shape. A stored unknown legacy option stays in configuration and produces an explicit unknown/unsupported diagnostic instead of being silently dropped or executed.
 
+Phase 6B adds `internalOnly` option metadata for the explicit Desktop/native
+machine bootstrap. SpecGen includes these entries in native parser declarations
+but excludes them from Core settings, Desktop resources, the legacy catalogue,
+the public option reference and ordinary native help. The historical Phase 3
+CLI fixtures remain frozen; focused tests cover the new internal entries.
+These arguments carry process/session identity, not persisted mirroring settings.
+
 Core validates native scalar integers using the Windows native client's signed
 32-bit, base-zero interpretation: `010` is octal 8, `0x10` is hexadecimal 16,
 and `08` is invalid. This applies to editable unsigned integer options,

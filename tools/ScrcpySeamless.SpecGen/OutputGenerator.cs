@@ -150,7 +150,8 @@ internal static class OutputGenerator
                 lines.Add("        .optional_arg = true,");
             }
 
-            if (option.NativeHelpDebug is { } debugHelp)
+            // Internal bootstrap participates in parsing, never CLI help.
+            if (!option.InternalOnly && option.NativeHelpDebug is { } debugHelp)
             {
                 lines.Add("#ifndef NDEBUG");
                 lines.Add($"        .text = {CQuote(debugHelp)},");
@@ -158,7 +159,7 @@ internal static class OutputGenerator
                 lines.Add($"        .text = {CQuote(option.NativeHelp)},");
                 lines.Add("#endif");
             }
-            else
+            else if (!option.InternalOnly)
             {
                 lines.Add($"        .text = {CHelp(option.NativeHelp)},");
             }
@@ -245,7 +246,7 @@ internal static class OutputGenerator
         var aliasesByTarget = specification.Options.Where(option => option.AliasFor is not null)
             .GroupBy(option => option.AliasFor!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Select(option => "-" + option.ShortName).ToArray(), StringComparer.Ordinal);
-        foreach (var option in specification.Options)
+        foreach (var option in specification.Options.Where(option => !option.InternalOnly))
         {
             var aliases = new List<string>();
             if (option.ShortName is not null)
@@ -308,7 +309,7 @@ internal static class OutputGenerator
     private static string RenderEnglishResources(OptionSpecification specification)
     {
         var resources = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var option in specification.Options)
+        foreach (var option in specification.Options.Where(option => !option.InternalOnly))
         {
             resources[$"options.{option.Id}.label"] = option.Label ?? option.NativeHelp;
             resources[$"options.{option.Id}.description"] = option.Description ?? option.NativeHelp;
@@ -323,7 +324,7 @@ internal static class OutputGenerator
 
     private static string RenderLegacy(OptionSpecification specification)
     {
-        var legacy = specification.Options.Where(option => option.LongName is not null)
+        var legacy = specification.Options.Where(option => option.LongName is not null && !option.InternalOnly)
             .Select(option => new
             {
                 Name = option.LongName,
@@ -356,7 +357,7 @@ internal static class OutputGenerator
             "| Option ID | Category | Classification | Argument |",
             "| --- | --- | --- | --- |",
         };
-        foreach (var option in specification.Options)
+        foreach (var option in specification.Options.Where(option => !option.InternalOnly))
         {
             lines.Add($"| <a id=\"option-{option.Id}\"></a>`{option.Id}` | {option.Category} | {option.Classification} | {option.ArgumentShape} |");
         }
