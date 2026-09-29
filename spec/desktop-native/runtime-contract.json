@@ -1,0 +1,10 @@
+{
+  "Product": "scrcpy-seamless",
+  "ProtocolMajor": 1,
+  "ProtocolMinor": 0,
+  "Capabilities": [
+    "focus-window",
+    "lifecycle-v1",
+    "stop"
+  ]
+}

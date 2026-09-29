@@ -16,5 +16,8 @@
     <Content Include="../../../spec/desktop-native/conformance.tsv"
              Link="NativeProtocolConformance/conformance.tsv"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../spec/desktop-native/runtime-contract.json"
+             Link="NativeProtocolContract/runtime-contract.json"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

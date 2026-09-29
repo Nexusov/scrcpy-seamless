@@ -206,8 +206,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession
             Product = ProtocolCompatibility.Product,
             ProtocolMajor = ProtocolCompatibility.Major,
             ProtocolMinor = ProtocolCompatibility.Minor,
-            RequiredCapabilities = ["focus-window", "lifecycle-v1", "stop"],
-            SupportedCapabilities = ["focus-window", "lifecycle-v1", "stop"],
+            RequiredCapabilities = ProtocolCompatibility.RequiredCapabilities,
+            SupportedCapabilities = ProtocolCompatibility.RequiredCapabilities,
         };
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(HandshakeTimeout);
