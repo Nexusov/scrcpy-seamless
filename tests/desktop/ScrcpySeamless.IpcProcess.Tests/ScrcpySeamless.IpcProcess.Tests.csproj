@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ScrcpySeamless.IpcSupervisorFixture/ScrcpySeamless.IpcSupervisorFixture.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

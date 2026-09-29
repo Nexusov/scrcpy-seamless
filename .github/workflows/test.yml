@@ -52,6 +52,13 @@ jobs:
         run: |
           $sdk = ./scripts/bootstrap-dotnet.ps1
           ./scripts/test-ipc-contract.ps1 -CompilerPath ./work/native/w64devkit/bin/gcc.exe -DotnetPath $sdk
+      - name: Exercise owned IPC and parent-death cleanup without ADB
+        shell: powershell
+        run: |
+          ./scripts/test-ipc-runtime.ps1 `
+            -NativeFixturePath ./work/native-tests/app/test_machine_child.exe `
+            -RuntimeDirectory ./work/native/scrcpy-release/scrcpy-win64-v4.0 `
+            -DotnetPath ./work/dotnet-sdk-10.0.401/dotnet.exe
       - name: Verify the native-backed package
         shell: powershell
         run: |
