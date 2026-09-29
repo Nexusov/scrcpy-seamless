@@ -33,11 +33,17 @@ See [third-party notices](../../THIRD_PARTY.md) and
 Install Python **3.13.15** from the official Python distribution first, or use
 an existing trusted interpreter of exactly that version. The interpreter is
 the one host prerequisite; the bootstrap refuses any other patch version.
-From the repository root in PowerShell, replace the interpreter path below
-with its actual location:
+Put that interpreter on `PATH`. From the repository root in PowerShell,
+resolve the executable and check its exact patch version before bootstrap:
 
 ```powershell
-& 'C:\path\to\Python312\python.exe' .\scripts\bootstrap-native.py
+$pythonExecutable = (Get-Command python.exe -CommandType Application -ErrorAction Stop).Source
+$pythonVersion = & $pythonExecutable --version 2>&1
+if ($LASTEXITCODE -ne 0 -or "$pythonVersion".Trim() -ne 'Python 3.13.15') {
+    throw "Expected Python 3.13.15 on PATH; found $pythonVersion at $pythonExecutable"
+}
+& $pythonExecutable .\scripts\bootstrap-native.py
+if ($LASTEXITCODE -ne 0) { throw 'Native bootstrap failed.' }
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 `
   -ConfigPath .\work\native\build.local.json `
   -BuildDirectory .\work\native\client-build `
