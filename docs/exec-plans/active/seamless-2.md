@@ -628,8 +628,8 @@ Phase 6C checkpoints, in dependency order:
 | 6C.2 | Validate machine contract metadata while preserving source, path and hash checks | Complete locally; canonical claim parity and synthetic package tests pass |
 | 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass, phone behavior unverified |
 | 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
-| 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Pending |
-| 6C.6 | Prepare a supervised phone acceptance procedure against the exact artifact | Pending; no autonomous phone operation |
+| 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Complete locally for source `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`; ZIP SHA-256 `e33c68d863dae2e700a1839e9bcb0df0546ce6affc1bc9535522bdc117533f00` |
+| 6C.6 | Prepare a supervised phone acceptance procedure against the exact artifact | [Procedure prepared](../../development/phase6c-manual-acceptance.md); no phone operation or Phase 6C acceptance claimed |
 
 Phase 6B checkpoints, in dependency order:
 

@@ -220,3 +220,5 @@ still uses only in-memory state. Settings-only mode needs the selected data
 root but no device runtime; device-enabled mode adds the explicit compatible
 `--device-runtime=<package>\runtime` and still performs no discovery or Mirror
 on startup. A phone-backed acceptance run is separate from package verification.
+The exact local Phase 6C artifact and proposed manual checks are in the
+[Phase 6C acceptance procedure](phase6c-manual-acceptance.md).
