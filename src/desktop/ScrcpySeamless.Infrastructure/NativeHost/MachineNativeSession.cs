@@ -271,22 +271,11 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     {
         Exception? gracefulFailure = null;
 
-        bool alreadyTerminal;
-
-        lock (gate)
-        {
-            alreadyTerminal = terminalObserved;
-        }
-
-        if (!process.HasExited && !alreadyTerminal)
+        if (!process.HasExited)
         {
             try
             {
                 await StopGracefullyAsync().WaitAsync(GracefulStopTimeout);
-            }
-            catch (TerminalCommandException)
-            {
-                // Native window closure won the Stop race; its terminal event owns the result.
             }
             catch (Exception exception)
             {
@@ -323,7 +312,18 @@ public sealed class MachineNativeSession : INativeInteractiveSession
 
     private async Task StopGracefullyAsync()
     {
-        ProtocolMessage result = await RequestAsync("Stop", CancellationToken.None);
+        ProtocolMessage result;
+
+        try
+        {
+            result = await RequestAsync("Stop", CancellationToken.None);
+        }
+        catch (TerminalCommandException)
+        {
+            // A native terminal event won the request race, but the exact child must still exit.
+            await completion;
+            return;
+        }
 
         if (result.Status is not ("accepted" or "applied"))
         {

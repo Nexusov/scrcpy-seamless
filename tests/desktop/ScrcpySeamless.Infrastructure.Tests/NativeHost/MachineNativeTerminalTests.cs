@@ -87,6 +87,78 @@ public sealed class MachineNativeTerminalTests
         await AssertTerminalStopRaceAsync(stopBeforeTerminal: true);
     }
 
+    /// <summary>A child that reports termination but never exits is still limited to owned escalation.</summary>
+    [Fact]
+    public async Task TerminalWithoutChildExitEscalatesTheExactProcess()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "scrcpy-machine-terminal-hang-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string scriptPath = Path.Combine(directory, "terminal-fixture.ps1");
+        File.WriteAllText(scriptPath, TerminalFixture);
+        string receivedName = "Local\\scrcpy-hang-received-" + Guid.NewGuid().ToString("N");
+        string releaseName = "Local\\scrcpy-hang-release-" + Guid.NewGuid().ToString("N");
+        string exitReleaseName = "Local\\scrcpy-hang-exit-" + Guid.NewGuid().ToString("N");
+        using EventWaitHandle received = new(false, EventResetMode.ManualReset, receivedName);
+        using EventWaitHandle release = new(false, EventResetMode.ManualReset, releaseName);
+        using EventWaitHandle exitRelease = new(false, EventResetMode.ManualReset, exitReleaseName);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            SessionId sessionId = SessionId.New();
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, receivedName, releaseName,
+                    exitReleaseName: exitReleaseName), TestContext.Current.CancellationToken);
+            Task<NativeFocusOutcome> focus = session.FocusWindowAsync(TestContext.Current.CancellationToken);
+            Assert.True(await Task.Run(() => received.WaitOne(TimeSpan.FromSeconds(5))));
+            release.Set();
+
+            using CancellationTokenSource terminalDeadline = new(TimeSpan.FromSeconds(5));
+            await foreach (NativeLifecycleObservation observation in
+                session.ObserveLifecycleAsync(terminalDeadline.Token))
+            {
+                if (observation.EventType == NativeLifecycleEventType.SessionStopped)
+                {
+                    break;
+                }
+            }
+
+            MachineNativeSession.StopException stopFailure =
+                await Assert.ThrowsAsync<MachineNativeSession.StopException>(() =>
+                    session.StopAsync(NativeTerminationReason.UserStop,
+                        TestContext.Current.CancellationToken));
+            Assert.Equal(MachineNativeSession.StopFailure.Escalated, stopFailure.Failure);
+            Assert.Equal(NativeTerminationReason.NativeFailure, stopFailure.Exit?.Reason);
+            await Assert.ThrowsAnyAsync<IOException>(() => focus);
+            Assert.False(IsAlive(session.ProcessId));
+        }
+        finally
+        {
+            release.Set();
+            exitRelease.Set();
+
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>Reports whether the exact synthetic child is still running.</summary>
+    private static bool IsAlive(int processId)
+    {
+        try
+        {
+            return !Process.GetProcessById(processId).HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>A queued command write failing after native termination cannot rewrite the observed exit.</summary>
     [Fact]
     public async Task OutgoingWriteFailureAfterTerminalPreservesWindowClose()

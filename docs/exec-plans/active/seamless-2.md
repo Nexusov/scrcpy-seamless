@@ -662,8 +662,12 @@ after `SessionStopped` but before process exit, Stop pending when the terminal
 event arrived, and a queued write failing after the terminal event each
 changed an observed `windowClosed` into `NativeFailure`. Separate real-pipe
 tests failed before their narrowly scoped correction and now pass.
+A final finite-exit test reproduced a related leak: after a valid terminal
+event, a child that stayed alive could leave Stop at `SettlementFailed` without
+exact-child escalation. The terminal-winning Stop path now retains the same
+graceful exit deadline and escalates only that child if it expires.
 The corrections preserve the v1 wire format and legacy Desktop selection.
-Local follow-up validation passed 476/476 solution tests, 18/18 Meson tests,
+Local follow-up validation passed 477/477 solution tests, 18/18 Meson tests,
 8/8 separate process cases, nine golden vectors and 24 bidirectional
 conformance frames, SpecGen verification and 29/29 package suites. Focused
 tests also cover the valid pending-command limit, lifecycle queue pressure,
