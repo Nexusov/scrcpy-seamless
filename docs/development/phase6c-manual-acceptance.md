@@ -419,3 +419,61 @@ to the bounded owner snapshot; canonical runtime access and this retest proposal
 are updated with checkpoint 6C.8. Protocol/configuration and build workflow
 remain unchanged. The application ZIP stays local; independent source review
 uses the authorized work branch, not a source-review archive.
+
+### Evidence artifact and source review identity
+
+The new package was staged from clean committed source
+`e8ed35653f2ebaa54cda894b6a7ef345f3664587` at
+`dist/dev/scrcpy-seamless-desktop-p06c-ge8ed3565/`; the adjacent `.zip` remains
+local. Staging rebuilt the self-contained Desktop and validated the unchanged
+native/server source fingerprints before reusing their source-built binaries.
+Native fingerprint is
+`4af64848c4b349810f3953b036dd52279f4e74d1a18d97be494bdccfb6944dc8`;
+server fingerprint is
+`c731943be22482bfa4c19a1cd48d3aa2199621fbc5796cf3ba46f11c092a33e6`.
+Package creation and a separate VerifyOnly invocation outside the repository
+both passed, including independent extraction in a path with spaces. No phone,
+shared ADB or real DEV configuration was used. Manifest claims do not establish
+a live handshake or hardware pass. This artifact record is a documentation-only
+follow-up; it does not require rebuilding or relabelling the source artifact.
+
+| Artifact/component | SHA-256 | Origin |
+| --- | --- | --- |
+| ZIP | `b5c0dad9c379a286ca6451062255eb981b1f5f369e64b147e162e7f118cf9654` | Verified local development archive |
+| Desktop EXE | `a188125502f5e259847a2a1a9ff37d37724ca694800c5435b7da866c89c47dba` | Rebuilt self-contained publish |
+| Desktop assembly | `6dfa1a811d1a4be9bde707ab373f3a4ae2cd3045cc8c96e6decdb4d916c0e0eb` | Rebuilt managed source |
+| Package inventory | `a4a2968e37f10fe1c76139f23a3a376cd432414ede8a3688f155d0366c4ec0f7` | Complete generated file inventory |
+| Runtime manifest | `5eeb096fe1752a5862f0a6a6b750b7c40081fcb17562a52156bc5035e6f61e3d` | Generated provenance/compatibility claim |
+| scrcpy.exe | `4e5d085f9cec0816af1ef1ff3e1d207260642f4b6223d5bff6f53b1d90a98306` | Reused source-built native |
+| scrcpy-server | `a5e307a072dac91a766e929733d187c531d30271eb3a7b19cbd6923349685c47` | Reused source-built Android server |
+| adb.exe | `58765259a349cce392fbb2f15dab75fed3b7c0b40cc68a7653278b9850602a2f` | Reviewed import |
+| AdbWinApi.dll | `689e4263252c734ee40d748f0e5a911801c6083a8e81b5040fd9c49dff3bfdce` | Reviewed import |
+| AdbWinUsbApi.dll | `e6141805bb19eeafac6ab2d0fb50aa098b8c27149dc8ed73739cc40436274748` | Reviewed import |
+| SDL3.dll | `f8bb1698f618949498ac517a0766eaa91972ecc818d80deb00634e197ee923cf` | Reviewed import |
+| avcodec-62.dll | `893237890f744ea1eb447f56e8ac9d803deb48170bb456a11a10edf8c08a1eaa` | Reviewed import |
+| avformat-62.dll | `d46e9b99b27c743b8ae73eacfd76004fba218b65eba5a1ce9cdf494a7030a4a4` | Reviewed import |
+| avutil-60.dll | `2933c61bd5c3f0c2bec22310de8b9a22969030fb1ee204eae1a4948e7599f59d` | Reviewed import |
+| swresample-6.dll | `91c2595781581c61144262fc596dcdbdca7f72b6315d28e31becc67d35b2cf59` | Reviewed import |
+
+The runtime inventory also includes the two previously reviewed PNG assets;
+their hashes remain in the complete package/runtime manifests. Old ZIPs retain
+their documented hashes, and the frozen incident's hash remains
+`50f75b07963d17ed07a78b48cacc025515371f0c1a03c5ea5c1e4c4b2d1b86b7`.
+
+For later separately authorized supervised testing, the exact launch is:
+
+```powershell
+$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p06c-ge8ed3565'
+& "$package\ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p06c' "--device-runtime=$package\runtime" --page=devices
+```
+
+Independent source review uses
+[the work branch](https://github.com/Nexusov/scrcpy-seamless/tree/2.0/p06c-desktop-ipc).
+Review ranges are the terminal correction `3fbb4635..1eafa0cf`, observation
+source `507b1d77..e8ed3565`, and full Phase 6C from
+`85197957352c1606ce4d96970bf7a20d3ee1f531` to the independently verified remote
+tip reported in the handoff. All nine commits and 63 changed blob versions
+through the observation source were reviewed for private material, including
+intermediate history; no blocker was found. The documentation-only follow-up
+requires its own final review before the authorized single-branch push. This
+targeted review is not an exhaustive secret audit or a hosted CI result.
