@@ -429,7 +429,7 @@ uses the authorized work branch, not a source-review archive.
 
 ### Evidence artifact and source review identity
 
-The new package was staged from clean committed source
+The earlier observation package was staged from clean committed source
 `e8ed35653f2ebaa54cda894b6a7ef345f3664587` at
 `dist/dev/scrcpy-seamless-desktop-p06c-ge8ed3565/`; the adjacent `.zip` remains
 local. Staging rebuilt the self-contained Desktop and validated the unchanged
@@ -526,3 +526,44 @@ tests; 8/8 separate IPC/process tests; SpecGen (113 entries/six outputs), build
 metadata, DocsCheck and diff validation. The unchanged native/server/conformance
 and legacy test results remain reused evidence, not new runs. Artifact identity
 is recorded below after clean-source staging.
+
+The corrective source commit is
+`3a99a1ed27fc4439d0c616182f9e8199563f0b5e`. Staging from its clean tree rebuilt
+self-contained Desktop into
+`dist/dev/scrcpy-seamless-desktop-p06c-g3a99a1ed/`; the adjacent ZIP stays local.
+The existing canonical provenance checks permitted native/server reuse. Both
+source fingerprints and all 12 runtime file hashes/origins match `ge8ed3565`;
+their exact component hashes remain in the earlier inventory above. No expected
+hash was adjusted. Creation verification and independent VerifyOnly extraction
+from outside the repository passed. Sixteen retained ZIP/Desktop/manifest/incident
+hashes remained unchanged. No phone-backed validation occurred.
+
+| Corrective artifact | SHA-256 |
+| --- | --- |
+| ZIP | `6f2a457dde377c1e3c97b0df3018a2e12cefc26c56bd4fe5e3a4056b062d480b` |
+| Desktop EXE | `fd3cb9c61c68f3cc65283c211341993d33ef33d55e391fd36b91bd797d53061a` |
+| Desktop assembly | `6e5a54a9b24eca449119f307740b66395a2c6170a88861c7b61c2d6227852c09` |
+| Package inventory | `4ba923ff9ebeec28de2c6d9ed0fd4183d8a7fa7adaca317aa3c691c02029cbb9` |
+| Runtime manifest | `f753e9792f199807dbb5a77aaa1a83a08b1212259b366b3b380c9fc2e4b795cc` |
+
+Use this exact package for the existing consolidated supervised proposal after
+independent source review and separate hardware confirmation:
+
+```powershell
+$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p06c-g3a99a1ed'
+& "$package\ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p06c' "--device-runtime=$package\runtime" --page=devices
+```
+
+Capture before another launch or Desktop exit. Compare initiating intent only
+with actually observed operation ordering; the hardware run need not reproduce
+the deterministic completion-first test ordering. Retain separate media,
+exact-child and terminal/cleanup observations. Focus, same-root activation and
+the two close paths remain distinct pending checks; wire/exit-code/receipt-time
+and post-Desktop-exit retention limits are unchanged.
+
+The artifact-identity follow-up is documentation-only, so the package remains
+bound to corrective source `3a99a1ed`, not the subsequent documentation HEAD.
+Source review compares reviewed tip `90c6ce92629f47bb968c6f4960536bcc5547302e`
+with the full independently verified remote tip in the handoff. Only that work
+branch is authorized for normal fast-forward upload; upload is not acceptance,
+hosted CI success, a PR or integration. No source-review archive is prepared.

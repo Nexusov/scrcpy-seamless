@@ -26,7 +26,9 @@ orders have red/green regressions; the [corrective artifact](../../development/p
 requires separately supervised targeted retest. Original hardware results
 remain attached only to `gd9d12a12`.
 The explicit DEV evidence action is implemented and synthetically validated;
-its separately identified `ge8ed3565` package remains hardware-unverified.
+its earlier `ge8ed3565` package remains frozen and hardware-unverified.
+The bounded first-initiator correction has red/green coverage and a separately
+verified clean-source `g3a99a1ed` package for the pending supervised proposal.
 The maintainer authorized only work-branch upload for independent GitHub source
 review after outgoing-history review; the handoff records the verified remote
 tip and any observed hosted results. No Phase 6C PR, integration or release is
