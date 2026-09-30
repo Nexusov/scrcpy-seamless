@@ -462,7 +462,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
             stopping = true;
             startCancellation?.Cancel();
-            stopTask = StopCoreAsync(reason);
+            stopTask = StopCoreAsync(reason, automaticTerminalSession: owned);
         }
     }
 
@@ -736,10 +736,12 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         }
     }
 
-    /// <summary>Shares one stop attempt across concurrent callers until cleanup settles.</summary>
-    private async Task<bool> StopCoreAsync(NativeTerminationReason reason)
+    /// <summary>Shares cleanup while keeping automatic termination distinct from explicit Stop.</summary>
+    private async Task<bool> StopCoreAsync(NativeTerminationReason reason,
+        INativeSession? automaticTerminalSession = null)
     {
         await Task.Yield();
+        bool automaticTerminalCleanup = automaticTerminalSession is not null;
         Task? starting;
         INativeSession? owned = null;
         Task<bool>? pendingCleanup;
@@ -777,14 +779,19 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                 await owned.StopAsync(reason, CancellationToken.None);
                 NativeExit exit = await owned.Completion;
                 await SettleSessionAsync(owned);
-                Status = reason == NativeTerminationReason.UserStop ||
-                    reason == NativeTerminationReason.ApplicationShutdown
+                // Automatic cleanup does not imply an explicit Stop or successful mirroring.
+                bool explicitStop = !automaticTerminalCleanup &&
+                    reason is NativeTerminationReason.UserStop or NativeTerminationReason.ApplicationShutdown;
+                Status = explicitStop
                     ? "Native session stopped."
                     : $"Native session ended: {exit.Reason}.";
             }
             else
             {
-                Status = "Native session stopped.";
+                // Completion may already have settled the captured session before terminal cleanup resumed.
+                Status = automaticTerminalSession is null
+                    ? "Native session stopped."
+                    : $"Native session ended: {(await automaticTerminalSession.Completion).Reason}.";
             }
 
             ProcessId = null;
@@ -802,12 +809,36 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                     await SettleSessionAsync(owned);
                     ProcessId = null;
                     WindowHandle = nint.Zero;
+                    NativeExit exit = await owned.Completion;
+                    bool settledUnsuccessfulSession = automaticTerminalCleanup &&
+                        exception is MachineNativeSession.StopException
+                            { Failure: MachineNativeSession.StopFailure.TerminalFailure } terminalFailure &&
+                        terminalFailure.Exit == exit && exit.SessionId == owned.SessionId &&
+                        exit.Reason == NativeTerminationReason.NativeFailure;
+
+                    if (settledUnsuccessfulSession)
+                    {
+                        // The typed session failure remains truthful; disposal separately proved cleanup.
+                        Status = $"Native session ended: {exit.Reason}.";
+                        return true;
+                    }
                 }
                 catch (Exception cleanupException)
                 {
                     Status = $"Native cleanup failed ({cleanupException.GetType().Name}); session ownership retained.";
                     return false;
                 }
+            }
+
+            if (automaticTerminalCleanup)
+            {
+                string failure = exception is MachineNativeSession.StopException machineFailure
+                    ? machineFailure.Failure.ToString()
+                    : exception.GetType().Name;
+                Status = childExited
+                    ? $"Native cleanup failed ({failure}); the exact child exited and was released."
+                    : $"Native cleanup failed ({failure}); session ownership retained.";
+                return false;
             }
 
             Status = childExited

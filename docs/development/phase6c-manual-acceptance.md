@@ -167,3 +167,146 @@ Architecture, protocol, ownership and package bytes are unchanged; no AGENTS
 change or rebuild is needed. Full screen-reader, multi-monitor DPI, abnormal
 parent-death-on-phone and cold-start wireless discovery claims are outside this
 run. Phase 6C is not published or finally accepted; Phases 7/8 remain unstarted.
+
+## Bounded terminal-status correction
+
+The corrective investigation starts at local HEAD
+`3fbb4635be0b3d4f60a63eaeed909ad84322402a` on `2.0/p06c-desktop-ipc`, with
+integration base `85197957352c1606ce4d96970bf7a20d3ee1f531`. Its delta from
+the frozen package source is documentation-only. The original ZIP, Desktop,
+native and both manifests remain unchanged. The retained incident record's
+SHA-256 is `50f75b07963d17ed07a78b48cacc025515371f0c1a03c5ea5c1e4c4b2d1b86b7`.
+The original manual run remains stopped; this correction is not final acceptance.
+
+### Cause and evidence boundaries
+
+Source tracing identifies two paths. Completion-only cleanup already presents
+the observed session reason after disposal. Lifecycle-first cleanup handles
+`FatalError` or `SessionStopped` by starting an internal shared Stop, reserving
+ownership against the completion observer. A completed `NativeFailure` makes
+`MachineNativeSession.StopAsync` throw typed `TerminalFailure`. The old
+Desktop catch then successfully disposes the session but presents the error as
+failed Stop. The first incorrect boundary is that presentation consumption:
+an unsuccessful session result is mislabeled as unsuccessful automatic cleanup
+and implies a Stop action that was not requested.
+
+The enabling issue is reuse of the explicit Stop result contract without
+retaining automatic-cleanup intent. Existing Desktop terminal tests used a
+successful `WindowClosed` fake; infrastructure tests checked typed fatal exit
+and disposal without the automatic Desktop presentation path. Neither covered
+their combination. Native failure mapping, reconnect policy and exit codes
+are unchanged. No precise `TransportLost` cause is fabricated.
+
+The production-backed regression uses a synthetic redirected PowerShell child,
+the production machine adapter and the actual ViewModel. Named gates produce
+accepted handshake/`NativeReady`, `FatalError`, an internally issued wire Stop
+read by the child and acknowledged, `SessionStopped(nativeFailure)`, then
+controlled nonzero exit. It invokes no UI Stop. On the old implementation,
+typed `NativeFailure`, zero pending requests/deadlines and successful repeated
+real disposal passed; final presentation failed with the original Stop-failure
+message instead of `Native session ended: NativeFailure.` The retained local
+red output is `work/phase6c/terminal-status-correction/red.txt`.
+
+Independent review also reproduced the completion-first order: real completion
+entered shared disposal before a forwarding observation gate delivered terminal
+lifecycle. After terminal cleanup joined that disposal, the old null-session
+branch incorrectly presented `Native session stopped.` The retained red is
+`work/phase6c/terminal-status-correction/red-completion-first.txt`. Capturing the
+original terminal session preserves its completed reason after the shared
+cleanup releases it; no duplicate Stop/disposal or replacement launch is needed.
+
+This proves a contributing product defect, not the full historical USB event
+sequence. The incident lacks native event ordering, exit code, typed exception,
+wire-command evidence and escalation outcome. In production, `FatalError`
+precedes `SessionStopped`; only the latter closes command admission, so an
+internal Stop may or may not reach the wire in that interval. No newly passing
+synthetic test retroactively supplies those historical facts.
+
+The accepted wire Stop in the primary fixture is a controlled managed-contract
+scenario, not an exact reproduction of native `main.c`: ordinary native teardown
+closes command processing before publishing `FatalError` and `SessionStopped`.
+The completion-first fixture emits unsolicited terminal lifecycle and exits,
+without a wire Stop. Neither fixture proves real transport failure mapping or
+the original incident's native timing.
+
+### Correction and validation scope
+
+Only Desktop's automatic terminal-cleanup consumption changes. After successful
+exact-session disposal and observer/focus settlement, a matching typed
+`TerminalFailure` preserves `NativeFailure` in final status. That status is
+not a successful-streaming claim. Explicit Stop behavior is unchanged;
+automatic escalation and other failures remain visible as cleanup errors with
+typed failure detail. Disposal failure after process exit retains ownership
+and a separate cleanup error. No native, server, protocol, configuration,
+fallback or ADB behavior changes.
+
+The focused real-pipe cases also cover explicit terminal failure, normal
+`WindowClosed`, injected resource-disposal failure after exact exit and rejected
+internal Stop requiring exact-child escalation. Existing tests cover successful
+Stop, missing acknowledgement/lifecycle, fixed budgets, concurrent Stop,
+terminal/Stop/disposal ordering, close decisions, old callbacks, cleanup-gated
+restart and disabled/enabled fallback launch snapshots. These tests do not
+validate a phone's media or transport behavior.
+
+Corrective validation on 2026-09-30 passed: all six new production-backed
+regressions (machine filter 7/7 including one existing check), ViewModel class
+29/29, locked .NET 10.0.401 solution restore, Release build with zero warnings
+and errors, and solution tests 505/505 with no skips. The separate real-process
+IPC suite passed 8/8, including exact-child parent-death isolation and production
+pre-device rejection; it is not included in the solution total. SpecGen verified
+113 native entries and six current outputs; DocsCheck passed 507 links in 81
+tracked Markdown files; build metadata and `git diff --check` passed. Independent
+source review found and tested the completion-first race before its correction.
+
+Native/server/protocol/build/packaging inputs are unchanged. The retained 18
+native tests and 9 golden/24 cross-language conformance frames are earlier
+evidence, not newly executed results. Native and Android binaries are reused
+only after current staging provenance checks; Desktop is rebuilt below. No
+phone operation, pairing, shared-ADB restart or real DEV configuration edit
+was performed.
+
+### Observation access and targeted retest proposal
+
+After review and separate authorization, use the corrective package recorded
+below with the existing `.dev-data/p06c` root; do not reset saved settings or
+restart shared ADB. Do not execute this proposal as part of corrective validation.
+
+1. Explicitly Apply disabled fallback while retaining USB identity, network
+   endpoint and reconnect preference. Refresh, select USB and Mirror. Record
+   exact-package PID, creation time, HWND and launch-argument SessionId.
+2. Remove USB without pressing Stop. Capture final Desktop Status and exact-child
+   absence before another launch. A failed session may end with `NativeFailure`;
+   cleanup/escalation errors must remain visible, and no network replacement
+   should appear. Do not infer successful resource settlement from PID absence.
+3. Restore fallback explicitly and Apply. Check one USB-to-Wi-Fi recovery with
+   video, control and PC audio independently, plus exact-child identity. Then
+   Desktop Stop must report truthfully and settle that child without replacement.
+
+Read-only external evidence available today is the final Desktop `Status` and
+exact-package process metadata. `RecentLifecycleEvents` is the existing bounded
+in-process read-only snapshot, retained after successful cleanup until another
+launch; it has no external accessor. `NativeExit` exposes typed reason/SessionId
+inside the owned session, but no exit code or escalation field. After disposal,
+the adapter and its typed Stop exception are not externally retrievable. The
+corrective UI distinguishes typed automatic cleanup errors, but is not a full
+structured terminal/cleanup record. Capture visible status before another action;
+full lifecycle order, native-echoed IDs and independent settlement/escalation
+proof remain unverified in a hardware run.
+
+The smallest separate observation-only follow-up is a sanitized read-only
+snapshot of the existing bounded projection plus the retained exact-session
+terminal result and typed cleanup outcome, captured by the current owner before
+release and accessible without another stdout/lifecycle reader. It requires
+separate review; no exporter, protocol extension or dashboard is added here.
+Do not substitute legacy JSONL or suspend a live failover under a debugger.
+
+Focus mirror, same-root activation, native-window close and Desktop close with
+an active mirror remain distinct pending scenarios. The new package inherits
+none of the original hardware passes; unrelated pairing, cold-start discovery,
+accessibility and DPI campaigns are not repeated by this targeted correction.
+
+AGENTS/docs impact: the intent-aware consumption and regression coverage update
+this acceptance record, the runtime guide and checkpoint 6C.7. Protocol,
+ownership, paths, build commands and phase boundaries are unchanged. The
+Infrastructure friend assembly extends an existing internal process-test seam
+to Desktop tests; it adds no runtime policy. AGENTS files need no change.

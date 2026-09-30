@@ -15,7 +15,7 @@ using Xunit;
 namespace ScrcpySeamless.Desktop.Tests;
 
 /// <summary>Exercises committed launch, duplicate ownership and shutdown without ADB or a phone.</summary>
-public sealed class DeviceSessionViewModelTests
+public sealed partial class DeviceSessionViewModelTests
 {
     /// <summary>Device runtime requires an explicit absolute path in the normal DEV scope.</summary>
     [Fact]

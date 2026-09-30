@@ -130,6 +130,21 @@ separate facts. Focus uses the explicit machine command for the current or
 exactly named session. `Applied` acknowledges an attempted focus, not actual
 Windows foreground activation.
 
+Automatic terminal cleanup is distinct from an explicit Stop request. The
+machine adapter retains its typed `TerminalFailure` when the session result is
+`NativeFailure`. Desktop presents that result as `Native session ended:
+NativeFailure` only when the exception's exact-session exit matches completed
+`Completion` and disposal plus owned observer/focus settlement succeeds. This
+means cleanup succeeded, not that mirroring ended successfully. Escalation,
+other typed Stop failures and resource-settlement failures remain errors;
+automatic errors are identified as cleanup failures. Explicit Stop retains its
+existing failure contract. `FatalError` can start an internal Stop before
+`SessionStopped` closes command admission; a cleanup call alone is not evidence
+that a wire Stop was sent.
+If completion already started shared disposal before terminal consumption,
+automatic cleanup retains the captured original session result even after that
+disposal releases ownership. It does not relabel the result as explicit Stop.
+
 The projection marks video observed only after `StreamStarted` or
 `StreamResumed` for the current attempt; transport loss clears that evidence.
 Audio and control readiness, and the physical active transport, remain
