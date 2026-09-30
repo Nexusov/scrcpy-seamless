@@ -317,7 +317,7 @@ restart shared ADB. Do not execute this proposal as part of corrective validatio
    video, control and PC audio independently, plus exact-child identity. Then
    Desktop Stop must report truthfully and settle that child without replacement.
 
-Read-only external evidence available today is the final Desktop `Status` and
+Read-only external evidence in `g1eafa0cf` is the final Desktop `Status` and
 exact-package process metadata. `RecentLifecycleEvents` is the existing bounded
 in-process read-only snapshot, retained after successful cleanup until another
 launch; it has no external accessor. `NativeExit` exposes typed reason/SessionId
@@ -345,3 +345,77 @@ this acceptance record, the runtime guide and checkpoint 6C.7. Protocol,
 ownership, paths, build commands and phase boundaries are unchanged. The
 Infrastructure friend assembly extends an existing internal process-test seam
 to Desktop tests; it adds no runtime policy. AGENTS files need no change.
+
+## Bounded DEV session evidence
+
+The observation-only follow-up adds Devices → Mirror session → **Copy session
+evidence** in explicit device-enabled DEV mode. This changes observation access,
+not native termination, IPC, Stop, ownership, budgets or reconnect behavior.
+Phase 6C remains unaccepted; phone-backed validation is paused. The earlier
+`gd9d12a12` and `g1eafa0cf` packages and private incident remain unchanged.
+The historical incident is not reconstructed by these synthetic tests.
+
+The [runtime guide](desktop-native-runtime.md#explicit-dev-session-evidence)
+defines provenance, privacy and unavailable fields. The adapter retains actual
+accepted handshake data; the existing single consumer projects ordered events;
+the Desktop owner retains exact-session NativeExit and typed Stop/cleanup
+outcomes before release. NativeFailure, cleanup failure and initiating intent
+remain separate. Disposal/owned-work settlement is distinct from child absence.
+Copy captures immutable values without consuming history, limits retention to
+64 events and refuses output above 64 KiB UTF-8. It omits unknown capabilities
+and all private configuration/free-form payloads. Wire acknowledgement,
+receipt timestamps, native scope and process exit code remain NotRecorded.
+Escalation is unknown unless typed Escalated was actually observed. StopCallState
+describes ViewModel Stop calls, not every possible internal adapter call.
+
+Tests extend the corrected production managed path with actual fixture
+handshake, two attempts in one session, lifecycle-first and completion-first
+termination, a closed-command terminal sequence without successful Stop
+acknowledgement, explicit Stop, WindowClosed, escalation and disposal failure.
+They retain earlier failure/ownership assertions. The closed-command fixture
+models that terminal condition; it is not a phone run or exact native timing.
+Existing history-flood and delayed-old-callback tests now assert snapshots.
+DEV binding tests use an injected clipboard sink, including failure/retry;
+formatter tests cover immutability, redaction, missing values and output refusal.
+Fresh validation: locked restore; Release build with zero warnings/errors;
+520/520 solution tests; 8/8 separate IPC/process tests; SpecGen verifies 113
+entries and six outputs; build metadata, DocsCheck and diff validation pass.
+Focused runs passed 31 owner-path cases, 17 adapter cases and 10 evidence
+formatter/action cases. Existing native 18-test, nine golden/24 conformance
+frame and 29-suite legacy results are reused for unchanged inputs, not freshly
+executed here. Raw test output stays in ignored local scratch. The new artifact
+identity is recorded after clean-source staging below.
+
+### Proposed consolidated supervised retest
+
+Do not execute until independent source review and separate hardware
+authorization. Use the new artifact recorded below with the existing isolated
+DEV root; do not reset profiles, repeat pairing or restart shared ADB.
+
+1. Confirm visible idle startup and DEV copy action. Copy before Mirror:
+   absent session/handshake must remain unavailable; copying must not start a
+   child or change settings. Save copied text explicitly if needed; the product
+   writes no evidence file automatically.
+2. Explicitly Apply disabled fallback, retaining USB identity/network endpoint.
+   Select USB and Mirror. Capture snapshot and exact-package PID, creation time
+   and HWND. Remove USB without pressing UI Stop. Capture final Status, snapshot
+   and exact-child exit before another launch. Read NativeExit and cleanup
+   separately; do not infer TransportLost or successful settlement from absence.
+3. Restore fallback explicitly and Apply. USB start, then one USB→Wi-Fi recovery
+   while Settings is visible. Independently confirm video, control and audible
+   PC output. Copy evidence after recovery: compare same SessionId/PID and
+   distinct observed attempts; unavailable audio/control lifecycle remains
+   unavailable. Use explicit Desktop Stop; copy final result before relaunch.
+4. Keep Focus, same-root activation, native-window close and active-Desktop-close
+   as separate pending checks. Capture before Desktop close and observe the
+   exact child externally afterwards. In-memory copy cannot provide final
+   post-Desktop-exit evidence. Foreground focus and audible audio still require
+   direct observation.
+
+No cold-start discovery, accessibility, multi-monitor DPI, stress or abnormal
+parent-death campaign is repeated. Old hardware passes do not validate this
+new artifact. AGENTS/docs impact: the Desktop guide now directs contributors
+to the bounded owner snapshot; canonical runtime access and this retest proposal
+are updated with checkpoint 6C.8. Protocol/configuration and build workflow
+remain unchanged. The application ZIP stays local; independent source review
+uses the authorized work branch, not a source-review archive.

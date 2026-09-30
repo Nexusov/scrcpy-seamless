@@ -5,6 +5,9 @@ owned `MachineNativeHost` and typed Core interactive-session observations.
 Phase 6C selects it for a compatible explicit device-enabled DEV runtime;
 the separate legacy launcher/package stays available. One Desktop owner must
 drain the bounded lifecycle stream regardless of the visible page.
+The explicit DEV evidence action reads an immutable allowlisted snapshot from
+that owner; never add a second lifecycle reader or serialize live configuration,
+exceptions or process objects. Retain typed completion/cleanup before release.
 Preview must remain side-effect free. Exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md and process policy in
 ../../docs/development/desktop-native-runtime.md.

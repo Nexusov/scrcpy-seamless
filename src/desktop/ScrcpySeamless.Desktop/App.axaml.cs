@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Input.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using ScrcpySeamless.Core.Application.Activation;
@@ -89,7 +90,14 @@ public partial class App : Application
                 NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
                     ApplyAppearance,
                     shortcuts => normalWindow?.ApplyShortcuts(shortcuts),
-                    ResolveEffectiveFont);
+                    ResolveEffectiveFont,
+                    copySessionEvidence: async evidence =>
+                    {
+                        // Resolve the existing window clipboard only when the DEV action is invoked.
+                        var clipboard = normalWindow?.Clipboard ??
+                            throw new InvalidOperationException("Clipboard is unavailable.");
+                        await clipboard.SetTextAsync(evidence);
+                    });
                 normalWindow = new MainWindow(composition.Shell);
                 normalWindow.AttachNormalComposition(composition);
                 desktopLifetime.MainWindow = normalWindow;

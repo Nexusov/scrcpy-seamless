@@ -497,8 +497,15 @@ public sealed partial class DeviceSessionViewModelTests
         Assert.Equal(64, delayed.RecentLifecycleEvents.Count);
         Assert.Equal((ulong)137, delayed.RecentLifecycleEvents[0].Sequence);
         Assert.Equal((ulong)200, delayed.RecentLifecycleEvents[^1].Sequence);
+        // Evidence reads retain the existing bound and account for omitted earlier observations.
+        SessionEvidenceSnapshot boundedEvidence = delayed.CaptureSessionEvidence();
+        Assert.Equal((ulong)200, boundedEvidence.TotalObserved);
+        Assert.Equal(64, boundedEvidence.Events.Count);
+        Assert.Equal((ulong)137, boundedEvidence.Events[0].Sequence);
+        Assert.Equal((ulong)200, boundedEvidence.Events[^1].Sequence);
         Assert.True(await delayed.StopAsync());
         Assert.Equal(64, delayed.RecentLifecycleEvents.Count);
+        Assert.Equal(boundedEvidence.Events, delayed.CaptureSessionEvidence().Events);
     }
 
     /// <summary>Native terminal observation initiates Stop without waiting inside its own reader.</summary>
@@ -633,6 +640,7 @@ public sealed partial class DeviceSessionViewModelTests
         Assert.True(await actions.StopAsync());
         await actions.MirrorAsync();
         string newerStatus = actions.Status;
+        SessionEvidenceSnapshot newerEvidence = actions.CaptureSessionEvidence();
         Action oldUpdate;
 
         lock (queuedUi)
@@ -643,6 +651,13 @@ public sealed partial class DeviceSessionViewModelTests
         oldUpdate();
         Assert.Equal(newerStatus, actions.Status);
         Assert.Null(actions.LastLifecycleSequence);
+        SessionEvidenceSnapshot afterOldUpdate = actions.CaptureSessionEvidence();
+        Assert.Equal(newerEvidence.SessionId, afterOldUpdate.SessionId);
+        Assert.Equal(newerEvidence.Events, afterOldUpdate.Events);
+        Assert.Equal(newerEvidence.TotalObserved, afterOldUpdate.TotalObserved);
+        Assert.Equal(newerEvidence.AcceptedHandshake, afterOldUpdate.AcceptedHandshake);
+        Assert.Equal(newerEvidence.TerminalResult, afterOldUpdate.TerminalResult);
+        Assert.Equal(newerEvidence.Cleanup, afterOldUpdate.Cleanup);
         Assert.True(await actions.StopAsync());
     }
 

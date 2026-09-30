@@ -9,7 +9,7 @@ using ScrcpySeamless.Infrastructure.NativeProtocol;
 namespace ScrcpySeamless.Infrastructure.NativeHost;
 
 /// <summary>Owns exactly one native process and its bounded binary channel.</summary>
-public sealed class MachineNativeSession : INativeInteractiveSession
+public sealed class MachineNativeSession : INativeInteractiveSession, INativeHandshakeEvidence
 {
     private const int MaximumQueuedFrames = 32;
     private const int MaximumQueuedBytes = 2_097_152;
@@ -65,10 +65,22 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     private bool nativeReady;
     private bool terminalObserved;
     private bool disposed;
+    private NativeHandshakeObservation? acceptedHandshake;
 
     public SessionId SessionId { get; }
     public int ProcessId { get; }
     public Task<NativeExit> Completion => completion;
+    /// <summary>Returns retained accepted negotiation after readiness without reading the lifecycle stream.</summary>
+    public NativeHandshakeObservation? AcceptedHandshake
+    {
+        get
+        {
+            lock (gate)
+            {
+                return acceptedHandshake;
+            }
+        }
+    }
     internal (int Pending, int Deadlines) OwnedCommandCounts
     {
         get
@@ -225,6 +237,15 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         }
 
         await ready.Task.WaitAsync(deadline.Token);
+
+        // Retain validated response data only after the separately observed NativeReady passed.
+        NativeHandshakeObservation observation = new(response.Product!, response.ProtocolMajor!.Value,
+            response.ProtocolMinor!.Value, response.Capabilities);
+
+        lock (gate)
+        {
+            acceptedHandshake = observation;
+        }
     }
 
     /// <summary>Queues FocusWindow and reports native main-thread dispatch truthfully.</summary>

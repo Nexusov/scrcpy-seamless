@@ -155,6 +155,51 @@ older attempt; arbitrary reuse of an evicted GUID plus a fabricated scheduled
 transition is outside the v1 event evidence and requires stronger native
 generation semantics in Phase 7.
 
+## Explicit DEV session evidence
+
+Devices → Mirror session exposes **Copy session evidence** only in explicit
+device-enabled Development composition. The injected clipboard action runs
+only on request. Preview and settings-only composition expose no such action.
+The copy result has its own message and cannot replace session Status.
+
+The production owner captures detached values under its existing short gate;
+serialization runs off the lifecycle path, and clipboard I/O runs outside the
+gate. There is still one lifecycle consumer. The adapter retains the actual
+accepted helloResult only after NativeReady completes negotiation. This is
+distinct from the manifest's runtime compatibility declaration. The projection
+records NativeReady only when its existing consumer applies that observation.
+
+The version-1 JSON snapshot retains at most the existing 64 lifecycle entries
+and refuses output above 64 KiB UTF-8; it reports total observed, retained range
+and omitted count. Reading/copying never consumes history. Exact uint64 sequence
+and native monotonic values are decimal strings. Accepted known capabilities
+are detached; arbitrary extension capabilities are omitted with a count.
+The explicit allowlist exports correlation GUIDs/PID, actual metadata source
+SHA, native timestamps and typed semantic values. It excludes physical device
+identity, endpoints, names, paths, command lines, settings, ADB output, raw
+stderr, exception text, keys and pairing material.
+
+NativeExit and typed Stop outcomes are retained before exact-owner release.
+Cleanup Succeeded means adapter disposal and owned Desktop observer/focus work
+settled, not that mirroring or every phone-side resource succeeded. Intent names
+describe the initiating cleanup route; an explicit Stop joining already active
+automatic cleanup does not rewrite that initiator. A failed Stop call and
+successful resource cleanup can coexist. Disposal failure retains ownership
+and Failed cleanup. StopCallState covers the ViewModel owner's invocation only;
+NotRequested does not exclude an internal Stop inside adapter disposal.
+Escalation is true only for an observed typed Escalated outcome; otherwise it is
+unknown, including completion-path escalation not retained as that typed outcome.
+
+Wire Stop queued/written/acknowledged, receipt timestamps, native scope and
+process exit code are explicitly NotRecorded: the existing projection/result
+does not retain them. Handshake absence never becomes success from metadata.
+Metadata identity is not independent binary verification. Copy failures leave
+observations and session operations unchanged and allow an explicit retry.
+Final evidence survives successful session cleanup and rejected/failed launch,
+until another exact session is acquired. It does not survive Desktop exit.
+Capture before another launch or normal Desktop exit; see the
+[consolidated retest proposal](phase6c-manual-acceptance.md#bounded-dev-session-evidence).
+
 ## Validation boundary
 
 Deterministic tests use real Windows redirected pipes and a native test target

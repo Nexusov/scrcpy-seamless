@@ -24,12 +24,19 @@ public sealed partial class DeviceSessionViewModelTests
         await RunMachineScenarioAsync("completion-first", async scenario =>
         {
             CompletionFirstSession controlled = Assert.IsType<CompletionFirstSession>(scenario.ForwardedSession);
+            SessionEvidenceSnapshot initial = await CaptureStartedMachineEvidenceAsync(scenario);
             scenario.TerminalTrigger.Set();
             scenario.ExitRelease.Set();
             Assert.Equal(NativeTerminationReason.NativeFailure,
                 (await scenario.Native.Completion.WaitAsync(MachineScenarioWatchdog)).Reason);
             await controlled.DisposalEntered.Task.WaitAsync(MachineScenarioWatchdog);
             Assert.True(scenario.Actions.HasOwnedSession);
+            SessionEvidenceSnapshot disposing = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCompletionState.Completed, disposing.CompletionState);
+            Assert.Equal(NativeTerminationReason.NativeFailure, disposing.TerminalResult?.Reason);
+            Assert.Equal(SessionCleanupIntent.CompletionCleanup, disposing.Cleanup.Intent);
+            Assert.Equal(SessionCleanupState.InProgress, disposing.Cleanup.State);
+            Assert.False(disposing.Cleanup.OwnershipReleased);
             controlled.ReleaseTerminal.TrySetResult();
             // Resuming after yield proves the real consumer already called BeginTerminalCleanup.
             await controlled.TerminalHandled.Task.WaitAsync(MachineScenarioWatchdog);
@@ -44,6 +51,80 @@ public sealed partial class DeviceSessionViewModelTests
             Assert.True(scenario.Child.HasExited);
             Assert.False(scenario.WireStopReceived.WaitOne(TimeSpan.Zero));
             Assert.Equal(1, scenario.Host.Starts);
+            SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
+                NativeTerminationReason.NativeFailure);
+            Assert.Equal(initial.SessionId, final.SessionId);
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionStopCallState.NotRequested, final.Cleanup.StopCallState);
+            Assert.Equal(SessionCleanupState.InProgress, disposing.Cleanup.State);
+        });
+    }
+
+    /// <summary>Snapshots keep validated same-session attempt transitions ordered and non-destructive.</summary>
+    [AvaloniaFact]
+    public async Task MachineEvidencePreservesDifferentAttemptObservationsAcrossCleanup()
+    {
+        await RunMachineScenarioAsync("attempts", async scenario =>
+        {
+            SessionEvidenceSnapshot initial = await CaptureStartedMachineEvidenceAsync(scenario);
+            scenario.TerminalTrigger.Set();
+            await AwaitSequenceAsync(scenario.Actions, 8);
+            SessionEvidenceSnapshot observed = scenario.Actions.CaptureSessionEvidence();
+            NativeLifecycleEventType[] expectedEvents = [NativeLifecycleEventType.NativeReady,
+                NativeLifecycleEventType.Connecting, NativeLifecycleEventType.StreamStarted,
+                NativeLifecycleEventType.TransportLost, NativeLifecycleEventType.ReconnectScheduled,
+                NativeLifecycleEventType.Reconnecting, NativeLifecycleEventType.StreamResumed,
+                NativeLifecycleEventType.SessionStopped];
+            Assert.Equal(expectedEvents, observed.Events.Select(item => item.EventType));
+            Assert.All(observed.Events, item => Assert.Equal(scenario.Native.SessionId, item.SessionId));
+            ConnectionAttemptId? firstAttempt = observed.Events[1].ConnectionAttemptId;
+            ConnectionAttemptId? secondAttempt = observed.Events[5].ConnectionAttemptId;
+            Assert.NotNull(firstAttempt);
+            Assert.NotNull(secondAttempt);
+            Assert.NotEqual(firstAttempt, secondAttempt);
+            Assert.Equal(firstAttempt, observed.Events[2].ConnectionAttemptId);
+            Assert.Equal(firstAttempt, observed.Events[3].ConnectionAttemptId);
+            Assert.Equal(secondAttempt, observed.Events[6].ConnectionAttemptId);
+            SessionEvidenceSnapshot repeated = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(observed.Events, repeated.Events);
+            Assert.Equal((ulong)8, repeated.TotalObserved);
+            Assert.Single(initial.Events);
+            scenario.ExitRelease.Set();
+            await AwaitReleasedMachineStatusAsync(scenario.Actions);
+            SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
+                NativeTerminationReason.WindowClosed);
+            Assert.Equal(observed.Events, final.Events);
+            Assert.Equal(1, scenario.Host.Starts);
+        });
+    }
+
+    /// <summary>A closed command direction needs no successful Stop acknowledgement to preserve its result.</summary>
+    [AvaloniaFact]
+    public async Task MachineClosedCommandTerminalRetainsEvidenceWithoutSuccessfulStopAcknowledgement()
+    {
+        await RunMachineScenarioAsync("closed-command", async scenario =>
+        {
+            SessionEvidenceSnapshot initial = await CaptureStartedMachineEvidenceAsync(scenario);
+            scenario.TerminalTrigger.Set();
+            await AwaitSequenceAsync(scenario.Actions, 3);
+            Assert.False(scenario.Native.Completion.IsCompleted);
+            scenario.ExitRelease.Set();
+            Assert.Equal(NativeTerminationReason.NativeFailure,
+                (await scenario.Native.Completion.WaitAsync(MachineScenarioWatchdog)).Reason);
+            await AwaitReleasedMachineStatusAsync(scenario.Actions);
+            Assert.Equal("Native session ended: NativeFailure.", scenario.Actions.Status);
+            SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
+                NativeTerminationReason.NativeFailure);
+            Assert.Equal(initial.SessionId, final.SessionId);
+            Assert.Equal(new[] { NativeLifecycleEventType.NativeReady, NativeLifecycleEventType.FatalError,
+                NativeLifecycleEventType.SessionStopped }, final.Events.Select(item => item.EventType));
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionStopCallState.Failed, final.Cleanup.StopCallState);
+            Assert.Equal(MachineNativeSession.StopFailure.TerminalFailure, final.Cleanup.StopFailure);
+            Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+            // The fixture never reads or acknowledges a Stop; managed queued/written state remains unknown.
+            Assert.False(scenario.WireStopReceived.WaitOne(TimeSpan.Zero));
+            Assert.True(scenario.Child.HasExited);
         });
     }
 
@@ -53,10 +134,17 @@ public sealed partial class DeviceSessionViewModelTests
     {
         await RunMachineScenarioAsync("automatic-failure", async scenario =>
         {
+            SessionEvidenceSnapshot initial = await CaptureStartedMachineEvidenceAsync(scenario);
             scenario.TerminalTrigger.Set();
             await scenario.AwaitWireStopAsync();
             Assert.True(scenario.Actions.HasOwnedSession);
             Assert.False(scenario.Native.Completion.IsCompleted);
+            SessionEvidenceSnapshot stopping = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, stopping.Cleanup.Intent);
+            Assert.Equal(SessionCleanupState.InProgress, stopping.Cleanup.State);
+            Assert.Equal(SessionStopCallState.InProgress, stopping.Cleanup.StopCallState);
+            Assert.Equal(SessionCompletionState.InProgress, stopping.CompletionState);
+            Assert.False(stopping.Cleanup.OwnershipReleased);
             scenario.ExitRelease.Set();
             NativeExit result = await scenario.Native.Completion.WaitAsync(MachineScenarioWatchdog);
             Assert.Equal(NativeTerminationReason.NativeFailure, result.Reason);
@@ -74,11 +162,50 @@ public sealed partial class DeviceSessionViewModelTests
             await scenario.Native.DisposeAsync();
             Assert.Equal("Native session ended: NativeFailure.", scenario.Actions.Status);
             Assert.Equal(1, scenario.Host.Starts);
+            SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
+                NativeTerminationReason.NativeFailure);
+            Assert.Equal(result, final.TerminalResult);
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionStopCallState.Failed, final.Cleanup.StopCallState);
+            Assert.Equal(MachineNativeSession.StopFailure.TerminalFailure, final.Cleanup.StopFailure);
+            Assert.Equal(SessionCleanupState.NotStarted, initial.Cleanup.State);
+            Assert.Equal(SessionCleanupState.InProgress, stopping.Cleanup.State);
+            Assert.Single(initial.Events);
+            Assert.Equal((ulong)1, initial.TotalObserved);
+            Assert.Equal((ulong)3, final.TotalObserved);
+            Assert.Throws<NotSupportedException>(() =>
+                ((IList<NativeLifecycleObservation>)final.Events).Clear());
+
+            SavedProfileChoice? selectedProfile = scenario.Actions.SelectedLaunchProfile;
+            scenario.Actions.SelectedLaunchProfile = null;
+            await scenario.Actions.MirrorAsync();
+            Assert.Equal(1, scenario.Host.Starts);
+            SessionEvidenceSnapshot afterRejectedLaunch = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(final.SessionId, afterRejectedLaunch.SessionId);
+            Assert.Equal(final.TerminalResult, afterRejectedLaunch.TerminalResult);
+            Assert.Equal(final.Cleanup, afterRejectedLaunch.Cleanup);
+            Assert.Equal(final.Events, afterRejectedLaunch.Events);
+            scenario.Actions.SelectedLaunchProfile = selectedProfile;
+
+            scenario.Host.OnStart = (_, _) => throw new IOException("Synthetic pre-acquisition start failure.");
+            await scenario.Actions.MirrorAsync();
+            Assert.Equal(2, scenario.Host.Starts);
+            SessionEvidenceSnapshot afterFailedStart = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(final.SessionId, afterFailedStart.SessionId);
+            Assert.Equal(final.TerminalResult, afterFailedStart.TerminalResult);
+            Assert.Equal(final.Cleanup, afterFailedStart.Cleanup);
+            Assert.Equal(final.Events, afterFailedStart.Events);
 
             scenario.Host.OnStart = null;
             await scenario.Actions.MirrorAsync();
-            Assert.Equal(2, scenario.Host.Starts);
+            Assert.Equal(3, scenario.Host.Starts);
             Assert.True(scenario.Actions.HasOwnedSession);
+            SessionEvidenceSnapshot replacement = scenario.Actions.CaptureSessionEvidence();
+            Assert.NotEqual(final.SessionId, replacement.SessionId);
+            Assert.Null(replacement.AcceptedHandshake);
+            Assert.Null(replacement.TerminalResult);
+            Assert.Equal(SessionCleanupState.NotStarted, replacement.Cleanup.State);
+            Assert.Equal(result, final.TerminalResult);
             Assert.True(await scenario.Actions.StopAsync());
         });
     }
@@ -97,6 +224,12 @@ public sealed partial class DeviceSessionViewModelTests
             Assert.False(scenario.Actions.HasOwnedSession);
             Assert.Contains("Stop failed", scenario.Actions.Status);
             Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+            SessionEvidenceSnapshot final = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCleanupIntent.ExplicitStop, final.Cleanup.Intent);
+            Assert.Equal(SessionStopCallState.Failed, final.Cleanup.StopCallState);
+            Assert.Equal(MachineNativeSession.StopFailure.TerminalFailure, final.Cleanup.StopFailure);
+            Assert.Equal(NativeTerminationReason.NativeFailure, final.TerminalResult?.Reason);
+            Assert.True(final.Cleanup.OwnershipReleased);
         });
     }
 
@@ -106,6 +239,7 @@ public sealed partial class DeviceSessionViewModelTests
     {
         await RunMachineScenarioAsync("window-close", async scenario =>
         {
+            SessionEvidenceSnapshot initial = await CaptureStartedMachineEvidenceAsync(scenario);
             scenario.TerminalTrigger.Set();
             await AwaitSequenceAsync(scenario.Actions, 2);
             scenario.ExitRelease.Set();
@@ -116,6 +250,12 @@ public sealed partial class DeviceSessionViewModelTests
             Assert.Equal(1, scenario.Host.Starts);
             Assert.False(scenario.WireStopReceived.WaitOne(TimeSpan.Zero));
             Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+            SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
+                NativeTerminationReason.WindowClosed);
+            Assert.Equal(initial.AcceptedHandshake, final.AcceptedHandshake);
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionStopCallState.Succeeded, final.Cleanup.StopCallState);
+            Assert.Null(final.Cleanup.StopFailure);
         });
     }
 
@@ -135,6 +275,12 @@ public sealed partial class DeviceSessionViewModelTests
             Assert.True(scenario.Actions.HasOwnedSession);
             Assert.Contains(nameof(IOException), scenario.Actions.Status);
             Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+            SessionEvidenceSnapshot final = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCleanupState.Failed, final.Cleanup.State);
+            Assert.Equal(SessionCleanupFailureCategory.DisposalOrOwnedWork, final.Cleanup.FailureCategory);
+            Assert.Equal(NativeTerminationReason.NativeFailure, final.TerminalResult?.Reason);
+            Assert.True(final.Cleanup.ExactChildExitObserved);
+            Assert.False(final.Cleanup.OwnershipReleased);
         }, failDisposal: true);
     }
 
@@ -154,7 +300,64 @@ public sealed partial class DeviceSessionViewModelTests
             Assert.Equal("Native cleanup failed (Escalated); the exact child exited and was released.",
                 scenario.Actions.Status);
             Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+            SessionEvidenceSnapshot final = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionCleanupState.Succeeded, final.Cleanup.State);
+            Assert.Equal(SessionStopCallState.Failed, final.Cleanup.StopCallState);
+            Assert.Equal(MachineNativeSession.StopFailure.Escalated, final.Cleanup.StopFailure);
+            Assert.Equal(SessionCleanupFailureCategory.StopOperation, final.Cleanup.FailureCategory);
+            Assert.True(final.Cleanup.OwnershipReleased);
         });
+    }
+
+    /// <summary>Checks actual accepted values and proves repeated captures do not consume or start work.</summary>
+    private static async Task<SessionEvidenceSnapshot> CaptureStartedMachineEvidenceAsync(MachineScenario scenario)
+    {
+        await AwaitSequenceAsync(scenario.Actions, 1);
+        SessionEvidenceSnapshot snapshot = scenario.Actions.CaptureSessionEvidence();
+        NativeHandshakeObservation handshake = Assert.IsType<NativeHandshakeObservation>(snapshot.AcceptedHandshake);
+        Assert.Same(scenario.Native.AcceptedHandshake, handshake);
+        Assert.Equal("scrcpy-seamless", handshake.Product);
+        Assert.Equal(1, handshake.ProtocolMajor);
+        Assert.Equal(0, handshake.ProtocolMinor);
+        Assert.Equal(["focus-window", "lifecycle-v1", "stop"], handshake.Capabilities);
+        Assert.Equal(scenario.Native.SessionId.Value, snapshot.SessionId);
+        Assert.Equal(scenario.Native.ProcessId, snapshot.ProcessId);
+        Assert.True(snapshot.NativeReadyObserved);
+        Assert.Equal(SessionCompletionState.InProgress, snapshot.CompletionState);
+        Assert.Null(snapshot.TerminalResult);
+        Assert.Equal(SessionCleanupState.NotStarted, snapshot.Cleanup.State);
+        Assert.Single(snapshot.Events);
+        string status = scenario.Actions.Status;
+        SessionEvidenceSnapshot repeated = scenario.Actions.CaptureSessionEvidence();
+        Assert.Equal(snapshot.Events, repeated.Events);
+        Assert.Equal(snapshot.TotalObserved, repeated.TotalObserved);
+        Assert.Equal(status, scenario.Actions.Status);
+        Assert.True(scenario.Actions.HasOwnedSession);
+        Assert.False(scenario.Native.Completion.IsCompleted);
+        Assert.False(scenario.Child.HasExited);
+        Assert.Equal(1, scenario.Host.Starts);
+        Assert.Equal((0, 0), scenario.Native.OwnedCommandCounts);
+        Assert.False(scenario.WireStopReceived.WaitOne(TimeSpan.Zero));
+        return snapshot;
+    }
+
+    /// <summary>Checks detached terminal evidence after exact-child and owner settlement.</summary>
+    private static SessionEvidenceSnapshot AssertReleasedMachineEvidence(MachineScenario scenario,
+        NativeTerminationReason reason)
+    {
+        SessionEvidenceSnapshot snapshot = scenario.Actions.CaptureSessionEvidence();
+        Assert.Equal(scenario.Native.SessionId.Value, snapshot.SessionId);
+        Assert.Equal(scenario.Native.ProcessId, snapshot.ProcessId);
+        Assert.Same(scenario.Native.AcceptedHandshake, snapshot.AcceptedHandshake);
+        Assert.True(snapshot.NativeReadyObserved);
+        Assert.Equal(SessionCompletionState.Completed, snapshot.CompletionState);
+        Assert.Equal(reason, snapshot.TerminalResult?.Reason);
+        Assert.Equal(SessionCleanupState.Succeeded, snapshot.Cleanup.State);
+        Assert.True(snapshot.Cleanup.ExactChildExitObserved);
+        Assert.True(snapshot.Cleanup.OwnershipReleased);
+        Assert.False(scenario.Actions.HasOwnedSession);
+        return snapshot;
     }
 
     /// <summary>Preserves the primary assertion if exact-fixture teardown also fails.</summary>
@@ -335,9 +538,12 @@ public sealed partial class DeviceSessionViewModelTests
     }
 
     /// <summary>Injects only a disposal fault while forwarding real process completion and lifecycle.</summary>
-    private sealed class FailedDisposalSession(MachineNativeSession native) : INativeInteractiveSession
+    private sealed class FailedDisposalSession(MachineNativeSession native) : INativeInteractiveSession,
+        INativeHandshakeEvidence
     {
         public SessionId SessionId => native.SessionId;
+        public int ProcessId => native.ProcessId;
+        public NativeHandshakeObservation? AcceptedHandshake => native.AcceptedHandshake;
         public Task<NativeExit> Completion => native.Completion;
         public IAsyncEnumerable<NativeLifecycleObservation> ObserveLifecycleAsync(CancellationToken cancellationToken) =>
             native.ObserveLifecycleAsync(cancellationToken);
@@ -349,9 +555,12 @@ public sealed partial class DeviceSessionViewModelTests
     }
 
     /// <summary>Orders real completion, consumer delivery and disposal without changing machine results.</summary>
-    private sealed class CompletionFirstSession(MachineNativeSession native) : INativeInteractiveSession
+    private sealed class CompletionFirstSession(MachineNativeSession native) : INativeInteractiveSession,
+        INativeHandshakeEvidence
     {
         public SessionId SessionId => native.SessionId;
+        public int ProcessId => native.ProcessId;
+        public NativeHandshakeObservation? AcceptedHandshake => native.AcceptedHandshake;
         public Task<NativeExit> Completion => native.Completion;
         public TaskCompletionSource DisposalEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseTerminal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -437,8 +646,14 @@ public sealed partial class DeviceSessionViewModelTests
             $outputPipe.Write($body, 0, $body.Length)
             $outputPipe.Flush()
         }
-        function SendLifecycle([int]$sequence, [string]$eventType, [string]$reason, [string]$errorCode) {
-            SendFrame ('{"messageType":"lifecycle","sequence":"' + $sequence + '","utc":"2026-01-01T00:00:01.000Z","monotonicMicroseconds":"1000000","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"' + $eventType + '","reason":"' + $reason + '","error":"' + $errorCode + '"}')
+        function SendLifecycle([int]$sequence, [string]$eventType, [string]$reason, [string]$errorCode, [string]$attempt = '', [string]$subsystem = 'native') {
+            $attemptJson = 'null'
+
+            if ($attempt) {
+                $attemptJson = '"' + $attempt + '"'
+            }
+
+            SendFrame ('{"messageType":"lifecycle","sequence":"' + $sequence + '","utc":"2026-01-01T00:00:01.000Z","monotonicMicroseconds":"1000000","sessionId":"' + $sessionId + '","connectionAttemptId":' + $attemptJson + ',"subsystem":"' + $subsystem + '","eventType":"' + $eventType + '","reason":"' + $reason + '","error":"' + $errorCode + '"}')
         }
         $hello = ReadFrame
 
@@ -463,6 +678,27 @@ public sealed partial class DeviceSessionViewModelTests
             SendLifecycle 2 'SessionStopped' 'nativeFailure' 'none'
             $exitRelease.WaitOne() | Out-Null
             exit $failureExitCode
+        }
+
+        if ($mode -eq 'closed-command') {
+            SendLifecycle 2 'FatalError' 'nativeFailure' 'internalFailure'
+            SendLifecycle 3 'SessionStopped' 'nativeFailure' 'none'
+            $exitRelease.WaitOne() | Out-Null
+            exit $failureExitCode
+        }
+
+        if ($mode -eq 'attempts') {
+            $firstAttempt = '11111111-1111-4111-8111-111111111111'
+            $secondAttempt = '22222222-2222-4222-8222-222222222222'
+            SendLifecycle 2 'Connecting' 'none' 'none' $firstAttempt 'connection'
+            SendLifecycle 3 'StreamStarted' 'none' 'none' $firstAttempt 'video'
+            SendLifecycle 4 'TransportLost' 'transportLost' 'none' $firstAttempt 'connection'
+            SendLifecycle 5 'ReconnectScheduled' 'transportLost' 'none' '' 'connection'
+            SendLifecycle 6 'Reconnecting' 'none' 'none' $secondAttempt 'connection'
+            SendLifecycle 7 'StreamResumed' 'none' 'none' $secondAttempt 'video'
+            SendLifecycle 8 'SessionStopped' 'windowClosed' 'none'
+            $exitRelease.WaitOne() | Out-Null
+            exit 0
         }
 
         if ($mode -ne 'explicit-failure') {

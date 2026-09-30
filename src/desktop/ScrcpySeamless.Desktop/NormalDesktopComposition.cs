@@ -208,7 +208,8 @@ public static class NormalDesktopFactory
         Action<DesktopAppearancePreferences> applyAppearance,
         Action<DesktopShortcutPreferences> activateShortcuts,
         Func<string?, string?> resolveEffectiveFont,
-        Func<CancellationToken, Task>? beforePreferencesCommit = null)
+        Func<CancellationToken, Task>? beforePreferencesCommit = null,
+        Func<string, Task>? copySessionEvidence = null)
     {
         if (options.Preview || options.StorageMode == DesktopStorageMode.None)
         {
@@ -279,7 +280,8 @@ public static class NormalDesktopFactory
                     bundle.AdbExecutablePath, enableOpenScreenMdnsCompatibility)
                 : null;
             deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
-                runtime, nativeHost, action => Dispatcher.UIThread.Post(action));
+                runtime, nativeHost, action => Dispatcher.UIThread.Post(action),
+                options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null);
             devices.AttachSessionActions(deviceSession);
 
             if (runtime.Bundle is { } readyBundle)

@@ -11,7 +11,7 @@ using ScrcpySeamless.Infrastructure.Runtime;
 namespace ScrcpySeamless.Desktop.Presentation;
 
 /// <summary>Owns one explicit native session launched from a committed v2 snapshot.</summary>
-public sealed class DeviceSessionViewModel : ObservableViewModel
+public sealed partial class DeviceSessionViewModel : ObservableViewModel
 {
     private static readonly TimeSpan LifecycleSettleTimeout = TimeSpan.FromSeconds(5);
     private readonly DevicesViewModel devices;
@@ -49,7 +49,8 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
     /// <summary>Attaches existing boundaries without contacting a device.</summary>
     public DeviceSessionViewModel(DevicesViewModel devices, ProfilesViewModel profiles,
         ConfigurationWorkspaceViewModel configuration, VersionedConfigurationStore store,
-        RuntimeBundleResult runtime, INativeHost? host, Action<Action> dispatch)
+        RuntimeBundleResult runtime, INativeHost? host, Action<Action> dispatch,
+        Func<string, Task>? copySessionEvidence = null)
     {
         this.devices = devices;
         this.profiles = profiles;
@@ -58,6 +59,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         this.runtime = runtime;
         this.host = host;
         this.dispatch = dispatch;
+        evidenceClipboard = copySessionEvidence;
         text = new PresentationText();
         status = runtime.Status == RuntimeBundleStatus.Ready
             ? "Select a saved profile and refresh/select an available ADB transport."
@@ -67,6 +69,9 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         MirrorCommand = new ActionCommand(() => _ = MirrorAsync());
         StopCommand = new ActionCommand(() => _ = StopAsync());
         FocusCommand = new ActionCommand(StartFocusCommand);
+        CopySessionEvidenceCommand = new AsyncActionCommand(async () => { await CopySessionEvidenceAsync(); },
+            () => CanCopySessionEvidence && !copyingEvidence,
+            _ => EvidenceCopyStatus = "Session evidence could not be copied. Retry explicitly.");
     }
 
     public ICommand MirrorCommand { get; }
@@ -233,6 +238,8 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                 mustStop = shuttingDown || stopping || cancellationToken.IsCancellationRequested;
                 session = started;
                 generation = ++sessionGeneration;
+                // Replace evidence only after a new exact session has actually been acquired.
+                InitializeSessionEvidence(started, generation);
                 lifecycleProjection = started is INativeInteractiveSession
                     ? new NativeLifecycleProjection(started.SessionId)
                     : null;
@@ -324,7 +331,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
         try
         {
-            await owned.StopAsync(NativeTerminationReason.UserStop, CancellationToken.None);
+            await StopWithEvidenceAsync(owned, NativeTerminationReason.UserStop, SessionCleanupIntent.CancelledLaunch);
             await owned.Completion;
             await SettleSessionAsync(owned);
             Status = "Launch cancelled.";
@@ -462,6 +469,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
             stopping = true;
             startCancellation?.Cancel();
+            SetCleanupIntent(owned, SessionCleanupIntent.AutomaticTerminal);
             stopTask = StopCoreAsync(reason, automaticTerminalSession: owned);
         }
     }
@@ -472,6 +480,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
         try
         {
             NativeExit result = await owned.Completion;
+            RetainSessionCompletion(owned, generation, result);
             dispatch(() =>
             {
                 // This method observes its own cleanup failures; sessionCleanupTask owns disposal.
@@ -488,6 +497,8 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                     {
                         return;
                     }
+
+                    RetainCompletionFailure(owned);
                 }
 
                 Status = $"Native completion failed ({exception.GetType().Name}); check owned session.";
@@ -556,6 +567,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
     /// <summary>Includes disposal and exact-session release in one shared cleanup task.</summary>
     private async Task<bool> CleanupSessionAsync(INativeSession owned)
     {
+        MarkCleanupInProgress(owned);
         await Task.Yield();
 
         try
@@ -587,6 +599,7 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
             {
                 if (ReferenceEquals(session, owned))
                 {
+                    RetainCleanupFailure(owned);
                     sessionCleanupTask = null;
                 }
             }
@@ -601,6 +614,8 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
                 return false;
             }
 
+            // Evidence records settlement before the exact owner and projection are released.
+            RetainSuccessfulCleanup(owned);
             session = null;
             sessionCleanupTask = null;
             completedLifecycleEvents = lifecycleProjection?.RecentObservations ?? completedLifecycleEvents;
@@ -776,7 +791,12 @@ public sealed class DeviceSessionViewModel : ObservableViewModel
 
             if (owned is not null)
             {
-                await owned.StopAsync(reason, CancellationToken.None);
+                SessionCleanupIntent intent = automaticTerminalCleanup
+                    ? SessionCleanupIntent.AutomaticTerminal
+                    : reason == NativeTerminationReason.ApplicationShutdown
+                        ? SessionCleanupIntent.ApplicationShutdown
+                        : SessionCleanupIntent.ExplicitStop;
+                await StopWithEvidenceAsync(owned, reason, intent);
                 NativeExit exit = await owned.Completion;
                 await SettleSessionAsync(owned);
                 // Automatic cleanup does not imply an explicit Stop or successful mirroring.

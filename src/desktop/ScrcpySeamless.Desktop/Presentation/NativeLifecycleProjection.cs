@@ -15,6 +15,8 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
     private readonly Queue<NativeLifecycleObservation> recentObservations = new();
 
     public ulong LastSequence { get; private set; }
+    public ulong TotalObserved { get; private set; }
+    public bool NativeReadyObserved { get; private set; }
     public NativeLifecycleEventType? EventType { get; private set; }
     public NativeLifecycleReason Reason { get; private set; }
     public NativeVideoEvidence Video { get; private set; } = NativeVideoEvidence.Unknown;
@@ -29,6 +31,9 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
         }
 
         LastSequence = observation.Sequence;
+        // Counts observed entries, not inferred gaps in native sequence numbers.
+        TotalObserved++;
+        NativeReadyObserved |= observation.EventType == NativeLifecycleEventType.NativeReady;
         recentObservations.Enqueue(observation);
 
         if (recentObservations.Count > MaximumRecentObservations)
