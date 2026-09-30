@@ -144,7 +144,7 @@ public sealed partial class DeviceSessionViewModel
         };
     }
 
-    /// <summary>Records intent separately from the native terminal reason.</summary>
+    /// <summary>Preserves the active cleanup initiator while allowing a new route after failed cleanup.</summary>
     private void SetCleanupIntent(INativeSession owned, SessionCleanupIntent intent)
     {
         if (sessionEvidence is null || !ReferenceEquals(session, owned))
@@ -152,10 +152,15 @@ public sealed partial class DeviceSessionViewModel
             return;
         }
 
+        // Joining an active cleanup does not initiate a new operation; a failed cleanup can be retried.
+        bool hasActiveInitiator = sessionEvidence.Cleanup.State == SessionCleanupState.InProgress &&
+            sessionEvidence.Cleanup.Intent != SessionCleanupIntent.None;
+        SessionCleanupIntent initiatingIntent = hasActiveInitiator ? sessionEvidence.Cleanup.Intent : intent;
+
         sessionEvidence = sessionEvidence with
         {
             ObservationStage = SessionObservationStage.CleanupInProgress,
-            Cleanup = sessionEvidence.Cleanup with { Intent = intent, State = SessionCleanupState.InProgress },
+            Cleanup = sessionEvidence.Cleanup with { Intent = initiatingIntent, State = SessionCleanupState.InProgress },
         };
     }
 

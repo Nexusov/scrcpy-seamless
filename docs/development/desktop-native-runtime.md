@@ -182,8 +182,16 @@ stderr, exception text, keys and pairing material.
 NativeExit and typed Stop outcomes are retained before exact-owner release.
 Cleanup Succeeded means adapter disposal and owned Desktop observer/focus work
 settled, not that mirroring or every phone-side resource succeeded. Intent names
-describe the initiating cleanup route; an explicit Stop joining already active
-automatic cleanup does not rewrite that initiator. A failed Stop call and
+describe the first non-None initiating route of the active cleanup operation.
+While cleanup is InProgress, a terminal observer, explicit Stop or shutdown
+caller joining it cannot rewrite that initiator. Completion-first cleanup
+retains CompletionCleanup through late terminal delivery and successful release,
+with no additional forwarded Stop. Lifecycle-first cleanup retains
+AutomaticTerminal. After Failed cleanup, a genuinely new Stop/shutdown retry
+may record ExplicitStop/ApplicationShutdown and InProgress; this is not a
+permanent session-wide intent or an accumulating retry history. Detached prior
+snapshots keep their failed outcome. Only actual owner Stop calls update
+StopCallState and StopRequestedReason. A failed Stop call and
 successful resource cleanup can coexist. Disposal failure retains ownership
 and Failed cleanup. StopCallState covers the ViewModel owner's invocation only;
 NotRequested does not exclude an internal Stop inside adapter disposal.

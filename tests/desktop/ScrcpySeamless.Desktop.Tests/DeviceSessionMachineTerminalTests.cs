@@ -40,6 +40,13 @@ public sealed partial class DeviceSessionViewModelTests
             controlled.ReleaseTerminal.TrySetResult();
             // Resuming after yield proves the real consumer already called BeginTerminalCleanup.
             await controlled.TerminalHandled.Task.WaitAsync(MachineScenarioWatchdog);
+            SessionEvidenceSnapshot joined = scenario.Actions.CaptureSessionEvidence();
+            Assert.Equal(SessionCleanupIntent.CompletionCleanup, joined.Cleanup.Intent);
+            Assert.Equal(SessionCleanupState.InProgress, joined.Cleanup.State);
+            Assert.Equal(SessionStopCallState.NotRequested, joined.Cleanup.StopCallState);
+            Assert.Equal(NativeTerminationReason.NativeFailure, joined.TerminalResult?.Reason);
+            Assert.Equal(0, controlled.StopCalls);
+            Assert.Equal(1, controlled.DisposeCalls);
             controlled.ReleaseDisposal.TrySetResult();
             await AwaitMachineStatusAsync(scenario.Actions, () => !scenario.Actions.HasOwnedSession &&
                 (scenario.Actions.Status.StartsWith("Native session ended:", StringComparison.Ordinal) ||
@@ -54,9 +61,11 @@ public sealed partial class DeviceSessionViewModelTests
             SessionEvidenceSnapshot final = AssertReleasedMachineEvidence(scenario,
                 NativeTerminationReason.NativeFailure);
             Assert.Equal(initial.SessionId, final.SessionId);
-            Assert.Equal(SessionCleanupIntent.AutomaticTerminal, final.Cleanup.Intent);
+            Assert.Equal(SessionCleanupIntent.CompletionCleanup, final.Cleanup.Intent);
             Assert.Equal(SessionStopCallState.NotRequested, final.Cleanup.StopCallState);
             Assert.Equal(SessionCleanupState.InProgress, disposing.Cleanup.State);
+            Assert.Equal(SessionCleanupIntent.CompletionCleanup, disposing.Cleanup.Intent);
+            Assert.Equal(SessionCleanupIntent.CompletionCleanup, joined.Cleanup.Intent);
         });
     }
 

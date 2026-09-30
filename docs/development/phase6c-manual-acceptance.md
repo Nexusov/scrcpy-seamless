@@ -2,8 +2,9 @@
 
 The original run below is frozen against `gd9d12a12`. Current phone validation
 remains paused. The pending [consolidated evidence retest](#proposed-consolidated-supervised-retest)
-uses the separately identified `ge8ed3565` artifact after independent source
-review and separate hardware authorization; do not resume the old commands.
+uses the separately identified cleanup-initiator corrective artifact below after
+independent source review and separate hardware authorization; do not resume
+the old commands.
 
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped
@@ -394,8 +395,9 @@ identity is recorded after clean-source staging below.
 ### Proposed consolidated supervised retest
 
 Do not execute until independent source review and separate hardware
-authorization. Use the new artifact recorded below with the existing isolated
-DEV root; do not reset profiles, repeat pairing or restart shared ADB.
+authorization. Use the [cleanup-initiator corrective artifact](#cleanup-initiator-source-review-correction)
+with the existing isolated DEV root; do not reset profiles, repeat pairing or
+restart shared ADB.
 
 1. Confirm visible idle startup and DEV copy action. Copy before Mirror:
    absent session/handshake must remain unavailable; copying must not start a
@@ -465,7 +467,8 @@ their hashes remain in the complete package/runtime manifests. Old ZIPs retain
 their documented hashes, and the frozen incident's hash remains
 `50f75b07963d17ed07a78b48cacc025515371f0c1a03c5ea5c1e4c4b2d1b86b7`.
 
-For later separately authorized supervised testing, the exact launch is:
+The earlier observation artifact's launch is retained for identity; use the
+cleanup-initiator corrective artifact for the pending supervised retest:
 
 ```powershell
 $package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p06c-ge8ed3565'
@@ -482,3 +485,44 @@ through the observation source were reviewed for private material, including
 intermediate history; no blocker was found. The documentation-only follow-up
 requires its own final review before the authorized single-branch push. This
 targeted review is not an exhaustive secret audit or a hosted CI result.
+
+### Cleanup-initiator source-review correction
+
+Independent review of `90c6ce92629f47bb968c6f4960536bcc5547302e` identified
+an evidence-label defect. Completion-owned disposal recorded CompletionCleanup;
+a terminal observer joining that pending operation overwrote it with
+AutomaticTerminal. The original test expected both labels at different stages,
+despite zero forwarded Stop calls and one disposal. This finding does not prove
+a new native/USB failure or reconstruct the historical incident.
+
+The existing controlled real-pipe completion-first regression now asserts the
+first initiator in pending, joined and released snapshots. Before the production
+change it failed at the joined capture: expected CompletionCleanup, actual
+AutomaticTerminal. The same test passes after the evidence-only correction.
+The terminal NativeFailure, successful cleanup, exact ownership, zero forwarded
+Stop/one disposal, immutable captures and no-relaunch assertions remain.
+Raw red/green output is retained only in ignored local scratch.
+
+The production change is confined to SetCleanupIntent in
+DeviceSessionViewModel.Evidence.cs: a non-None initiator is preserved while
+cleanup is InProgress; Failed cleanup permits the incoming route of a new
+attempt. Existing gated natural-exit coverage now checks both Stop and shutdown
+joining CompletionCleanup without another Stop or disposal. A fail-once
+synthetic disposal test covers Failed → new explicit Stop/shutdown retry →
+Succeeded, preserving NativeExit and detached failed snapshots, with one actual
+ViewModel Stop invocation, two disposal invocations and no replacement launch.
+Lifecycle-first, explicit Stop, WindowClosed, escalation, disposal failure,
+cancelled launch and shutdown contracts retain their existing coverage.
+
+No native, IPC, host Stop/Dispose policy, cancellation budget, configuration,
+ADB or reconnect input changed. No new evidence fields were added. The earlier
+packages/manifests and incident remain frozen. AGENTS already directs bounded
+owner snapshot retention; no instruction/path/workflow change needs another
+AGENTS edit. This guide, the runtime invariant and checkpoint 6C.8 are updated.
+Phase 6C remains unaccepted; hardware validation stays paused. Fresh validation:
+direct red (expected initiating-intent assertion failure) and corresponding green;
+34/34 owner tests; 10/10 evidence tests; locked restore; zero-warning Release build; 523/523 solution
+tests; 8/8 separate IPC/process tests; SpecGen (113 entries/six outputs), build
+metadata, DocsCheck and diff validation. The unchanged native/server/conformance
+and legacy test results remain reused evidence, not new runs. Artifact identity
+is recorded below after clean-source staging.

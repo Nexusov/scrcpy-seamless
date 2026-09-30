@@ -203,9 +203,11 @@ public sealed partial class DeviceSessionViewModelTests
         Assert.Equal(1, host.Session.DisposeCalls);
     }
 
-    /// <summary>Stop waits a natural-exit cleanup instead of stopping an already disposed child.</summary>
-    [AvaloniaFact]
-    public async Task StopDuringNaturalExitAwaitsTheSameCleanup()
+    /// <summary>Stop or shutdown joins natural-exit cleanup without rewriting its initiator or stopping again.</summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopDuringNaturalExitAwaitsTheSameCleanup(bool shutdown)
     {
         using Fixture fixture = new();
         (_, DeviceSessionViewModel actions, FakeHost host) = await fixture.CreatePreparedSessionAsync();
@@ -215,14 +217,88 @@ public sealed partial class DeviceSessionViewModelTests
         host.Session.Exit(NativeTerminationReason.WindowClosed);
         await host.Session.DisposeEntered.Task;
 
-        Task<bool> stop = actions.StopAsync();
+        SessionEvidenceSnapshot disposing = actions.CaptureSessionEvidence();
+        Assert.Equal(SessionCleanupIntent.CompletionCleanup, disposing.Cleanup.Intent);
+        Assert.Equal(SessionCleanupState.InProgress, disposing.Cleanup.State);
+        Task<bool> stop = shutdown ? actions.ShutdownAsync() : actions.StopAsync();
         Assert.False(stop.IsCompleted);
+        SessionEvidenceSnapshot joined = actions.CaptureSessionEvidence();
+        Assert.Equal(SessionCleanupIntent.CompletionCleanup, joined.Cleanup.Intent);
+        Assert.Equal(SessionStopCallState.NotRequested, joined.Cleanup.StopCallState);
         releaseDisposal.SetResult();
 
         Assert.True(await stop);
         Assert.False(actions.HasOwnedSession);
         Assert.Equal(0, host.Session.StopCalls);
         Assert.Equal(1, host.Session.DisposeCalls);
+        SessionEvidenceSnapshot final = actions.CaptureSessionEvidence();
+        Assert.Equal(SessionCleanupIntent.CompletionCleanup, final.Cleanup.Intent);
+        Assert.Equal(SessionCleanupState.Succeeded, final.Cleanup.State);
+        Assert.Equal(SessionStopCallState.NotRequested, final.Cleanup.StopCallState);
+        Assert.Equal(NativeTerminationReason.WindowClosed, final.TerminalResult?.Reason);
+        Assert.Equal(SessionCleanupState.InProgress, disposing.Cleanup.State);
+        Assert.Equal(SessionCleanupState.InProgress, joined.Cleanup.State);
+        Assert.Equal(1, host.Starts);
+    }
+
+    /// <summary>A later explicit retry after failed disposal initiates new cleanup without losing the native result.</summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetryAfterFailedCleanupRecordsItsNewInitiator(bool shutdown)
+    {
+        using Fixture fixture = new();
+        (_, DeviceSessionViewModel actions, FakeHost host) = await fixture.CreatePreparedSessionAsync();
+        await actions.MirrorAsync();
+        host.Session.FailNextDisposal = true;
+        host.Session.Exit(NativeTerminationReason.WindowClosed);
+        await AwaitMachineStatusAsync(actions, () => actions.Status.StartsWith("Native cleanup failed", StringComparison.Ordinal));
+        SessionEvidenceSnapshot failed = actions.CaptureSessionEvidence();
+        Assert.Equal(SessionCleanupIntent.CompletionCleanup, failed.Cleanup.Intent);
+        Assert.Equal(SessionCleanupState.Failed, failed.Cleanup.State);
+        Assert.Equal(SessionCleanupFailureCategory.DisposalOrOwnedWork, failed.Cleanup.FailureCategory);
+        Assert.Equal(SessionStopCallState.NotRequested, failed.Cleanup.StopCallState);
+        Assert.True(actions.HasOwnedSession);
+        Assert.False(failed.Cleanup.OwnershipReleased);
+        Assert.Equal(0, host.Session.StopCalls);
+        Assert.Equal(1, host.Session.DisposeCalls);
+
+        TaskCompletionSource releaseStop = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.Session.StopRelease = releaseStop;
+        Task<bool> retry = shutdown ? actions.ShutdownAsync() : actions.StopAsync();
+        SessionCleanupIntent expectedIntent = shutdown
+            ? SessionCleanupIntent.ApplicationShutdown : SessionCleanupIntent.ExplicitStop;
+        SessionEvidenceSnapshot retrying;
+
+        try
+        {
+            await host.Session.StopEntered.Task.WaitAsync(TestContext.Current.CancellationToken);
+            retrying = actions.CaptureSessionEvidence();
+            Assert.Equal(expectedIntent, retrying.Cleanup.Intent);
+            Assert.Equal(SessionCleanupState.InProgress, retrying.Cleanup.State);
+            Assert.Equal(SessionStopCallState.InProgress, retrying.Cleanup.StopCallState);
+        }
+        finally
+        {
+            // Release the synthetic operation even if an assertion fails; retain the primary failure.
+            releaseStop.TrySetResult();
+        }
+
+        Assert.True(await retry);
+        SessionEvidenceSnapshot final = actions.CaptureSessionEvidence();
+        Assert.Equal(expectedIntent, final.Cleanup.Intent);
+        Assert.Equal(SessionCleanupState.Succeeded, final.Cleanup.State);
+        Assert.Equal(SessionStopCallState.Succeeded, final.Cleanup.StopCallState);
+        Assert.Equal(failed.TerminalResult, final.TerminalResult);
+        Assert.Equal(NativeTerminationReason.WindowClosed, final.TerminalResult?.Reason);
+        Assert.True(final.Cleanup.OwnershipReleased);
+        Assert.False(actions.HasOwnedSession);
+        Assert.Equal(SessionCleanupIntent.CompletionCleanup, failed.Cleanup.Intent);
+        Assert.Equal(SessionCleanupState.Failed, failed.Cleanup.State);
+        Assert.Equal(SessionCleanupState.InProgress, retrying.Cleanup.State);
+        Assert.Equal(1, host.Session.StopCalls);
+        Assert.Equal(2, host.Session.DisposeCalls);
+        Assert.Equal(1, host.Starts);
     }
 
     /// <summary>Failed native close keeps the device workspace and drafts usable for a retry.</summary>
@@ -826,6 +902,7 @@ public sealed partial class DeviceSessionViewModelTests
         public int StopCalls { get; private set; }
         public int DisposeCalls { get; private set; }
         public bool FailNextStop { get; set; }
+        public bool FailNextDisposal { get; set; }
         public TaskCompletionSource StopEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? StopRelease { get; set; }
         public TaskCompletionSource DisposeEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -854,6 +931,12 @@ public sealed partial class DeviceSessionViewModelTests
         {
             DisposeCalls++;
             DisposeEntered.TrySetResult();
+
+            if (FailNextDisposal)
+            {
+                FailNextDisposal = false;
+                throw new IOException("Synthetic owned-resource disposal failure.");
+            }
 
             if (DisposeRelease is not null)
             {
