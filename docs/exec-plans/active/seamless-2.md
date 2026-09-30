@@ -13,7 +13,14 @@ public-prerelease, RC or stable acceptance. Phase 6A was integrated by
 the approved head `8a811b2080d139c4fe7956dd85a57da3bc5566f6` by merge
 commit `85197957352c1606ce4d96970bf7a20d3ee1f531` after all four required
 hosted jobs passed on that head. Phase 6C is being implemented locally on
-`2.0/p06c-desktop-ipc`; no Phase 6C phone validation or publication has occurred.
+`2.0/p06c-desktop-ipc`. Supervised validation of the frozen `gd9d12a12` package
+has started: visible startup/idle closure, USB profile association, primary
+USB media/control, recovery with Devices hidden and exact-child Desktop Stop
+were observed. Disabled fallback prevented observed Wi-Fi recovery, but Desktop
+reported an unexpected Stop failure after spontaneous child exit. Validation
+stopped before further Mirror launches; the remaining scenarios and final
+acceptance are pending.
+No Phase 6C publication has occurred.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -626,10 +633,10 @@ Phase 6C checkpoints, in dependency order:
 | --- | --- | --- |
 | 6C.1 | Select the explicit normal Desktop machine route and define old-bundle compatibility without silent fallback | Complete locally; old hash-valid bundle is incompatible, not downgraded |
 | 6C.2 | Validate machine contract metadata while preserving source, path and hash checks | Complete locally; canonical claim parity and synthetic package tests pass |
-| 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass, phone behavior unverified |
+| 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass. Hidden-page primary recovery and Desktop Stop observed on `gd9d12a12`; disabled-fallback terminal status requires review, and Focus/distinct active-close paths remain unverified. |
 | 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
 | 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Complete locally for source `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`; ZIP SHA-256 `e33c68d863dae2e700a1839e9bcb0df0546ce6affc1bc9535522bdc117533f00` |
-| 6C.6 | Prepare a supervised phone acceptance procedure against the exact artifact | [Procedure prepared](../../development/phase6c-manual-acceptance.md); no phone operation or Phase 6C acceptance claimed |
+| 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | [Recorded partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30): primary USB/recovery media and same-child identity, hidden-page presentation and Desktop Stop observed. Disabled fallback prevented observed recovery, but an unexpected terminal Stop-failure status requires review. Native-window close, normal Desktop close with an active mirror, and Focus remain pending. Structured lifecycle correlation has an external-access gap; no final acceptance claimed. |
 
 Phase 6B checkpoints, in dependency order:
 
