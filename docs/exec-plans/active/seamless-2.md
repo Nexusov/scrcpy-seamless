@@ -20,6 +20,11 @@ were observed. Disabled fallback prevented observed Wi-Fi recovery, but Desktop
 reported an unexpected Stop failure after spontaneous child exit. Validation
 stopped before further Mirror launches; the remaining scenarios and final
 acceptance are pending.
+The bounded terminal-status correction now distinguishes unsuccessful session
+results from automatic cleanup and explicit Stop. Both terminal/completion
+orders have red/green regressions; the [corrective artifact](../../development/phase6c-manual-acceptance.md#corrective-artifact-identity)
+requires separately supervised targeted retest. Original hardware results
+remain attached only to `gd9d12a12`.
 No Phase 6C publication has occurred.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
@@ -637,7 +642,7 @@ Phase 6C checkpoints, in dependency order:
 | 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
 | 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Complete locally for source `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`; ZIP SHA-256 `e33c68d863dae2e700a1839e9bcb0df0546ce6affc1bc9535522bdc117533f00` |
 | 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | [Recorded partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30): primary USB/recovery media and same-child identity, hidden-page presentation and Desktop Stop observed. Disabled fallback prevented observed recovery, but an unexpected terminal Stop-failure status requires review. Native-window close, normal Desktop close with an active mirror, and Focus remain pending. Structured lifecycle correlation has an external-access gap; no final acceptance claimed. |
-| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Automatic correction validated locally: lifecycle-first and completion-first red/green; six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Distinct clean-source artifact staging pending. Retain `gd9d12a12` and its incident unchanged; phone acceptance remains stopped, with no ADB or remote operations. |
+| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed. Original `gd9d12a12` and incident unchanged; targeted hardware retest and maintainer review remain pending, with no ADB or remote operations. |
 
 Phase 6B checkpoints, in dependency order:
 

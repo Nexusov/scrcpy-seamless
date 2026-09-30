@@ -265,10 +265,45 @@ only after current staging provenance checks; Desktop is rebuilt below. No
 phone operation, pairing, shared-ADB restart or real DEV configuration edit
 was performed.
 
-### Observation access and targeted retest proposal
+### Corrective artifact identity
+
+The corrective package was staged from clean committed source
+`1eafa0cfbbfe697af0ff70a33d4a1878852c3035`:
+`dist/dev/scrcpy-seamless-desktop-p06c-g1eafa0cf/`, with ZIP at the same path
+plus `.zip`. Self-contained Release `win-x64` Desktop publish, staging provenance,
+complete ZIP inventory and independent extraction verification passed. A
+read-only verification was repeated from outside the repository. Documentation
+follow-ups do not relabel or rebuild this artifact.
+Final artifact documentation passed DocsCheck (508 links in 81 tracked Markdown
+files) and diff validation; this documentation-only follow-up requires no rebuild.
+
+| Item | SHA-256 |
+| --- | --- |
+| Corrective ZIP | `517064f9224efadbc73a398249165bf3889e3c27566e477cd4ffbcd51d9bd0d9` |
+| Desktop executable | `774996f245a4637d9655104f6c19857a245a99440e5067b75aaad956404e591d` |
+| Desktop assembly | `0f1620ac6e7c6ced976d996dc14ea8f6cc18ad9cd9747c083c4948f42e24695b` |
+| Native executable | `4e5d085f9cec0816af1ef1ff3e1d207260642f4b6223d5bff6f53b1d90a98306` |
+| Android server | `a5e307a072dac91a766e929733d187c531d30271eb3a7b19cbd6923349685c47` |
+
+The package's `runtime/runtime-dev-manifest.json` records all 12 runtime hashes,
+origins and the unchanged v1 compatibility claim. All 12 hashes match the frozen
+`gd9d12a12` package. Native and server are reused source-built binaries, not
+newly rebuilt; staging verified native input fingerprint
+`4af64848c4b349810f3953b036dd52279f4e74d1a18d97be494bdccfb6944dc8` and server
+fingerprint `c731943be22482bfa4c19a1cd48d3aa2199621fbc5796cf3ba46f11c092a33e6`
+plus server build-source ancestry/unchanged inputs. ADB and its two DLLs, SDL,
+the four FFmpeg DLLs and two images remain reviewed imports. This consistency
+claim is not an observed handshake or new hardware evidence.
+
+The original ZIP also passed read-only verification and its executable,
+manifest and incident hashes remain the original values. Neither package
+contains DEV configuration or private incident evidence. Hardware retest of
+the corrective artifact remains pending.
+
+### Targeted retest and observation access
 
 After review and separate authorization, use the corrective package recorded
-below with the existing `.dev-data/p06c` root; do not reset saved settings or
+above with the existing `.dev-data/p06c` root; do not reset saved settings or
 restart shared ADB. Do not execute this proposal as part of corrective validation.
 
 1. Explicitly Apply disabled fallback while retaining USB identity, network
