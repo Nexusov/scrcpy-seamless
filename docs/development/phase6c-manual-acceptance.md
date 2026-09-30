@@ -1,5 +1,10 @@
 # Phase 6C DEV manual acceptance proposal
 
+The original run below is frozen against `gd9d12a12`. Current phone validation
+remains paused. The pending [consolidated evidence retest](#proposed-consolidated-supervised-retest)
+uses the separately identified `ge8ed3565` artifact after independent source
+review and separate hardware authorization; do not resume the old commands.
+
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped
 after an unexpected disabled-fallback terminal status; the observations below

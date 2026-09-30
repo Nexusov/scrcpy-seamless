@@ -25,7 +25,12 @@ results from automatic cleanup and explicit Stop. Both terminal/completion
 orders have red/green regressions; the [corrective artifact](../../development/phase6c-manual-acceptance.md#corrective-artifact-identity)
 requires separately supervised targeted retest. Original hardware results
 remain attached only to `gd9d12a12`.
-No Phase 6C publication has occurred.
+The explicit DEV evidence action is implemented and synthetically validated;
+its separately identified `ge8ed3565` package remains hardware-unverified.
+The maintainer authorized only work-branch upload for independent GitHub source
+review after outgoing-history review; the handoff records the verified remote
+tip and any observed hosted results. No Phase 6C PR, integration or release is
+authorized. The evidence retest remains separately supervised and paused.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
