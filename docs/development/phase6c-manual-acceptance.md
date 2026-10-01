@@ -6,9 +6,34 @@ used the existing `g3a99a1ed` artifact and completed its bounded sequence.
 Phase 6C remains unaccepted; further phone-backed checks require separate
 authorization. Do not resume the historical commands or transfer their results
 to another artifact.
-The later [single-session Focus retest](#supervised-focus-retest-blocked-before-native-launch-on-2026-10-01)
-on the frozen corrected g81fba9b1 package stopped at a pre-launch profile/endpoint
-comparison. No Focus or new media result was obtained.
+The first [corrected Focus attempt](#supervised-focus-retest-blocked-before-native-launch-on-2026-10-01)
+on g81fba9b1 acquired no native session because of a pre-launch profile/endpoint
+comparison. A separately authorized endpoint-only Save/Apply enabled the
+[completed USB/Focus/Stop session](#supervised-corrected-focus-session-on-2026-10-01)
+on those same frozen bytes. Configuration remained unchanged relative to that
+authorized Apply, not the pre-update profile. The bounded foreground observation
+supports closing the observed Focus finding for this normal USB session;
+Windows foreground activation is still best effort. Hosted checks, final review
+and a separate acceptance/integration decision remain pending.
+
+## Current artifact evidence and review gates
+
+| Category | Evidence and current boundary |
+| --- | --- |
+| gd9d12a12 | [Original observations](#supervised-observations-on-2026-09-30): startup, USB media/control, hidden-page recovery and explicit Stop; disabled fallback ended the child but exposed misleading automatic Stop-failure presentation. Historical incident remains preserved; subsequent corrections do not relabel its results. |
+| g3a99a1ed | [Corrective retest](#supervised-corrective-retest-on-2026-10-01) and [window continuation](#supervised-focus-activation-and-close-continuation-on-2026-10-01): disabled fallback, USB media, recovery with Settings visible, ordered attempts/exact identity, explicit Stop, same-root activation, WindowClosed cleanup and active-Desktop closure. First visual Focus was unobserved; the separately authorized second did not raise the mirror. |
+| g81fba9b1 | [Completed targeted session](#supervised-corrected-focus-session-on-2026-10-01): one USB session, three media channels confirmed before/after one ordinary Focus, exact-native foreground transfer, unchanged session/child, explicit UserStop/ExplicitStop/Succeeded cleanup and idle closure. Native bytes differ from g3a99a1ed; recovery, disabled-fallback, activation and distinct active-close results are not transferred. Frozen source is 81fba9b17843fae03b18812bb7bae831e13d540a; ZIP/component hashes remain in the [artifact table](#corrected-focus-artifact-and-validation-boundary). |
+| Observation/review sources | Maintainer confirmed video/control/audible PC audio; the operator's bounded read-only trace measured foreground (300 samples over about 18.9 seconds) and a later screenshot showed the raised mirror. No separate maintainer visual Focus report exists. The external reviewer read the acceptance record and previously inspected the correction, but did not execute this hardware run or independently inspect its raw snapshots/foreground trace. Permission return, per-request wire acknowledgement, exit code, escalation and phone-side cleanup remain unavailable. |
+| Previous local automated checks | [Initial composition validation, checkpoint 6C.4](../exec-plans/active/seamless-2.md) and [Focus correction validation](#bounded-no-phone-focus-investigation-on-2026-10-01) retain source/input-specific results. The latter reports 527 solution tests, eight separate process/parent-death tests and 18 Meson tests; the subsequent frozen-package check reran eight process cases against its rebuilt native entry point. These are earlier executions, not fresh runs for this documentation task. The interactive synthetic Focus experiment is separate from unattended CI and phone validation. |
+| Hosted validation | Pending ordinary pull_request checks on the final review candidate: test, native, android-server and desktop. Record actual final head/base, run/event/attempt and tested checkout in the PR/handoff, without moving the validated source tip merely to record outcomes. CI's native-backed legacy ZIP is not the frozen Desktop DEV ZIP. |
+| Remaining coverage | Screen-reader, multi-monitor DPI, cold-start discovery on this machine artifact, unavailable-Wi-Fi, stress/soak and phone-backed abnormal-parent-death behavior remain unverified. [R05/R06/R07/R12/R15](../architecture/SEAMLESS_2_RISK_REGISTER.md) retain Phase 7 lifetime, Phase 8 reconnect/channel-readiness and Phase 12 hardening work; shared ADB and intermittent fixture/observer observations remain bounded risks. |
+| Separate compatibility finding | The reported time-limit="0" mismatch remains open: Core NativeLaunchPreflight treats a non-empty time-limit string as reconnect-incompatible while native checks the parsed numeric deadline. This task neither reproduces nor fixes it. A separately authorized compatibility follow-up and its integration disposition require maintainer review; no non-blocking acceptance or Phase 7/8 reassignment is implied. |
+
+This review preparation changes documentation only. Applicable AGENTS and the
+runtime guide already describe the ownership/contracts; no instruction or
+runtime-input change is needed. All granular commits, historical packages and
+local raw evidence remain preserved. The DEV ZIP stays local and is neither
+rebuilt nor uploaded. Hardware checks are not repeated for documentation changes.
 
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped
