@@ -50,10 +50,15 @@ best-effort native outcomes and existing ownership; see the
 [investigation record](../../development/phase6c-manual-acceptance.md#bounded-no-phone-focus-investigation-on-2026-10-01).
 Fresh 527 .NET, 8 process and 18 native tests pass. The clean-source corrected
 `g81fba9b1` package passed ZIP/inventory/provenance checks and eight process
-checks against its rebuilt native entry point. This artifact still
-requires separate source review and a minimal authorized Focus retest; historical
-hardware results are not transferred. This task permits only a reviewed normal
-push of the work branch, with no PR, integration or release.
+checks against its rebuilt native entry point. Independent static review found
+no blocking correction issue; it is not a fresh Windows run or hardware pass.
+The authorized [single-session Focus retest](../../development/phase6c-manual-acceptance.md#supervised-focus-retest-blocked-before-native-launch-on-2026-10-01)
+verified the frozen bytes and idle startup, then stopped when the one USB Mirror
+attempt hit the committed-profile/selected-endpoint comparison. No child,
+media result, Focus invocation or Stop result was obtained. Historical hardware
+results are not transferred; Focus validation and final acceptance remain pending.
+Only local documentation changes are authorized in this validation task; the
+earlier single-branch push permission does not carry forward.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 

@@ -6,6 +6,9 @@ used the existing `g3a99a1ed` artifact and completed its bounded sequence.
 Phase 6C remains unaccepted; further phone-backed checks require separate
 authorization. Do not resume the historical commands or transfer their results
 to another artifact.
+The later [single-session Focus retest](#supervised-focus-retest-blocked-before-native-launch-on-2026-10-01)
+on the frozen corrected g81fba9b1 package stopped at a pre-launch profile/endpoint
+comparison. No Focus or new media result was obtained.
 
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped
@@ -880,3 +883,81 @@ running evidence before the single Focus, separate the fresh command outcome
 from observed foreground behavior, preserve exact identity and settle the one
 session normally. A platform denial remains best effort and requires explicit
 review disposition rather than retries until success. Phase 6C remains unaccepted.
+
+### Supervised Focus retest blocked before native launch on 2026-10-01
+
+Independent static review found no blocking issue in the published exact-child
+permission correction. It did not provide an independently executed Windows
+test run, phone-backed Focus evidence or final acceptance. This supervised task
+started with clean branch `2.0/p06c-desktop-ipc` at reviewed HEAD
+`833988560a2d43dfbb4125799869a7807b7325f5`. Only this record and the execution
+plan differed from frozen package source
+`81fba9b17843fae03b18812bb7bae831e13d540a`.
+
+The existing g81fba9b1 ZIP SHA-256 remained
+`cc31ca51a770266bbed79d2be1ab69ae1fd8a2ae1acc4f2af3dfcd6bb4805660`.
+Fresh independent VerifyOnly extraction passed. Actual intended-run-directory
+hashing matched every prescribed EXE/DLL, including Infrastructure and the
+newly rebuilt native, both inventory documents, server and all 248 package/12
+runtime entries. This is external artifact verification; the copied production
+snapshot's BuildIdentity verification field was not changed to manufacture it.
+Nothing was rebuilt, relabelled or substituted. Earlier packages, manifests,
+incident records, hardware snapshots and synthetic Focus evidence remain intact.
+
+The maintainer confirmed readiness and computer-use approval for the bounded
+USB sequence, including one ordinary pointer Focus click by the operator.
+USB remained attached; the existing committed profile was selected without
+editing settings or fallback. One visible responsive idle Desktop started from
+the exact package with the existing isolated root and no native child. Its
+PID was 61712, creation `2026-10-01T18:09:47.0341293Z`, HWND 8265980.
+
+| Checkpoint | Actual observation and limit |
+| --- | --- |
+| Idle startup | Correct explicit machine host and local data scope were visible; no automatic native child was found. |
+| Route/profile selection | One explicit Refresh completed; the USB route with Device state was explicitly selected, then the existing saved DEV profile. Configuration files were not edited. |
+| One Mirror click | UI reported `Selected Wi-Fi endpoint differs from the saved profile; Apply the intended endpoint first.` The selected observation still described a USB route. No second Mirror was attempted. |
+| Acquired native session | None. The native PID field remained empty, and the read-only exact-package process query found zero native processes. |
+| Video, PC control, audible PC audio | Not tested on this artifact in this run; no running mirror existed. Earlier g3a99a1ed results are not transferred. |
+| Focus | Zero invocations. No fresh FocusStatus, foreground measurement or visual Focus result exists. Grant return, wire acknowledgement and native platform result remain unknown. |
+| Desktop Stop | Zero invocations; no acquired session existed. No successful Stop or session-cleanup result is claimed. |
+
+Source inspection located the emitted message in
+DeviceSessionViewModel's committed-profile comparison: a non-null selected
+connection endpoint unequal to the committed profile endpoint returns before
+NativeLaunchPreflight and host startup. This establishes the observed pre-launch
+boundary, not a native/IPC/Focus defect or a complete cause for the mismatch.
+Configuration contents and private endpoint values were not published. The
+task stopped before another Mirror, profile change or retry; resumption needs a
+separate decision about the intended endpoint/profile preparation.
+
+One explicit Copy session evidence action reported success. Its fresh 1,639-byte
+version-1 snapshot, captured `2026-10-01T18:13:31.1487317+00:00`, retained
+ObservationStage NoSession, null SessionId/ProcessId, handshake NotRecorded,
+NativeReadyObserved false, lifecycle total/retained/omitted counts zero,
+SessionResult NotRecorded, Cleanup NotStarted/intent None and Stop NotRequested.
+No old clipboard result or terminal result was substituted. Snapshot SHA-256:
+`52aa6a4fd078ec9ece602ac22bb743e6dcb0b2bb970753c414bcaa187a9000b0`.
+
+New bounded local records are retained without overwrite under ignored
+`work/phase6c/focus-retest-g81fba9b1-20261001T180902Z-7d48e43a/`:
+preflight, exact Desktop identity, separate blocked-launch UI/process
+observation, explicit NoSession snapshot and preservation checks. Known
+configuration and backup bytes matched preflight. The shared ADB retained PID
+16592, the exact original DEV executable and creation instant
+`2026-10-01T14:33:40.2774010Z`; the read-only listener query still identified that
+PID on port 5037. No independent ADB command or shared-server restart occurred.
+A preliminary preservation flag was invalid because JSON DateTime coercion
+followed by implicit string formatting lost fractional precision. Its original
+record remains retained; `06-preservation-identity-validated.json` supersedes
+that flag using DateKind String and invariant offset-aware full UTC-tick
+comparison. Original timestamps were not rounded or overwritten.
+
+Desktop remains idle with no acquired child while normal closure is awaiting
+the maintainer's decision. This is not an active-mirror close test. No phone
+recovery, pairing, activation, close campaign, stress, new test run or production
+change occurred. Focus and the requested USB/Focus/Stop sequence remain pending;
+Phase 6C remains unaccepted. AGENTS/docs impact is limited to observed validation
+and current status; no architecture, protocol, ownership, path or workflow changed,
+so no AGENTS/runtime-guide edit is required. Documentation checks do not establish
+hosted CI or hardware acceptance. This task permits only local documentation
+commits; no remote publication is authorized.
