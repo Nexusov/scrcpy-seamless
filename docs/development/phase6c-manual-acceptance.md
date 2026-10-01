@@ -3,9 +3,12 @@
 The original run below is frozen against `gd9d12a12`. The separately authorized
 [two-session corrective retest](#supervised-corrective-retest-on-2026-10-01)
 used the existing `g3a99a1ed` artifact and completed its bounded sequence.
-Phase 6C remains unaccepted; further phone-backed checks require separate
-authorization. Do not resume the historical commands or transfer their results
-to another artifact.
+Phase 6C is accepted for engineering integration and continued development by
+the [maintainer decision](https://github.com/Nexusov/scrcpy-seamless/pull/12#issuecomment-5939687829)
+and integrated through PR #12 merge
+`f08e603f0a4187b227c67a1eec4d845b814e095e`. This is not public prerelease, RC
+or stable acceptance. Further phone-backed checks require separate authorization.
+Do not resume the historical commands or transfer their results to another artifact.
 The first [corrected Focus attempt](#supervised-focus-retest-blocked-before-native-launch-on-2026-10-01)
 on g81fba9b1 acquired no native session because of a pre-launch profile/endpoint
 comparison. A separately authorized endpoint-only Save/Apply enabled the
@@ -13,8 +16,15 @@ comparison. A separately authorized endpoint-only Save/Apply enabled the
 on those same frozen bytes. Configuration remained unchanged relative to that
 authorized Apply, not the pre-update profile. The bounded foreground observation
 supports closing the observed Focus finding for this normal USB session;
-Windows foreground activation is still best effort. Hosted checks, final review
-and a separate acceptance/integration decision remain pending.
+Windows foreground activation is still best effort. The accepted integration
+preserves all artifact-specific coverage limits and unavailable observations.
+
+The merge's ordered parents are
+`85197957352c1606ce4d96970bf7a20d3ee1f531` and
+`9f0dd98d8395fc20f6708cd2d1882268b6cd28c3`; its reviewed tree is
+`fbdd7bca5e99c0d32e76fcf3f13196f1c5d68813`. All 20 work commits remain in
+its ancestry. The earlier checkpoints below retain their pending-at-the-time
+status; this current decision does not retroactively change their observations.
 
 ## Current artifact evidence and review gates
 
@@ -24,16 +34,17 @@ and a separate acceptance/integration decision remain pending.
 | g3a99a1ed | [Corrective retest](#supervised-corrective-retest-on-2026-10-01) and [window continuation](#supervised-focus-activation-and-close-continuation-on-2026-10-01): disabled fallback, USB media, recovery with Settings visible, ordered attempts/exact identity, explicit Stop, same-root activation, WindowClosed cleanup and active-Desktop closure. First visual Focus was unobserved; the separately authorized second did not raise the mirror. |
 | g81fba9b1 | [Completed targeted session](#supervised-corrected-focus-session-on-2026-10-01): one USB session, three media channels confirmed before/after one ordinary Focus, exact-native foreground transfer, unchanged session/child, explicit UserStop/ExplicitStop/Succeeded cleanup and idle closure. Native bytes differ from g3a99a1ed; recovery, disabled-fallback, activation and distinct active-close results are not transferred. Frozen source is 81fba9b17843fae03b18812bb7bae831e13d540a; ZIP/component hashes remain in the [artifact table](#corrected-focus-artifact-and-validation-boundary). |
 | Observation/review sources | Maintainer confirmed video/control/audible PC audio; the operator's bounded read-only trace measured foreground (300 samples over about 18.9 seconds) and a later screenshot showed the raised mirror. No separate maintainer visual Focus report exists. The external reviewer read the acceptance record and previously inspected the correction, but did not execute this hardware run or independently inspect its raw snapshots/foreground trace. Permission return, per-request wire acknowledgement, exit code, escalation and phone-side cleanup remain unavailable. |
-| Previous local automated checks | [Initial composition validation, checkpoint 6C.4](../exec-plans/active/seamless-2.md) and [Focus correction validation](#bounded-no-phone-focus-investigation-on-2026-10-01) retain source/input-specific results. The latter reports 527 solution tests, eight separate process/parent-death tests and 18 Meson tests; the subsequent frozen-package check reran eight process cases against its rebuilt native entry point. These are earlier executions, not fresh runs for this documentation task. The interactive synthetic Focus experiment is separate from unattended CI and phone validation. |
-| Hosted validation | Pending ordinary pull_request checks on the final review candidate: test, native, android-server and desktop. Record actual final head/base, run/event/attempt and tested checkout in the PR/handoff, without moving the validated source tip merely to record outcomes. CI's native-backed legacy ZIP is not the frozen Desktop DEV ZIP. |
+| Previous local automated checks | [Initial composition validation, checkpoint 6C.4](../exec-plans/active/seamless-2.md) and [Focus correction validation](#bounded-no-phone-focus-investigation-on-2026-10-01) retain source/input-specific results. The latter reports 527 solution tests, eight separate process/parent-death tests and 18 Meson tests; the subsequent frozen-package check reran eight process cases against its rebuilt native entry point. These are earlier executions, not fresh runs for this source-only compatibility task. The interactive synthetic Focus experiment is separate from unattended CI and phone validation. |
+| Hosted validation | PR [run 36912915271](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36912915271), pull_request, attempt 1: test, native, android-server and desktop succeeded on synthetic checkout `1d6c2828242dd36529a0c7cd39846ac5c6afc863`, with head `9f0dd98d8395fc20f6708cd2d1882268b6cd28c3` and base `85197957352c1606ce4d96970bf7a20d3ee1f531`. Separately observed post-merge [run 36920087526](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36920087526), push, attempt 1, head `f08e603f0a4187b227c67a1eec4d845b814e095e`: all four jobs completed successfully. These are baseline executions, not fresh validation of issue #13's changed Core source. CI's native-backed legacy ZIP is not the frozen Desktop DEV ZIP. |
 | Remaining coverage | Screen-reader, multi-monitor DPI, cold-start discovery on this machine artifact, unavailable-Wi-Fi, stress/soak and phone-backed abnormal-parent-death behavior remain unverified. [R05/R06/R07/R12/R15](../architecture/SEAMLESS_2_RISK_REGISTER.md) retain Phase 7 lifetime, Phase 8 reconnect/channel-readiness and Phase 12 hardening work; shared ADB and intermittent fixture/observer observations remain bounded risks. |
-| Separate compatibility finding | The reported time-limit="0" mismatch remains open: Core NativeLaunchPreflight treats a non-empty time-limit string as reconnect-incompatible while native checks the parsed numeric deadline. This task neither reproduces nor fixes it. A separately authorized compatibility follow-up and its integration disposition require maintainer review; no non-blocking acceptance or Phase 7/8 reassignment is implied. |
+| Separate compatibility finding | [Issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13) remains open: at the accepted merge, the inherited preflight checked string presence instead of the effective numeric deadline. The maintainer made it temporarily non-blocking only for PR #12's merge, without accepting that behavior as correct. The separately authorized `2.0/fix-time-limit-zero` source correction is being prepared for independent review; Phase 7 implementation and any public 2.0 prerelease remain blocked until the correction is reviewed and separately integrated. No Phase 7/8 reassignment or issue closure is implied. |
 
-This review preparation changes documentation only. Applicable AGENTS and the
-runtime guide already describe the ownership/contracts; no instruction or
-runtime-input change is needed. All granular commits, historical packages and
-local raw evidence remain preserved. The DEV ZIP stays local and is neither
-rebuilt nor uploaded. Hardware checks are not repeated for documentation changes.
+This current-status reconciliation does not alter the historical hardware
+evidence or runtime ownership/contracts. All granular commits, historical
+packages and local raw evidence remain preserved. The DEV ZIP stays local and
+is neither rebuilt nor uploaded; its frozen source still contains the earlier
+preflight behavior and does not acquire the later issue #13 correction. Hardware
+checks are not repeated for the source-only compatibility task.
 
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped

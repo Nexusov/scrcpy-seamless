@@ -331,6 +331,60 @@ static bool parse_numeric_option(char *option, char *value,
     return scrcpy_parse_args(args, ARRAY_LEN(argv), argv);
 }
 
+// Check effective time limits independently of managed reconnect preflight.
+static void test_time_limit_numeric_values(void) {
+    struct scrcpy_cli_args defaults = {
+        .opts = scrcpy_options_default,
+    };
+    char *default_argv[] = {"scrcpy"};
+    assert(scrcpy_parse_args(&defaults, ARRAY_LEN(default_argv), default_argv));
+    assert(!defaults.opts.time_limit);
+
+    struct {
+        char *value;
+        bool accepted;
+        unsigned seconds;
+    } cases[] = {
+        {"0", true, 0},
+        {"00", true, 0},
+        {"0x0", true, 0},
+        {"0X0", true, 0},
+        {"+0", true, 0},
+        {"-0", true, 0},
+        {"1", true, 1},
+        {"010", true, 8},
+        {"0x10", true, 16},
+        {"2147483647", true, INT32_MAX},
+        {"", false, 0},
+        {"08", false, 0},
+        {"0x", false, 0},
+        {"0.0", false, 0},
+        {"-1", false, 0},
+        {"2147483648", false, 0},
+        {"999999999999999999999999", false, 0},
+        {"+", false, 0},
+        {"-", false, 0},
+        // Native strtol accepts leading whitespace; Core deliberately does not.
+        {" 0", true, 0},
+        {"\t+0", true, 0},
+        {"0 ", false, 0},
+        {" ", false, 0},
+    };
+
+    for (size_t index = 0; index < ARRAY_LEN(cases); ++index) {
+        struct scrcpy_cli_args args = {
+            .opts = scrcpy_options_default,
+        };
+        bool accepted = parse_numeric_option("--time-limit", cases[index].value,
+                                             &args);
+        assert(accepted == cases[index].accepted);
+
+        if (accepted) {
+            assert(args.opts.time_limit == SC_TICK_FROM_SEC(cases[index].seconds));
+        }
+    }
+}
+
 // Characterize the actual native port grammar and effective sorted endpoints.
 static void test_port_range_components(void) {
     struct {
@@ -558,6 +612,7 @@ int main(int argc, char *argv[]) {
     test_options();
     test_options2();
     test_flex_display_window_dimensions();
+    test_time_limit_numeric_values();
     test_audio_output_buffer_boundaries();
     test_port_range_components();
     test_max_size_boundaries();
