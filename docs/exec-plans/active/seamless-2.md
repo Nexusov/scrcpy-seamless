@@ -48,7 +48,9 @@ foreground transfer, then observed transfer after an exact-child Windows
 permission handoff. A minimal Infrastructure correction and regression retain
 best-effort native outcomes and existing ownership; see the
 [investigation record](../../development/phase6c-manual-acceptance.md#bounded-no-phone-focus-investigation-on-2026-10-01).
-Fresh 527 .NET, 8 process and 18 native tests pass. The corrected artifact still
+Fresh 527 .NET, 8 process and 18 native tests pass. The clean-source corrected
+`g81fba9b1` package passed ZIP/inventory/provenance checks and eight process
+checks against its rebuilt native entry point. This artifact still
 requires separate source review and a minimal authorized Focus retest; historical
 hardware results are not transferred. This task permits only a reviewed normal
 push of the work branch, with no PR, integration or release.

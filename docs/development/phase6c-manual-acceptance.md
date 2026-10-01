@@ -824,3 +824,59 @@ the same session/child identity. Preserve evidence and pause on an unexpected
 result. No recovery, pairing, activation or close campaign is proposed; normal
 cleanup after the single session remains required. Phase 6C is unaccepted and
 phone-backed validation is paused.
+
+#### Corrected Focus artifact and validation boundary
+
+The clean committed corrective source is
+`81fba9b17843fae03b18812bb7bae831e13d540a`. The separately staged package is
+`dist/dev/scrcpy-seamless-desktop-p06c-g81fba9b1/`, with local application ZIP
+`dist/dev/scrcpy-seamless-desktop-p06c-g81fba9b1.zip`. Source review uses the
+work branch, not a source archive. Independent ZIP extraction/VerifyOnly and
+actual hashing of all 248 package inventory entries and 12 runtime entries
+passed. A subsequent documentation-only commit does not relabel this source.
+
+| File | SHA-256 |
+| --- | --- |
+| Application ZIP | `cc31ca51a770266bbed79d2be1ab69ae1fd8a2ae1acc4f2af3dfcd6bb4805660` |
+| Desktop EXE | `8e1eee84525f509e73f6577f8c3bbeb6633a40e4500c396e65eda67636e72ded` |
+| Desktop DLL | `48c5f7e4063972e32093d622a20f642205ecbc2bc244e4b507edd748f7a2c46f` |
+| Infrastructure DLL | `2f3633bfdc241ef35a57effb0090baa7341b34f415129e1c30420b037a4fc915` |
+| Package inventory | `3e4e1b59ea4ee31b6d3ab78b209f672651b91106f7e750226c6f92cc0a0d10b2` |
+| Runtime inventory | `55e44dd5132a408ce745c06ec97dcc95a8302f641b3f77a1491d8f7791830aff` |
+| Native executable | `42f511431b07b8cb27ccaedcf46c80543d2a5e8f99e56c712ec7cb2896cdc0f5` |
+| Android server | `a5e307a072dac91a766e929733d187c531d30271eb3a7b19cbd6923349685c47` |
+
+Desktop was freshly published. The optional native test-window input changed
+the canonical native fingerprint, so the production executable was rebuilt
+from the same clean corrective source even though production native sources
+remain identical to g3a99a1ed. Its bytes/hash differ; no byte-identical rebuild
+or historical hardware coverage is claimed. Canonical native provenance passed.
+Server source history/fingerprint/hash and reviewed imported components passed
+the existing staging provenance checks. Comparing runtime inventories against
+g3a99a1ed found only scrcpy.exe changed: server, ADB, SDL, FFmpeg and both image
+assets remain byte-identical. No shared ADB process was operated.
+
+Eight separate process tests passed again using the new package's production
+native entry point and DLLs plus the separately linked no-device fixture.
+This distinguishes malformed-bootstrap entry checks from fixture handshake,
+Focus/Stop and parent-death tests; it is not a device-enabled Mirror run.
+SpecGen, build metadata, warning-free builds, DocsCheck and diff checks passed.
+Unchanged cross-language codec and legacy-suite results remain earlier evidence,
+not fresh executions in this task. The new package was not launched against a
+phone; its foreground and media behavior still require the single proposed
+authorized USB Focus session. All earlier artifacts/evidence remain preserved.
+
+After source review and separate readiness approval, use this exact package
+with the existing isolated root, without changing the profile or fallback:
+
+```powershell
+$package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p06c-g81fba9b1'
+& "$package\ScrcpySeamless.Desktop.exe" '--dev-data-dir=D:\My Projects\scrcpy-seamless\.dev-data\p06c' "--device-runtime=$package\runtime" --page=devices
+```
+
+This is a proposed future command, not an executed phone operation. Do not
+repeat pairing, recovery, same-root activation or the close campaign. Capture
+running evidence before the single Focus, separate the fresh command outcome
+from observed foreground behavior, preserve exact identity and settle the one
+session normally. A platform denial remains best effort and requires explicit
+review disposition rather than retries until success. Phase 6C remains unaccepted.
