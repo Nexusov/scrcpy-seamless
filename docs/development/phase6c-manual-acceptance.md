@@ -652,3 +652,75 @@ architecture, lifecycle invariant, protocol, configuration, path or workflow
 changed, so no AGENTS or runtime-guide edit is required. Documentation-only
 validation uses DocsCheck and diff checks; the prior automated totals remain
 historical evidence rather than fresh test runs.
+
+### Supervised Focus, activation and close continuation on 2026-10-01
+
+This continuation reused the exact `g3a99a1ed` package and isolated
+`.dev-data/p06c` root. Starting local branch `2.0/p06c-desktop-ipc` was clean at
+`ba7be25761a62c272eb369c21638611c5319c65f`. Only the acceptance record and
+execution plan differed from frozen artifact source
+`3a99a1ed27fc4439d0c616182f9e8199563f0b5e`. Fresh independent VerifyOnly
+extraction passed; actual file hashing matched all seven prescribed artifact
+hashes above, all 248 package entries and all 12 runtime entries. No artifact
+was rebuilt or relabelled. The local tracking ref remained `1bb4f4d`; this task
+did not independently query the remote or perform any remote operation.
+
+The verified primary Desktop was reused with PID 7752, creation
+`2026-10-01T14:20:50.0048660Z` and HWND 4325912. Initially it retained the prior
+completed session, with no owned native child; no fresh NoSession result was
+required. The maintainer confirmed readiness and computer-use authorization,
+kept USB attached, and confirmed live video, PC control and audible PC audio
+in both new sessions. Profile, fallback=true and mirroring settings were not
+edited. The completed USB-disconnect/recovery sequence was not repeated.
+
+| Action | Observed result and limits |
+| --- | --- |
+| Focus command | The existing FocusStatus reported `Focus request ran; Windows foreground activation is not guaranteed.` Session A retained its SessionId, native PID/creation/HWND, one connection attempt and lifecycle sequences 1–3. No additional child or configuration change was observed. This UI outcome reports a focus attempt; it is not a retained wire acknowledgement. |
+| Actual Focus foreground | Not obtained in the observed second invocation. The maintainer did not watch the first invocation, so its visual result remains unverified. The maintainer explicitly requested one additional invocation and confirmed readiness before that second click, then reported that the mirror did not come above the other windows. Native captures were partly occluded and do not independently establish foreground success. No external native focus helper was used and no further retry was performed. The cause is not established; visual Focus is not marked passed. |
+| Same-root activation | After ordinary primary minimization, one secondary Desktop was launched from the same package with the same canonical data root and device-enabled arguments. A nonactivating computer-use capture showed the restored primary before another UI action. Secondary PID 39856, creation `2026-10-01T15:49:21.4892723Z`, exited within the finite ten-second observation. Exact-package process observations found one original Desktop and one unchanged native child. The retained snapshot still had the same session, attempt and sequences 1–3. This checks ShowControlCenter; it does not require mirror focus. |
+| Ordinary native-window close | One native title-bar close, with no Desktop Stop click, produced Status `Native session ended: WindowClosed.` The same-session snapshot retained WindowClosed, Cleanup Succeeded, initiating intent AutomaticTerminal, StopCallState Succeeded with requested reason WindowClosed, ExactChildExitObserved true and OwnershipReleased true. Independent observations found the original native PID absent and zero replacement children; Desktop remained alive and responsive. Internal cleanup success is separate from user Stop intent. |
+| Active Desktop close | After maintainer review of session A, one new USB session B was started and its running snapshot saved. One ordinary primary title-bar close, without Stop or native-window close first, closed both windows. Within a finite twenty-second observation the exact primary and native processes were absent, with no persistent secondary or replacement exact-package child. The shared ADB server retained its PID, exact executable and creation instant. Configuration bytes were unchanged. No Desktop was reopened to obtain a final snapshot. |
+
+Session A was `4326fc8a-ae65-4d0e-9a51-4f7c9342df4b`, native PID 62364,
+creation `2026-10-01T15:34:10.3509380Z`, HWND 23794216, and attempt
+`1c8d721d-8abc-4aac-8879-ef28be2f042e`. Its final retained sequence range 1–4
+was NativeReady → Connecting → StreamStarted → SessionStopped (WindowClosed),
+with zero omissions. Session B was `52217f42-422a-401d-9fef-88b90b30427f`,
+native PID 56988, creation `2026-10-01T15:53:01.0411290Z`, HWND 6226470,
+and attempt `788a955b-3f46-4d2d-bf5e-3a06275ced2d`. Its pre-close snapshot
+retained sequences 1–3. Both snapshots recorded accepted actual handshakes for
+product `scrcpy-seamless`, protocol 1.0 and capabilities `focus-window`,
+`lifecycle-v1`, `stop`, with zero omitted capabilities. Session identity is
+preserved within A; B is a deliberately new session, not a continuity claim.
+
+Five explicit version-1 snapshots and separate process/observation records are
+retained without overwrite in ignored local
+`work/phase6c/windows-g3a99a1ed-20261001T153212Z-22e8eb0d/`. All snapshots are
+below 64 KiB. Original process timestamp text was preserved; comparisons used
+typed UTC instants with invariant offset-aware parsing and full available
+precision. Hash checks confirmed that the prior six snapshots and definitive
+`05-identity-validated.json` remained unchanged. A computer-use input guard
+interrupted preparation of B's Copy action; a refreshed observation and explicit
+successful Copy retained the same B session, without another Mirror or product
+retry. The stale clipboard identity was rejected instead of being accepted as
+B evidence.
+
+After Desktop exit, B's final typed reason, cleanup outcome and initiating
+intent are unavailable. Exact process exit ordering was not observed. Exit
+codes, wire Stop queued/written/acknowledged, escalation and phone-side cleanup
+remain unknown; process absence does not independently establish all owned
+resource settlement. A's typed managed cleanup success comes from its retained
+owner snapshot, not from process absence alone. Ordinary Desktop closure is not
+abnormal-parent-death coverage. Media evidence remains the maintainer's channel
+confirmation, separate from native lifecycle readiness.
+
+Desktop and Mirror are left closed. Shared ADB was not restarted, paired or
+stopped. The original configuration hash still matches. Historical packages,
+manifests and incident evidence remain preserved. Focus foreground behavior and
+its cause require review; fresh Phase 6C hosted checks and final acceptance
+remain pending. No additional hardware campaign, production change, publication,
+integration or Phase 7/8 work occurred. AGENTS/docs impact is limited to recorded
+validation and current checkpoint status; no architecture, protocol, lifecycle
+invariant, path or workflow changed, so AGENTS and the runtime guide need no
+edit. DocsCheck, diff and privacy review validate this documentation change;
+earlier automated totals are not represented as rerun here.
