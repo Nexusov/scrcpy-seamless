@@ -56,7 +56,20 @@ The authorized [single-session Focus retest](../../development/phase6c-manual-ac
 verified the frozen bytes and idle startup, then stopped when the one USB Mirror
 attempt hit the committed-profile/selected-endpoint comparison. No child,
 media result, Focus invocation or Stop result was obtained. Historical hardware
-results are not transferred; Focus validation and final acceptance remain pending.
+results were not transferred; at that checkpoint Focus validation and final
+acceptance remained pending.
+The separately authorized [resumed Focus session](../../development/phase6c-manual-acceptance.md#supervised-corrected-focus-session-on-2026-10-01)
+updated only the existing DEV profile connection endpoint through Save/Apply,
+then acquired one USB session on the same frozen `g81fba9b1` package. The
+maintainer confirmed video/control/audible PC audio before and after one
+ordinary operator Focus click. A bounded nonactivating observer measured exact
+native foreground transfer; fresh FocusStatus remains an attempt outcome.
+Session/child identity stayed unchanged. One Desktop Stop retained UserStop,
+ExplicitStop and successful typed managed cleanup; exact-child exit, no
+replacement, idle Desktop closure and shared ADB preservation were observed.
+The targeted USB/Focus/Stop retest is complete within these exact-artifact limits;
+older recovery/activation/close evidence is not transferred to the rebuilt native.
+Hosted validation and final Phase 6C acceptance remain pending.
 Only local documentation changes are authorized in this validation task; the
 earlier single-branch push permission does not carry forward.
 Phases 7–13 have not started.
@@ -677,7 +690,7 @@ Phase 6C checkpoints, in dependency order:
 | 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | The [original partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30) remains frozen on `gd9d12a12`; its automatic terminal status prompted the bounded correction. The separately authorized [corrective two-session run](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) and [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) on `g3a99a1ed` recorded media, ordered identity, disabled fallback, recovery, explicit Stop, same-root activation, WindowClosed with typed successful cleanup and active-Desktop-close with exact exits. Focus foreground was not obtained in the observed invocation and requires review. No final acceptance claimed. |
 | 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed; that earlier package remains hardware-unverified. Original `gd9d12a12` and incident are unchanged. The later evidence-capable `g3a99a1ed` retest is recorded under 6C.8; final acceptance remains pending. |
 
-| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Independent static review closed the bounded initiator finding. Existing red/green and 34 owner cases remain automated evidence. The exact `g3a99a1ed` [supervised retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) captured the six corrective checkpoints. The [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) retained five additional bounded snapshots for two new USB sessions, including unchanged A identity through Focus/activation, WindowClosed with successful cleanup and B's pre-Desktop-close evidence. No final typed B result was invented after Desktop exit. Wire/exit-code/escalation unknowns remain explicit. Focus foreground review and hosted validation remain pending; Phase 6C is unaccepted and further phone testing is paused. |
+| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Independent static review closed the bounded initiator finding. Existing red/green and 34 owner cases remain automated evidence. The exact `g3a99a1ed` [supervised retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) captured the six corrective checkpoints. The [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) retained five additional bounded snapshots for two new USB sessions, including unchanged A identity through Focus/activation, WindowClosed with successful cleanup and B's pre-Desktop-close evidence. No final typed B result was invented after Desktop exit. The separately corrected `g81fba9b1` [targeted USB/Focus/Stop session](../../development/phase6c-manual-acceptance.md#supervised-corrected-focus-session-on-2026-10-01) retained three snapshots, independent media confirmations, measured exact-child foreground transfer after one click and successful explicit Stop cleanup. Older hardware coverage is not transferred. Wire/exit-code/escalation unknowns remain explicit. Hosted validation and final acceptance remain pending; Phase 6C is unaccepted and further phone testing is paused. |
 
 Phase 6B checkpoints, in dependency order:
 

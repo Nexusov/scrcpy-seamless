@@ -961,3 +961,118 @@ and current status; no architecture, protocol, ownership, path or workflow chang
 so no AGENTS/runtime-guide edit is required. Documentation checks do not establish
 hosted CI or hardware acceptance. This task permits only local documentation
 commits; no remote publication is authorized.
+
+### Supervised corrected Focus session on 2026-10-01
+
+The maintainer separately authorized updating only the existing DEV profile's
+connection endpoint and resuming the blocked retest. The same primary Desktop
+and frozen g81fba9b1 package were reused. Starting local HEAD was
+`e2dbb516404a7c0aa3dc486faede10e65e447816`; its difference from package source
+`81fba9b17843fae03b18812bb7bae831e13d540a` remained documentation-only.
+The preceding independent ZIP extraction and actual 248-package/12-runtime
+inventory checks still identify these bytes, including Infrastructure and the
+rebuilt native executable. No rebuild, relabelling or DLL substitution occurred;
+the ZIP hash remains the value in the corrected artifact table above.
+
+Save to draft followed by Apply reported Configuration saved. A read-only
+comparison with the preceding configuration backup found exactly one changed
+field: Profiles[0].ConnectionEndpoint. The private value is not published.
+Fallback, device identity and unrelated settings were unchanged. One explicit
+Refresh and USB-route selection preceded one new Mirror click. This acquired
+one session; the earlier blocked click acquired none and remains recorded above.
+USB stayed attached throughout, with no independent ADB commands or pairing.
+
+| Identity | Running and post-Focus observation |
+| --- | --- |
+| Desktop | PID 61712; Get-Process creation `2026-10-01T18:09:47.0341293Z`; HWND 8265980; exact package Desktop EXE |
+| Native child | PID 61604; Get-Process creation `2026-10-01T18:34:47.9035425Z`; HWND 2954026; exact package runtime/scrcpy.exe; parent PID 61712 |
+| Session | `ea75bedc-a7ef-4de2-a67b-2335c390777d` |
+| Connection attempt | `394b7351-0987-46e2-be9f-83cb01fd98de` |
+
+The maintainer independently confirmed updating video, usable PC control and
+audible PC audio before Focus and reconfirmed all three afterward. Production
+evidence reports the first video frame, not audio/control readiness. Running
+and post-Focus snapshots retained an accepted actual handshake (protocol 1.0;
+focus-window, lifecycle-v1, stop; zero omitted capabilities), NativeReady,
+Connecting and StreamStarted, sequences 1–3 with zero omitted lifecycle entries.
+SessionId, native PID, exact path, full-precision creation instant and HWND
+remained unchanged. Creation comparisons used invariant DateTimeOffset parsing
+and full UTC ticks; original source timestamps were retained without rounding.
+
+The operator brought the original Desktop forward with ordinary pointer input,
+leaving the normal visible, non-minimized native window behind it. A hidden,
+bounded read-only observer sampled only foreground classification
+desktop/native/other and exact-native owner/visibility/minimized checks; it
+collected no unrelated titles, selectors or command lines and called no
+activation, permission or input API. The maintainer explicitly directed the
+operator to click and measure Focus rather than supplying a separate visual
+Focus report.
+
+Exactly one ordinary Computer Use pointer click targeted Focus mirror. The
+pre-click sample at `2026-10-01T18:42:15.9469287Z` identified Desktop foreground
+and the exact visible, non-minimized child. The click call was bounded by
+`2026-10-01T18:42:16.0439715Z` and `2026-10-01T18:42:16.9716513Z`; first native
+foreground was observed at `2026-10-01T18:42:16.4877480Z`. Of 300 samples,
+the first eight were desktop and the remaining 292 native, through
+`2026-10-01T18:42:34.8402489Z`. The nominal 50-ms polling interval took about
+18.9 seconds overall; no strict 15-second deadline or continuous observation
+between samples is claimed. All samples retained exact-native ownership,
+visibility and non-minimized state. No other app activation, input or screenshot
+capture occurred during measurement. A later screenshot separately showed the
+mirror above Desktop; it is not the basis for the earlier foreground result.
+
+FocusStatus changed from empty to `Focus request ran; Windows foreground
+activation is not guaranteed.` This is a fresh attempt outcome, separate from
+the measured foreground transfer. Permission-call return, per-request wire
+acknowledgement and native platform return remain unknown. Returning to Desktop
+for the explicit post-Focus Copy action occurred after measurement and is not
+a failure of the transfer. No repeated Focus, external permission grant,
+simulated Alt, input-thread attachment or topmost change was used.
+
+One Desktop Stop ended the same session. The UI reported Native session stopped.
+The retained Released snapshot recorded Completed/UserStop, terminal sequence
+4 SessionStopped/UserStop with no error, Cleanup Succeeded, first initiating
+intent ExplicitStop, StopCallState Succeeded, requested reason UserStop,
+ExactChildExitObserved true and OwnershipReleased true. These typed managed
+results accompany the external absence of PID 61604 and zero replacement native
+processes; absence alone is not the cleanup proof. Wire Stop queued/written/
+acknowledged, process exit code, escalation and phone-side cleanup remain
+NotRecorded/unknown as actually exported. Final evidence was saved before
+ordinary closure of idle Desktop; PID 61712 then exited with no replacement.
+
+New bounded records remain ignored and preserved under
+`work/phase6c/focus-retest-resumed-g81fba9b1-20261001T182754Z-d22594e7/`.
+Only the existing explicit Copy action supplied session evidence; there was
+no second lifecycle/stdout consumer or unrelated clipboard read.
+
+| Explicit snapshot | Original CapturedUtc | Bytes | SHA-256 |
+| --- | --- | --- | --- |
+| Running, 04-running-session-snapshot.json | `2026-10-01T18:41:17.7222436+00:00` | 2922 | `14e120ed4f8f5fc76294a134e5ff4ffe5a233f4cf83e34b54ff452c783a4a6a4` |
+| Post-Focus, 06-post-focus-session-snapshot.json | `2026-10-01T18:43:31.7838268+00:00` | 2922 | `fe9b30c95867e348b869d18720a22b625d7380ddb13fa37e2a7f7fdf3fcd6179` |
+| Final, 09-final-session-snapshot.json | `2026-10-01T18:44:56.8017778+00:00` | 3353 | `71b6c6e580a4458995f81775149b198fed9bbcbf0c5fc1bf751ce22b5ea45a2d` |
+
+The 62,837-byte foreground record has SHA-256
+`53396bce34d828a5c2aa3bff7659d9160918dfc973c1bba551a335d5e63d6db4`.
+Separate records retain profile-change paths, both process timestamp sources,
+before/after media confirmations, fresh FocusStatus, identity comparisons,
+exact-child exit, preservation checks and idle closure. Configuration bytes
+matched the authorized Apply throughout the subsequent session. The original
+shared ADB retained PID 16592, its exact executable and original CIM creation
+instant `2026-10-01T14:33:40.2774010Z`, with listener 5037 unchanged. A preliminary
+check compared that CIM timestamp with Get-Process's higher-precision StartTime
+and produced an invalid negative flag; record 11 supersedes it with same-source,
+full-tick equality while preserving both original timestamps and record 10.
+No shared-server stop/restart or personal-installation operation occurred.
+
+This supports the corrected production Focus route and normal USB/Stop behavior
+in this exact session and environment. It does not reconstruct every detail of
+the historical failure or guarantee Windows foreground permission in every
+window/input/elevation state. Older recovery, disabled-fallback, activation and
+distinct close results remain attached only to g3a99a1ed; they were not repeated
+or transferred to the rebuilt g81fba9b1 native. Hosted CI and final Phase 6C
+acceptance remain separate pending gates. All previous packages and evidence
+remain intact. AGENTS/docs impact is validation/current status only: architecture,
+protocol, runtime inputs and workflow did not change, so AGENTS/runtime-guide
+edits, rebuilding and a blanket automated test rerun are unnecessary. Only local
+documentation commits are authorized; stop for review with no remote operations
+or Phase 7/8 work.
