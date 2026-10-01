@@ -38,9 +38,12 @@ the exact token in the detached request and emitted argument. A positive
 deadline remains incompatible with planned recovery. Invalid values retain
 their existing typed option-validation failure, even without recovery; zero
 does not bypass recording, headless or other reconnect restrictions. This
-source correction is tracked by [issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13)
-and requires independent review and separate integration before Phase 7 or a
-public 2.0 prerelease. It does not change earlier frozen DEV artifacts.
+source correction was independently reviewed and integrated through
+[PR #14](https://github.com/Nexusov/scrcpy-seamless/pull/14), merge
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; [issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13#issuecomment-5940669161)
+is closed as completed for this defined preflight defect. This satisfies that
+specific source-compatibility gate, not public release acceptance or validation
+of every reconnect scenario. Earlier frozen DEV artifacts remain unchanged.
 
 For `flex-display`, an explicitly configured zero window width or height still
 means automatic sizing, so only a nonzero effective dimension conflicts. The
