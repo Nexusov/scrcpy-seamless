@@ -31,6 +31,17 @@ leading whitespace, even where the C library happens to interpret them as zero
 or accept them. The frozen legacy catalogue retains its previous decimal regex
 fields; Core bypasses those regexes only for this native scalar family.
 
+Reconnect preflight uses the validated effective `time-limit`, not the presence
+of its stored string. An absent override or numeric zero (`0`, `00`, `0x0`,
+`0X0`, `+0`, `-0`) leaves the current recovery plan available while retaining
+the exact token in the detached request and emitted argument. A positive
+deadline remains incompatible with planned recovery. Invalid values retain
+their existing typed option-validation failure, even without recovery; zero
+does not bypass recording, headless or other reconnect restrictions. This
+source correction is tracked by [issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13)
+and requires independent review and separate integration before Phase 7 or a
+public 2.0 prerelease. It does not change earlier frozen DEV artifacts.
+
 For `flex-display`, an explicitly configured zero window width or height still
 means automatic sizing, so only a nonzero effective dimension conflicts. The
 structured `port` option uses one or two colon-separated base-zero integer

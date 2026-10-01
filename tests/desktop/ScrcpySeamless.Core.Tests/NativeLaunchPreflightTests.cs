@@ -3,6 +3,7 @@ using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Core.Configuration;
+using ScrcpySeamless.Core.Options;
 using Xunit;
 
 namespace ScrcpySeamless.Core.Tests;
@@ -77,6 +78,9 @@ public sealed class NativeLaunchPreflightTests
 
         Assert.True(result.IsReady);
         Assert.Equal(expectedEndpoint, result.Request!.ReconnectEndpoint?.ToString());
+        Assert.Equal(TransportKind.Usb, result.Request.SelectedTransport);
+        Assert.DoesNotContain(OptionSelectionValidator.Evaluate(result.Request.Mirroring).Arguments,
+            argument => argument.StartsWith("--time-limit", StringComparison.Ordinal));
     }
 
     /// <summary>Network retry remains available when cross-transport fallback is disabled.</summary>
@@ -186,6 +190,180 @@ public sealed class NativeLaunchPreflightTests
         Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
         Assert.Null(result.Request);
         Assert.Equal("synthetic.mp4", configuration.Mirroring.Options["record"].GetString());
+    }
+
+    // Numeric-zero compatibility coverage exercises the production launch boundary.
+    /// <summary>Every supported zero spelling keeps recovery, raw arguments and the detached snapshot.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("00")]
+    [InlineData("0x0")]
+    [InlineData("0X0")]
+    [InlineData("+0")]
+    [InlineData("-0")]
+    public void NumericZeroTimeLimitPreservesRecoveryAndRawSnapshot(string token)
+    {
+        foreach (TransportKind selectedTransport in new[] { TransportKind.Usb, TransportKind.Network })
+        {
+            DeviceProfile profile = ProfileWithPolicy(allowFallback: selectedTransport == TransportKind.Usb);
+            ConfigurationV2 configuration = Configuration(profile,
+                new Dictionary<string, JsonElement> { ["time-limit"] = JsonSerializer.SerializeToElement(token) });
+            string selectedSerial = selectedTransport == TransportKind.Usb
+                ? profile.UsbIdentity!.Value.Value
+                : profile.ConnectionEndpoint!.ToString();
+            SessionId sessionId = SessionId.New();
+
+            NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev-zero", profile.Id,
+                new AdbDevice(selectedSerial, AdbDeviceState.Device, null), sessionId);
+
+            Assert.True(result.IsReady, $"{selectedTransport}: {result.Failure}");
+            NativeStartRequest request = result.Request!;
+            Assert.Equal(selectedTransport, request.SelectedTransport);
+            Assert.Equal(selectedSerial, request.SelectedAdbSerial);
+            Assert.Equal(profile.ConnectionEndpoint, request.ReconnectEndpoint);
+            Assert.True(request.Mirroring.Reconnect);
+            Assert.Equal(sessionId, request.SessionId);
+            Assert.Equal(profile.Id, request.ProfileId);
+            Assert.Equal("rev-zero", request.ConfigurationRevision);
+            Assert.Equal(token, configuration.Mirroring.Options["time-limit"].GetString());
+            Assert.Equal(token, request.Mirroring.Options["time-limit"].GetString());
+            Assert.Contains($"--time-limit={token}", OptionSelectionValidator.Evaluate(request.Mirroring).Arguments);
+            configuration.Mirroring.Options.Clear();
+            request.Mirroring.Options.Clear();
+            Assert.Equal(token, request.Mirroring.Options["time-limit"].GetString());
+            Assert.Equal(profile.ConnectionEndpoint, request.ReconnectEndpoint);
+        }
+    }
+
+    /// <summary>Positive deadlines remain incompatible with USB fallback and selected-network retry.</summary>
+    [Theory]
+    [InlineData("1")]
+    [InlineData("010")]
+    [InlineData("0x10")]
+    public void PositiveTimeLimitRejectsPlannedRecovery(string token)
+    {
+        foreach (TransportKind selectedTransport in new[] { TransportKind.Usb, TransportKind.Network })
+        {
+            DeviceProfile profile = ProfileWithPolicy(allowFallback: selectedTransport == TransportKind.Usb);
+            ConfigurationV2 configuration = Configuration(profile,
+                new Dictionary<string, JsonElement> { ["time-limit"] = JsonSerializer.SerializeToElement(token) });
+            string selectedSerial = selectedTransport == TransportKind.Usb
+                ? profile.UsbIdentity!.Value.Value
+                : profile.ConnectionEndpoint!.ToString();
+
+            NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+                new AdbDevice(selectedSerial, AdbDeviceState.Device, null), SessionId.New());
+
+            Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
+            Assert.Null(result.Request);
+            Assert.Empty(result.OptionDiagnostics);
+            Assert.Equal(token, configuration.Mirroring.Options["time-limit"].GetString());
+        }
+    }
+
+    /// <summary>Unused saved endpoints do not restrict otherwise valid deadlines on USB.</summary>
+    [Theory]
+    [InlineData("1")]
+    [InlineData("010")]
+    [InlineData("0x10")]
+    public void PositiveTimeLimitRemainsUsableWithoutPlannedRecovery(string token)
+    {
+        foreach (bool reconnect in new[] { false, true })
+        {
+            DeviceProfile profile = ProfileWithPolicy(allowFallback: !reconnect);
+            ConfigurationV2 configuration = Configuration(profile,
+                new Dictionary<string, JsonElement> { ["time-limit"] = JsonSerializer.SerializeToElement(token) },
+                reconnect: reconnect);
+
+            NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+                new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+            Assert.True(result.IsReady);
+            Assert.Equal(TransportKind.Usb, result.Request!.SelectedTransport);
+            Assert.NotNull(profile.ConnectionEndpoint);
+            Assert.Null(result.Request.ReconnectEndpoint);
+            Assert.Equal(token, result.Request.Mirroring.Options["time-limit"].GetString());
+            Assert.Contains($"--time-limit={token}", OptionSelectionValidator.Evaluate(result.Request.Mirroring).Arguments);
+        }
+    }
+
+    /// <summary>Invalid deadlines fail existing option validation even when recovery is disabled.</summary>
+    [Theory]
+    [InlineData("", OptionDiagnosticCode.MissingArgument)]
+    [InlineData("08", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("0x", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("0.0", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("-1", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("2147483648", OptionDiagnosticCode.InvalidValue)]
+    [InlineData(" 0", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("0 ", OptionDiagnosticCode.InvalidValue)]
+    [InlineData("+", OptionDiagnosticCode.InvalidValue)]
+    public void InvalidTimeLimitCannotBecomeAnAbsentDeadline(string token, OptionDiagnosticCode expectedCode)
+    {
+        foreach (bool reconnect in new[] { false, true })
+        {
+            DeviceProfile profile = Profile();
+            ConfigurationV2 configuration = Configuration(profile,
+                new Dictionary<string, JsonElement> { ["time-limit"] = JsonSerializer.SerializeToElement(token) },
+                reconnect: reconnect);
+
+            NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+                new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+            Assert.Equal(NativeLaunchFailure.UnsupportedOption, result.Failure);
+            Assert.Null(result.Request);
+            Assert.Contains(result.OptionDiagnostics, diagnostic =>
+                diagnostic.OptionId == "time-limit" && diagnostic.Code == expectedCode);
+            Assert.Equal(token, configuration.Mirroring.Options["time-limit"].GetString());
+        }
+    }
+
+    /// <summary>A JSON number is not a valid stored native argument, including numeric zero.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NumericJsonTimeLimitRetainsTypedValidationFailure(bool reconnect)
+    {
+        DeviceProfile profile = Profile();
+        ConfigurationV2 configuration = Configuration(profile,
+            new Dictionary<string, JsonElement> { ["time-limit"] = JsonSerializer.SerializeToElement(0) },
+            reconnect: reconnect);
+
+        NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+            new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+        Assert.Equal(NativeLaunchFailure.UnsupportedOption, result.Failure);
+        Assert.Null(result.Request);
+        Assert.Contains(result.OptionDiagnostics, diagnostic =>
+            diagnostic.OptionId == "time-limit" && diagnostic.Code == OptionDiagnosticCode.InvalidValueType);
+    }
+
+    /// <summary>Skipping a zero deadline must still inspect every remaining incompatible option.</summary>
+    [Theory]
+    [InlineData("record", true)]
+    [InlineData("record", false)]
+    [InlineData("no-window", true)]
+    [InlineData("no-window", false)]
+    public void ZeroTimeLimitDoesNotMaskOtherReconnectRestrictions(string incompatibleOption, bool zeroFirst)
+    {
+        DeviceProfile profile = Profile();
+        JsonElement zero = JsonSerializer.SerializeToElement("0");
+        JsonElement incompatibleValue = incompatibleOption == "record"
+            ? JsonSerializer.SerializeToElement("synthetic.mp4")
+            : JsonSerializer.SerializeToElement(true);
+        Dictionary<string, JsonElement> options = zeroFirst
+            ? new() { ["time-limit"] = zero, [incompatibleOption] = incompatibleValue }
+            : new() { [incompatibleOption] = incompatibleValue, ["time-limit"] = zero };
+        ConfigurationV2 configuration = Configuration(profile, options);
+
+        NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+            new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+        Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
+        Assert.Null(result.Request);
+        Assert.Empty(result.OptionDiagnostics);
+        Assert.Equal("0", configuration.Mirroring.Options["time-limit"].GetString());
+        Assert.Equal(incompatibleValue.GetRawText(), configuration.Mirroring.Options[incompatibleOption].GetRawText());
     }
 
     /// <summary>Builds a synthetic saved identity with independent USB and network selectors.</summary>

@@ -122,6 +122,15 @@ public static class NativeLaunchPreflight
     {
         foreach ((string optionId, System.Text.Json.JsonElement value) in mirroring.Options)
         {
+            // Validated numeric zero disables the deadline without bypassing other restrictions.
+            bool disabledTimeLimit = optionId == "time-limit" &&
+                NativeIntegerSyntax.TryParse(value.GetString()!, out int timeLimit) && timeLimit == 0;
+
+            if (disabledTimeLimit)
+            {
+                continue;
+            }
+
             bool enabledSwitch = value.ValueKind == System.Text.Json.JsonValueKind.True ||
                 value.ValueKind == System.Text.Json.JsonValueKind.String && value.GetString()!.Length > 0;
 
