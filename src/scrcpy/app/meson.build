@@ -325,6 +325,24 @@ if get_option('buildtype') == 'debug'
         test(t[0], exe)
     endforeach
 
+    # Link actual receiver/deserializer ownership with external-effect doubles.
+    receiver_test = executable('test_receiver_dispatch', [
+        'tests/test_receiver_dispatch.c',
+        'src/receiver.c',
+        'src/device_msg.c',
+        'src/util/acksync.c',
+        'src/util/thread.c',
+        'src/util/tick.c',
+        'src/util/log.c',
+        'src/util/str.c',
+        'src/util/strbuf.c',
+        'src/compat.c',
+    ], include_directories: src_dir,
+       dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=malloc', '-Wl,--wrap=free'])
+    test('test_receiver_dispatch', receiver_test)
+
     ipc_test = executable('test_ipc_contract', [
         'tests/test_ipc_contract.c',
         'src/ipc/ipc_frame.c',

@@ -361,6 +361,80 @@ changes; do not smuggle new event names through v1. Phase 8 owns transport timin
 and channel-specific first-packet/control-ready semantics; Phase 12 owns bundle
 JSONL schema/export, rotation/privacy policy and full aggregate metrics.
 
+## P7.1 authorized implementation contract
+
+The maintainer approved the published direction at `dbb0a9b` and authorized only
+P7.1. The following concrete contract is recorded before production edits.
+Implementation and fresh validation remain pending; P7.2–P7.6 are unstarted.
+
+`main` owns one `sc_dispatcher`, initialized after SDL event initialization and
+destroyed after all producers and completion users have quiesced. Independent
+fixtures own independent instances. `sc_dispatcher_generation_begin`,
+`generation_bind` and `generation_revoke` mutate a single app-owned binding slot
+on the SDL main thread. Generations are monotonically allocated `uint64_t` values;
+exhaustion rejects instead of wrapping. They are distinct from every wire/session,
+attempt, server and process identity. Begin precedes producer start; revoke
+precedes releasing any receiver destination. Queued work contains a captured
+value and owned payload, never a borrowed destination pointer.
+
+`sc_dispatcher_post` validates admission under its mutex. Successful slot
+publication is the single payload-transfer point; rejected admission leaves
+ownership with the producer. A callback receives the binding only after its
+generation is validated. Binding mutation, shutdown and nested draining are
+rejected during callback execution: main-thread serialization plus this checked
+non-reentrant boundary forms the execution lease. Payload destruction and all
+external effects occur outside admission/registry locks.
+
+Named limits are `SC_DISPATCHER_MAX_ITEMS = 64`,
+`SC_DISPATCHER_MAX_PAYLOAD_BYTES = 1 MiB`, and
+`SC_DISPATCHER_DRAIN_LIMIT = 8` callbacks/discards per main-thread turn. Count
+covers fixed slots retained by queued/executing/cancelled work or a completion
+user. Payload bytes include owning receiver records and transferred text/HID
+buffers; retain budget through actual destruction, conservatively until the
+slot retires. Fixed slot/completion storage and its 64 mutex/condition pairs are
+bounded separately; no per-post envelope allocation is required. These limits
+allow a maximum valid 256 KiB device message: clipboard allocation is at most
+262140 bytes including NUL; UHID data is at most 65535 bytes plus its record.
+The values bound local receiver traffic, not measured performance or all native
+memory. Rejection is observable without per-message pressure logging.
+
+An optional completion handle retains a fixed slot independently of the
+operation. Its separate mutex/condition protects caller settlement, without
+waiting under the admission mutex. Main-thread waiting rejects explicitly.
+Cancellation settles a caller as cancelled; a callback already executing keeps
+its payload/binding lease until return. Execution/revocation/shutdown settle
+pending waiters. A caller releases its handle; the slot retires only after both
+caller and operation are finished. No caller-stack completion storage is kept.
+
+`SC_EVENT_DISPATCHER_WAKEUP` follows `SC_EVENT_DISCONNECTED_TIMEOUT`, outside the
+legacy `NEW_FRAME..AOA_OPEN_ERROR` flush. Wake events carry only the app dispatcher
+pointer. Publication/pending state and publisher count are protected under the
+gate; SDL push occurs outside it. Coalesced scheduling failure settles affected
+accepted work as wakeup-failed, never as a producer-owned admission rejection.
+Empty-drain inspection and pending-state transition are atomic with admission;
+remaining work rearms after the bounded turn. Server wait, active event loop,
+reconnect wait and conditional OTG service this event before screen propagation.
+Shutdown closes admission and settles queued work; final destruction requires
+publishers/callbacks/handles to be quiescent and removes only this instance's
+pending wake events, preserving unrelated app/quit events.
+
+Receiver clipboard/UHID adapters separate effect from destructor. The specific
+UHID second-allocation leak is reproduced through actual deserialization and a
+narrow test allocator before correction, then retained as equivalent adapter
+allocation/admission ownership coverage after migration. Direct ACK behavior,
+legacy raw events, synchronous media joins and reconnect policy remain unchanged.
+Retain producer joins, legacy range flush and machine SDL callback containment.
+This checkpoint does not establish complete native generation safety or resolve
+the conditional ACK-before-receiver-join risk. R05/R06/R12/R15 remain open.
+
+The original receiver failure was reproduced with the production deserializer:
+one UHID payload allocation and zero releases when the narrow later-record
+allocator failed. The regression asserted one release and failed. The minimal
+correction calls `sc_device_msg_destroy(msg)` before that error return; the same
+test passes with one release and no HID/post effect. Local red/green logs are
+retained under ignored `work/phase7/p71/`; this is injected allocation-failure
+evidence, not measured hardware leakage or a historical device root cause.
+
 ## Recommended first authorization and review decisions
 
 Authorize **P7.1 only** first: app-owned dispatcher admission/envelope, captured

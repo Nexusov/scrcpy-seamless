@@ -43,4 +43,15 @@ sc_receiver_start(struct sc_receiver *receiver);
 void
 sc_receiver_join(struct sc_receiver *receiver);
 
+#ifdef SC_TEST
+/** Fail only the receiver work-envelope allocation in production-linked tests. */
+void *
+sc_receiver_test_allocate_task(size_t size);
+
+/** Exercise actual decoding and receiver ownership without a socket or device. */
+ssize_t
+sc_receiver_test_process_messages(struct sc_receiver *receiver,
+                                   const uint8_t *buffer, size_t length);
+#endif
+
 #endif

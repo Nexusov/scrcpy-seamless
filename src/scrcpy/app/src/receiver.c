@@ -131,9 +131,17 @@ process_msg(struct sc_receiver *receiver, struct sc_device_msg *msg) {
                 return;
             }
 
+            // The narrow test seam preserves the real decoded-payload owner.
+#ifdef SC_TEST
+            struct sc_uhid_output_task_data *data =
+                sc_receiver_test_allocate_task(sizeof(*data));
+#else
             struct sc_uhid_output_task_data *data = malloc(sizeof(*data));
+#endif
             if (!data) {
                 LOG_OOM();
+                // Failed envelope allocation must release the decoded payload.
+                sc_device_msg_destroy(msg);
                 return;
             }
 
@@ -180,6 +188,15 @@ process_msgs(struct sc_receiver *receiver, const uint8_t *buf, size_t len) {
         }
     }
 }
+
+#ifdef SC_TEST
+/** Expose the production decode-to-owner boundary to deterministic tests. */
+ssize_t
+sc_receiver_test_process_messages(struct sc_receiver *receiver,
+                                   const uint8_t *buffer, size_t length) {
+    return process_msgs(receiver, buffer, length);
+}
+#endif
 
 static int
 run_receiver(void *data) {
