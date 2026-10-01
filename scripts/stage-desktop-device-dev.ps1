@@ -19,7 +19,7 @@ if ($LASTEXITCODE -ne 0 -or $uncommittedPaths.Count -ne 0) {
 }
 
 if (-not $PackageDirectory) {
-    $PackageDirectory = Join-Path $repositoryDirectory ('dist\dev\scrcpy-seamless-desktop-p05d-g' + $sourceSha.Substring(0, 8))
+    $PackageDirectory = Join-Path $repositoryDirectory ('dist\dev\scrcpy-seamless-desktop-p06c-g' + $sourceSha.Substring(0, 8))
 }
 
 $packagePath = [IO.Path]::GetFullPath($PackageDirectory)
@@ -114,6 +114,8 @@ foreach ($name in $sources.Keys) {
     $origins[$name] = if ($name -in @('scrcpy.exe', 'scrcpy-server')) { 'source-built' } else { 'reviewed-import' }
 }
 
+$machineContract = Get-Content -LiteralPath (Join-Path $repositoryDirectory 'spec\desktop-native\runtime-contract.json') -Raw |
+    ConvertFrom-Json
 $runtimeManifest = [ordered]@{
     SchemaVersion = 1
     SourceSha = $sourceSha.ToLowerInvariant()
@@ -121,6 +123,7 @@ $runtimeManifest = [ordered]@{
     ServerSourceFingerprint = $serverEvidence.SourceFingerprintSha256.ToLowerInvariant()
     Files = $files
     Origins = $origins
+    MachineContract = $machineContract
 }
 $runtimeManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $runtimeDirectory 'runtime-dev-manifest.json') -Encoding UTF8
 
@@ -128,14 +131,21 @@ $noticeNames = @(
     'Android-Platform-Tools-NOTICE.txt', 'dav1d-COPYING.txt',
     'FFmpeg-LGPL-2.1.txt', 'FFmpeg-LICENSE.md', 'GCC-GPL-3.0.txt',
     'GCC-RUNTIME-EXCEPTION.txt', 'MinGW-w64-COPYING.txt',
-    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt'
+    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt',
+    'yyjson-LICENSE.txt'
 )
 $noticeDirectory = Join-Path $packagePath 'licenses'
 New-Item -ItemType Directory -Path $noticeDirectory | Out-Null
 Copy-Item -LiteralPath (Join-Path $repositoryDirectory 'LICENSE') -Destination (Join-Path $packagePath 'LICENSE')
 
 foreach ($name in $noticeNames) {
-    Copy-Item -LiteralPath (Join-Path $repositoryDirectory ('licenses\' + $name)) -Destination (Join-Path $noticeDirectory $name)
+    $source = if ($name -eq 'yyjson-LICENSE.txt') {
+        Join-Path $repositoryDirectory 'src\scrcpy\app\vendor\yyjson\LICENSE'
+    }
+    else {
+        Join-Path $repositoryDirectory ('licenses\' + $name)
+    }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $noticeDirectory $name)
 }
 
 @"
@@ -146,9 +156,10 @@ Source commit: $sourceSha
 This is a development artifact, not an official release. Runtime hashes and
 source/build origin labels are in runtime/runtime-dev-manifest.json. The project
 license is in LICENSE; retained ADB, SDL, FFmpeg and compiler-runtime notices
-are in licenses/. Do not copy personal profiles, ADB keys or logs into this
-directory. A public 2.0 distribution requires a separate review of Desktop
-dependency notices and the complete release/license package.
+are in licenses/, including the yyjson MIT notice. Do not copy personal
+profiles, ADB keys or logs into this directory. A public 2.0 distribution
+requires a separate review of Desktop dependency notices and the complete
+release/license package.
 "@ | Set-Content -LiteralPath (Join-Path $packagePath 'DEV-BUNDLE-NOTICES.md') -Encoding UTF8
 
 Write-Host "Staged isolated Desktop DEV package: $packagePath"

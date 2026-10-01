@@ -12,6 +12,10 @@ under desktop-native/conformance.tsv. Both codecs consume the same case file;
 do not keep independent expected-result lists. It is separate from option metadata
 and the Android device protocol. Do not generate expected vectors from one
 codec and call that cross-language validation.
+The `desktop-native/runtime-contract.json` build claim is copied into 6C DEV
+runtime manifests; the Infrastructure parity test checks its product, version
+and required capabilities against the managed protocol constants. The claim
+does not replace the actual native handshake.
 
 Scope: `spec/`.
 

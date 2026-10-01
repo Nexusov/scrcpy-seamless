@@ -55,6 +55,10 @@ check keeps a complete file-hash inventory, fixed archive entry ordering and
 timestamps, a SHA-256 sidecar, and an independent extraction check in a path
 with spaces. These are development artifacts, not official release packages;
 the bundled notices do not replace the later Desktop dependency-license review.
+Phase 6C staging reads `spec/desktop-native/runtime-contract.json` for its
+machine compatibility claim, requires a source-built machine native client and
+includes the yyjson MIT notice. A new archive requires that claim; read-only
+verification of an older archive still checks its old schema and hashes.
 
 ## Provenance
 

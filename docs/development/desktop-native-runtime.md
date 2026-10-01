@@ -1,11 +1,25 @@
 # Desktop/native machine runtime
 
 The [v1 wire contract](../../spec/desktop-native/PROTOCOL.md) defines message
-syntax and meaning. Phase 6B adds an explicitly selected process route beside
-the existing `LegacyNativeHost`; normal Desktop composition still uses the
-legacy route until Phase 6C. The machine route is Windows x64 only at this
-stage. Its synthetic process tests do not establish Android video, control or
-audible output behavior.
+syntax and meaning. Phase 6B provides the owned process route; Phase 6C selects
+`MachineNativeHost` in normal device-enabled Desktop composition when the
+explicit DEV bundle advertises a compatible machine contract and passes the
+existing source/hash validation. A hash-valid older bundle without that claim
+is incompatible with this route, not an implicit legacy fallback. Preview and
+settings-only startup do not launch native. The machine route is Windows x64
+only at this stage. Synthetic process tests do not establish Android video,
+control or audible output behavior.
+
+The build-side machine capability claim is
+[`runtime-contract.json`](../../spec/desktop-native/runtime-contract.json).
+Staging and archive validation read it; a managed parity test checks its
+product, protocol version and required capabilities against
+`ProtocolCompatibility`. The runtime manifest remains schema 1 with optional
+machine metadata so previously built bundles remain readable. Full file/hash
+checks run first; an otherwise valid old manifest without machine metadata
+returns `IncompatibleMachineContract`. This local manifest is consistency
+metadata, not a signature. The child must still pass the real negotiated
+handshake on Mirror, and a failed handshake never starts a legacy child.
 
 ## Bootstrap and ownership
 
@@ -66,8 +80,9 @@ command is rejected at admission without failing the sixteen already admitted.
 A valid `SessionStopped` closes admission and fails unanswered commands without
 inventing success. The reader drains remaining stdout and owned command
 deadlines settle before process and cancellation-source disposal. Internal
-test hooks pause admission and wrap the write stream; production budgets and
-normal Desktop composition remain unchanged.
+test hooks pause admission and wrap the write stream; Phase 6C keeps the
+production process budgets unchanged while selecting this host in normal
+device-enabled Desktop composition.
 
 Stop acceptance means native shutdown was scheduled; `SessionStopped` waits
 for teardown, and process exit is observed separately. The managed Stop API
@@ -93,14 +108,125 @@ observation. `FatalError` indicates a terminal native failure. The route does
 not yet emit `CapabilityDegraded` or claim first audio packet, audio sink
 readiness or audible output; those require later channel-specific seams.
 
+## Phase 6C Desktop ownership
+
+The normal device-enabled Desktop composes `MachineNativeHost` only after
+explicit bundle validation; settings-only mode constructs no native child and
+preview never constructs the runtime validator. Mirror still captures a
+revision-checked committed v2 request and selected ADB route. The machine
+host receives this immutable request; profile drafts or navigation cannot
+alter a running session. USB-to-network fallback remains a committed profile
+decision implemented by the current native reconnect path, not a second C#
+reconnect loop.
+
+`DeviceSessionViewModel` owns exactly one lifecycle reader for each acquired
+interactive session, regardless of the visible page. It processes ordered
+observations off the UI dispatcher, retains at most 64 typed recent entries
+and queues at most one pending presentation update. Session identity,
+increasing sequence and current attempt identity guard the projection and
+queued UI work. A terminal event starts the shared bounded Stop/cleanup path
+without awaiting it from the reader; exact process exit and disposal remain
+separate facts. Focus uses the explicit machine command for the current or
+exactly named session. `Applied` acknowledges an attempted focus, not actual
+Windows foreground activation.
+
+For an admitted user-requested `FocusWindow`, Infrastructure attempts
+`AllowSetForegroundWindow` for the retained, still-live owned process after
+bounded admission and before publishing the command to the single writer.
+The original process handle remains retained; no PID lookup or HWND operation
+selects a replacement target. Only Windows uses this platform adapter. A denied
+grant leaves the native command/result and healthy session unchanged. Cancellation
+before admission, terminal rejection, startup, Stop and ShowControlCenter do not
+grant permission. Native raising stays on the SDL main thread. This supported
+handoff neither guarantees foreground ownership nor changes `Applied` semantics;
+another input event or Windows policy may still prevent activation.
+
+Automatic terminal cleanup is distinct from an explicit Stop request. The
+machine adapter retains its typed `TerminalFailure` when the session result is
+`NativeFailure`. Desktop presents that result as `Native session ended:
+NativeFailure` only when the exception's exact-session exit matches completed
+`Completion` and disposal plus owned observer/focus settlement succeeds. This
+means cleanup succeeded, not that mirroring ended successfully. Escalation,
+other typed Stop failures and resource-settlement failures remain errors;
+automatic errors are identified as cleanup failures. Explicit Stop retains its
+existing failure contract. `FatalError` can start an internal Stop before
+`SessionStopped` closes command admission; a cleanup call alone is not evidence
+that a wire Stop was sent.
+If completion already started shared disposal before terminal consumption,
+automatic cleanup retains the captured original session result even after that
+disposal releases ownership. It does not relabel the result as explicit Stop.
+
+The projection marks video observed only after `StreamStarted` or
+`StreamResumed` for the current attempt; transport loss clears that evidence.
+Audio and control readiness, and the physical active transport, remain
+unknown without channel-specific native events. It does not poll HWND or
+derive media readiness from process existence. The retained bounded attempt
+history prevents current native late-stream observations from promoting an
+older attempt; arbitrary reuse of an evicted GUID plus a fabricated scheduled
+transition is outside the v1 event evidence and requires stronger native
+generation semantics in Phase 7.
+
+## Explicit DEV session evidence
+
+Devices → Mirror session exposes **Copy session evidence** only in explicit
+device-enabled Development composition. The injected clipboard action runs
+only on request. Preview and settings-only composition expose no such action.
+The copy result has its own message and cannot replace session Status.
+
+The production owner captures detached values under its existing short gate;
+serialization runs off the lifecycle path, and clipboard I/O runs outside the
+gate. There is still one lifecycle consumer. The adapter retains the actual
+accepted helloResult only after NativeReady completes negotiation. This is
+distinct from the manifest's runtime compatibility declaration. The projection
+records NativeReady only when its existing consumer applies that observation.
+
+The version-1 JSON snapshot retains at most the existing 64 lifecycle entries
+and refuses output above 64 KiB UTF-8; it reports total observed, retained range
+and omitted count. Reading/copying never consumes history. Exact uint64 sequence
+and native monotonic values are decimal strings. Accepted known capabilities
+are detached; arbitrary extension capabilities are omitted with a count.
+The explicit allowlist exports correlation GUIDs/PID, actual metadata source
+SHA, native timestamps and typed semantic values. It excludes physical device
+identity, endpoints, names, paths, command lines, settings, ADB output, raw
+stderr, exception text, keys and pairing material.
+
+NativeExit and typed Stop outcomes are retained before exact-owner release.
+Cleanup Succeeded means adapter disposal and owned Desktop observer/focus work
+settled, not that mirroring or every phone-side resource succeeded. Intent names
+describe the first non-None initiating route of the active cleanup operation.
+While cleanup is InProgress, a terminal observer, explicit Stop or shutdown
+caller joining it cannot rewrite that initiator. Completion-first cleanup
+retains CompletionCleanup through late terminal delivery and successful release,
+with no additional forwarded Stop. Lifecycle-first cleanup retains
+AutomaticTerminal. After Failed cleanup, a genuinely new Stop/shutdown retry
+may record ExplicitStop/ApplicationShutdown and InProgress; this is not a
+permanent session-wide intent or an accumulating retry history. Detached prior
+snapshots keep their failed outcome. Only actual owner Stop calls update
+StopCallState and StopRequestedReason. A failed Stop call and
+successful resource cleanup can coexist. Disposal failure retains ownership
+and Failed cleanup. StopCallState covers the ViewModel owner's invocation only;
+NotRequested does not exclude an internal Stop inside adapter disposal.
+Escalation is true only for an observed typed Escalated outcome; otherwise it is
+unknown, including completion-path escalation not retained as that typed outcome.
+
+Wire Stop queued/written/acknowledged, receipt timestamps, native scope and
+process exit code are explicitly NotRecorded: the existing projection/result
+does not retain them. Handshake absence never becomes success from metadata.
+Metadata identity is not independent binary verification. Copy failures leave
+observations and session operations unchanged and allow an explicit retry.
+Final evidence survives successful session cleanup and rejected/failed launch,
+until another exact session is acquired. It does not survive Desktop exit.
+Capture before another launch or normal Desktop exit; see the
+[consolidated retest proposal](phase6c-manual-acceptance.md#bounded-dev-session-evidence).
+
 ## Validation boundary
 
 Deterministic tests use real Windows redirected pipes and a native test target
 linked to the production channel/dispatcher modules. They can prove framing,
 handshake, correlation, cleanup, exact-process parent-death handling and
-synthetic lifecycle identity. Phase 6C still must select this host in normal
-Desktop composition, validate package capabilities and perform integrated
-device acceptance with a new artifact.
+synthetic lifecycle identity. Phase 6C adds normal Desktop selection and bundle
+preflight. The manifest claim does not replace the child's actual handshake;
+integrated device acceptance still requires the new artifact.
 
 ### Source-to-test evidence
 
@@ -126,6 +252,6 @@ only on pre-device paths, with no ADB or phone access.
 | Abnormal parent death | `machine.c` retains a non-inheritable parent handle identified by PID and creation time, requests cooperative stop, then terminates only its own process after a finite bound. | `ParentDeathTests.KilledSupervisorEndsNativeChildButNotDaemonLikeDescendant` and `ParentDeathBeforeGuardInstallationRejectsStaleBootstrap` kill an independent supervisor and assert native exit before test cleanup, while a synthetic daemon-like descendant and unrelated process survive. | These run the production-linked native target, not the full scrcpy media process; the legacy host has no new crash-parent guarantee. |
 | Native close reason | `scrcpy.c` records an actual SDL quit in machine mode and `main.c` selects the reason through `machine_exit.c`; `MachineNativeSession` maps `windowClosed` separately from unknown/fatal exit. | Native `test_machine_exit` pushes and consumes a real SDL quit, then tests Stop, protocol error, fatal and unknown precedence. `MachineNativeTerminalTests` verifies managed `windowClosed` and conservative unknown/fatal mapping over real pipes. | The SDL-linked test does not run a phone-backed mirror window; successful exits without an observed quit remain `unknown`. |
 
-The focused source and process checks establish a bounded opt-in machine route.
-They do not establish full native reconnect or audio/control behavior, and they
-do not switch normal Desktop composition away from `LegacyNativeHost`.
+The focused source and process checks establish a bounded machine route.
+Normal Desktop selects it only with an explicit compatible DEV bundle. They do
+not establish full native reconnect or audio/control behavior.

@@ -20,8 +20,11 @@ $noticeNames = @(
     'Android-Platform-Tools-NOTICE.txt', 'dav1d-COPYING.txt',
     'FFmpeg-LGPL-2.1.txt', 'FFmpeg-LICENSE.md', 'GCC-GPL-3.0.txt',
     'GCC-RUNTIME-EXCEPTION.txt', 'MinGW-w64-COPYING.txt',
-    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt'
+    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt',
+    'yyjson-LICENSE.txt'
 )
+$expectedMachineContract = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'spec\desktop-native\runtime-contract.json') -Raw |
+    ConvertFrom-Json
 $inventoryName = 'dev-package-manifest.json'
 $runtimeManifestName = 'runtime/runtime-dev-manifest.json'
 $archiveFullPath = [IO.Path]::GetFullPath($ArchivePath)
@@ -81,7 +84,7 @@ function Get-PackageFiles {
 
 # Verify the source identity and all twelve runtime hashes before trusting package metadata.
 function Assert-RuntimeManifest {
-    param([string]$Directory)
+    param([string]$Directory, [bool]$RequireMachineContract)
 
     $path = Join-Path $Directory $runtimeManifestName
 
@@ -100,6 +103,43 @@ function Assert-RuntimeManifest {
         throw 'Desktop DEV runtime manifest is invalid or has a different source SHA.'
     }
 
+    $machineProperty = $manifest.PSObject.Properties['MachineContract']
+
+    if ($null -eq $machineProperty) {
+        if ($RequireMachineContract) {
+            throw 'Desktop DEV runtime is legacy-only and lacks the required machine contract.'
+        }
+    }
+    else {
+        $machine = $machineProperty.Value
+        $expectedCapabilities = @($expectedMachineContract.Capabilities)
+        $actualCapabilities = @($machine.Capabilities)
+        $invalidMachine = $machine -isnot [pscustomobject] -or
+            @($machine.PSObject.Properties).Count -ne 4 -or
+            $machine.Product -isnot [string] -or
+            $machine.Product -cne $expectedMachineContract.Product -or
+            ($machine.ProtocolMajor -isnot [int] -and $machine.ProtocolMajor -isnot [long]) -or
+            $machine.ProtocolMajor -ne $expectedMachineContract.ProtocolMajor -or
+            ($machine.ProtocolMinor -isnot [int] -and $machine.ProtocolMinor -isnot [long]) -or
+            $machine.ProtocolMinor -ne $expectedMachineContract.ProtocolMinor -or
+            $machine.Capabilities -isnot [array] -or
+            $actualCapabilities.Count -ne $expectedCapabilities.Count
+
+        if (-not $invalidMachine) {
+            for ($index = 0; $index -lt $expectedCapabilities.Count; $index++) {
+                if ($actualCapabilities[$index] -isnot [string] -or
+                    $actualCapabilities[$index] -cne $expectedCapabilities[$index]) {
+                    $invalidMachine = $true
+                    break
+                }
+            }
+        }
+
+        if ($invalidMachine) {
+            throw 'Desktop DEV runtime machine-contract claim differs from the canonical specification.'
+        }
+    }
+
     foreach ($name in $runtimeNames) {
         $file = Join-Path $Directory ('runtime/' + $name)
         $expectedOrigin = if ($name -in @('scrcpy.exe', 'scrcpy-server')) { 'source-built' } else { 'reviewed-import' }
@@ -112,18 +152,27 @@ function Assert-RuntimeManifest {
             throw "Desktop DEV runtime component is missing or mismatched: $name"
         }
     }
+
+    return $null -ne $machineProperty
 }
 
 # Check the required public material and the exact sorted per-file inventory.
 function Assert-PackageContents {
-    param([string]$Directory, [bool]$RequireInventory)
+    param([string]$Directory, [bool]$RequireInventory, [bool]$RequireMachineContract)
 
+    $isMachineBundle = Assert-RuntimeManifest -Directory $Directory -RequireMachineContract $RequireMachineContract
+    $requiredNotices = if ($isMachineBundle) {
+        $noticeNames
+    }
+    else {
+        @($noticeNames | Where-Object { $_ -cne 'yyjson-LICENSE.txt' })
+    }
     $required = @('ScrcpySeamless.Desktop.exe', 'ScrcpySeamless.Desktop.dll',
         'ScrcpySeamless.Core.dll', 'ScrcpySeamless.Infrastructure.dll',
         'ScrcpySeamless.Desktop.deps.json', 'ScrcpySeamless.Desktop.runtimeconfig.json',
         'LICENSE', 'DEV-BUNDLE-NOTICES.md', $runtimeManifestName) +
         @($runtimeNames | ForEach-Object { 'runtime/' + $_ }) +
-        @($noticeNames | ForEach-Object { 'licenses/' + $_ })
+        @($requiredNotices | ForEach-Object { 'licenses/' + $_ })
     $files = @(Get-PackageFiles -Directory $Directory)
 
     foreach ($name in $required) {
@@ -132,7 +181,6 @@ function Assert-PackageContents {
         }
     }
 
-    Assert-RuntimeManifest -Directory $Directory
     $notice = Get-Content -LiteralPath (Join-Path $Directory 'DEV-BUNDLE-NOTICES.md') -Raw
 
     if ($notice -cnotmatch [regex]::Escape($SourceSha)) {
@@ -202,7 +250,7 @@ function Assert-Archive {
 
     try {
         [IO.Compression.ZipFile]::ExtractToDirectory($Path, $scratch)
-        $files = @(Assert-PackageContents -Directory $scratch -RequireInventory $true)
+        $files = @(Assert-PackageContents -Directory $scratch -RequireInventory $true -RequireMachineContract $false)
 
         $sortedNames = [string[]]@($names)
         [Array]::Sort($sortedNames, [StringComparer]::Ordinal)
@@ -249,7 +297,7 @@ if ((Test-Path -LiteralPath $archiveFullPath) -or (Test-Path -LiteralPath $archi
     throw 'The DEV ZIP or inventory already exists; never overwrite an accepted artifact.'
 }
 
-$files = @(Assert-PackageContents -Directory $packagePath -RequireInventory $false)
+$files = @(Assert-PackageContents -Directory $packagePath -RequireInventory $false -RequireMachineContract $true)
 $inventoryFiles = [ordered]@{}
 
 foreach ($name in $files) {
@@ -258,7 +306,7 @@ foreach ($name in $files) {
 
 [ordered]@{ SchemaVersion = 1; SourceSha = $SourceSha; Files = $inventoryFiles } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $packagePath $inventoryName) -Encoding UTF8
-$allFiles = @(Assert-PackageContents -Directory $packagePath -RequireInventory $true)
+$allFiles = @(Assert-PackageContents -Directory $packagePath -RequireInventory $true -RequireMachineContract $true)
 $archiveDirectory = Split-Path -Parent $archiveFullPath
 
 if (-not (Test-Path -LiteralPath $archiveDirectory -PathType Container)) {

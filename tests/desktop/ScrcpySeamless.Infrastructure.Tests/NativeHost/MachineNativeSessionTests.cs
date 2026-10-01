@@ -9,6 +9,173 @@ namespace ScrcpySeamless.Infrastructure.Tests.NativeHost;
 /// <summary>Exercises the production machine session over real redirected process pipes.</summary>
 public sealed class MachineNativeSessionTests
 {
+    /// <summary>Delegates only admitted Focus to the retained child before any command reaches its pipe.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FocusPermissionPrecedesPublicationWithoutChangingNativeOutcome(bool permissionGranted)
+    {
+        string directory = CreateScratchDirectory();
+        SessionId sessionId = SessionId.New();
+        string scriptPath = Path.Combine(directory, "machine-fixture.ps1");
+        string orderPath = Path.Combine(directory, "request-order.txt");
+        File.WriteAllText(scriptPath, FixtureScript);
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        int grantCount = 0;
+        int grantedProcessId = 0;
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, "record-order", orderPath),
+                TestContext.Current.CancellationToken,
+                grantForegroundPermission: ownedProcess =>
+                {
+                    Assert.False(ownedProcess.HasExited);
+                    Assert.NotEqual(nint.Zero, ownedProcess.Handle);
+                    Assert.False(File.Exists(orderPath));
+                    grantedProcessId = ownedProcess.Id;
+                    grantCount++;
+                    return permissionGranted;
+                });
+            Assert.Equal(0, grantCount);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                session.FocusWindowAsync(cancelled.Token));
+            Assert.Equal(0, grantCount);
+            Assert.Equal(NativeFocusOutcome.Applied,
+                await session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(1, grantCount);
+            Assert.Equal(session.ProcessId, grantedProcessId);
+            Assert.False(session.Completion.IsCompleted);
+            await session.StopAsync(NativeTerminationReason.UserStop,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+            Assert.Equal(1, grantCount);
+            await Assert.ThrowsAnyAsync<IOException>(() =>
+                session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            await session.DisposeAsync();
+            await Assert.ThrowsAnyAsync<IOException>(() =>
+                session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(1, grantCount);
+            Assert.Equal(["1", "2"], File.ReadAllLines(orderPath));
+            Assert.False(IsAlive(session.ProcessId));
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>A denied foreground grant preserves no-window and failed replies without stopping media ownership.</summary>
+    [Theory]
+    [InlineData("focus-no-window", NativeFocusOutcome.NoWindow)]
+    [InlineData("focus-failed", NativeFocusOutcome.Failed)]
+    public async Task DeniedPermissionPreservesNativeFocusFailure(string mode, NativeFocusOutcome expected)
+    {
+        string directory = CreateScratchDirectory();
+        SessionId sessionId = SessionId.New();
+        string scriptPath = Path.Combine(directory, "machine-fixture.ps1");
+        File.WriteAllText(scriptPath, FixtureScript);
+        MachineNativeSession? session = null;
+        int grantCount = 0;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, mode), TestContext.Current.CancellationToken,
+                grantForegroundPermission: _ => { grantCount++; return false; });
+            Assert.Equal(expected, await session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(1, grantCount);
+            Assert.False(session.Completion.IsCompleted);
+            await session.StopAsync(NativeTerminationReason.UserStop, TestContext.Current.CancellationToken);
+            Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+            Assert.Equal(1, grantCount);
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>Retains actual accepted values and omits arbitrary capabilities without consuming events.</summary>
+    [Fact]
+    public async Task AcceptedHandshakeRetainsAllowlistedValuesAfterDisposal()
+    {
+        string directory = CreateScratchDirectory();
+        SessionId sessionId = SessionId.New();
+        string scriptPath = Path.Combine(directory, "machine-fixture.ps1");
+        File.WriteAllText(scriptPath, FixtureScript);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(sessionId,
+                CreateStartInfo(scriptPath, sessionId, "extra-capability"),
+                TestContext.Current.CancellationToken);
+            INativeHandshakeEvidence evidence = session;
+            NativeHandshakeObservation handshake = Assert.IsType<NativeHandshakeObservation>(
+                evidence.AcceptedHandshake);
+            Assert.Equal("scrcpy-seamless", handshake.Product);
+            Assert.Equal(1, handshake.ProtocolMajor);
+            Assert.Equal(0, handshake.ProtocolMinor);
+            Assert.Equal(["focus-window", "lifecycle-v1", "stop"], handshake.Capabilities);
+            Assert.Equal(1, handshake.OmittedCapabilityCount);
+            Assert.Same(handshake, evidence.AcceptedHandshake);
+            Assert.Equal(session.ProcessId, evidence.ProcessId);
+            Assert.Throws<NotSupportedException>(() =>
+                ((IList<string>)handshake.Capabilities)[0] = "synthetic-private-value");
+
+            await session.StopAsync(NativeTerminationReason.UserStop, TestContext.Current.CancellationToken);
+            await session.DisposeAsync();
+            Assert.Same(handshake, evidence.AcceptedHandshake);
+            Assert.False(IsAlive(session.ProcessId));
+            List<NativeLifecycleObservation> observations = [];
+
+            await foreach (NativeLifecycleObservation observation in
+                session.ObserveLifecycleAsync(TestContext.Current.CancellationToken))
+            {
+                observations.Add(observation);
+            }
+
+            Assert.Collection(observations,
+                ready => Assert.Equal(NativeLifecycleEventType.NativeReady, ready.EventType),
+                stopped => Assert.Equal(NativeLifecycleEventType.SessionStopped, stopped.EventType));
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>The immutable handshake detaches its known capabilities from a caller-owned collection.</summary>
+    [Fact]
+    public void HandshakeObservationCopiesCapabilityValues()
+    {
+        List<string> capabilities = ["focus-window", "lifecycle-v1", "stop", "synthetic-private-value"];
+        NativeHandshakeObservation observation = new("scrcpy-seamless", 1, 0, capabilities);
+        capabilities[0] = "replacement-private-value";
+        capabilities.Clear();
+        Assert.Equal(["focus-window", "lifecycle-v1", "stop"], observation.Capabilities);
+        Assert.Equal(1, observation.OmittedCapabilityCount);
+    }
+
     /// <summary>Proves negotiation, main-thread Focus result correlation and separate Stop completion.</summary>
     [Fact]
     public async Task RealProcessNegotiatesFocusesAndStops()
@@ -58,6 +225,7 @@ public sealed class MachineNativeSessionTests
     [Theory]
     [InlineData("wrong-product")]
     [InlineData("bad-minor")]
+    [InlineData("missing-ready")]
     public async Task RejectedHandshakeDoesNotLeakChild(string mode)
     {
         string directory = CreateScratchDirectory();
@@ -508,8 +676,10 @@ public sealed class MachineNativeSessionTests
         if ($hello.messageType -ne 'hello') { exit 12 }
         $product = if ($mode -eq 'wrong-product') { 'different-product' } else { 'scrcpy-seamless' }
         $minor = if ($mode -eq 'bad-minor') { 1 } else { 0 }
-        SendFrame ('{"messageType":"helloResult","product":"' + $product + '","protocolMajor":1,"protocolMinor":' + $minor + ',"status":"accepted","capabilities":["focus-window","lifecycle-v1","stop"]}')
+        $capabilities = if ($mode -eq 'extra-capability') { '["focus-window","lifecycle-v1","pairing-code-synthetic-secret","stop"]' } else { '["focus-window","lifecycle-v1","stop"]' }
+        SendFrame ('{"messageType":"helloResult","product":"' + $product + '","protocolMajor":1,"protocolMinor":' + $minor + ',"status":"accepted","capabilities":' + $capabilities + '}')
         if ($mode -eq 'wrong-product' -or $mode -eq 'bad-minor') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 13 }
+        if ($mode -eq 'missing-ready') { exit 0 }
         SendFrame ('{"messageType":"lifecycle","sequence":"1","utc":"2026-01-01T00:00:00.000Z","monotonicMicroseconds":"0","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"NativeReady","reason":"none","error":"none"}')
         while ($true) {
             $command = ReadFrame
@@ -529,7 +699,9 @@ public sealed class MachineNativeSessionTests
                 $outputPipe.Flush()
                 exit 0
             }
-            $status = if ($mode -eq 'invalid-focus-result') { 'unsupportedCommand' } elseif ($command.command -eq 'FocusWindow') { 'applied' } else { 'accepted' }
+            $status = if ($mode -eq 'invalid-focus-result') { 'unsupportedCommand' } elseif ($command.command -eq 'FocusWindow') {
+                if ($mode -eq 'focus-no-window') { 'noWindow' } elseif ($mode -eq 'focus-failed') { 'failed' } else { 'applied' }
+            } else { 'accepted' }
             $resultSession = if ($mode -eq 'wrong-session') { '00000000-0000-4000-8000-000000000001' } else { $sessionId }
             SendFrame ('{"messageType":"commandResult","requestId":"' + $command.requestId + '","sessionId":"' + $resultSession + '","command":"' + $command.command + '","status":"' + $status + '"}')
             if ($mode -eq 'wrong-session' -or $mode -eq 'invalid-focus-result') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 15 }

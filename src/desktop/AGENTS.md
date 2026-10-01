@@ -1,11 +1,19 @@
 # Desktop scaffold agent guide
 
-Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds an
-explicitly selected `MachineNativeHost` and typed Core interactive-session
-observations; normal Desktop composition still uses `LegacyNativeHost`.
+Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds the
+owned `MachineNativeHost` and typed Core interactive-session observations.
+Phase 6C selects it for a compatible explicit device-enabled DEV runtime;
+the separate legacy launcher/package stays available. One Desktop owner must
+drain the bounded lifecycle stream regardless of the visible page.
+The explicit DEV evidence action reads an immutable allowlisted snapshot from
+that owner; never add a second lifecycle reader or serialize live configuration,
+exceptions or process objects. Retain typed completion/cleanup before release.
 Preview must remain side-effect free. Exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md and process policy in
 ../../docs/development/desktop-native-runtime.md.
+User-requested machine Focus delegates Windows foreground permission only to
+the retained live child before command publication; denial remains best effort.
+Keep Win32 in Infrastructure and never infer foreground ownership from Applied.
 
 Scope: `src/desktop/`.
 
@@ -25,7 +33,7 @@ launch and a replaceable legacy native adapter. Do not start ADB on page open,
 infer USB/network physical identity, launch from dirty drafts, or report a
 channel ready from process existence. Close settles owned ADB/native work
 after the accepted save/discard decision; preview remains in-memory. Phase 6
-machine IPC remains separate. Read the
+machine events must not infer audio/control readiness from video events. Read the
 [configuration and boundary guide](../../docs/development/desktop-configuration.md)
 before changing v2 persistence, migration, ADB, activation or native-host APIs.
 The validated ADB 34.0.5 DEV runtime selects Openscreen only through explicit

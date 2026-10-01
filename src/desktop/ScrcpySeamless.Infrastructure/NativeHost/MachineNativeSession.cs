@@ -9,7 +9,7 @@ using ScrcpySeamless.Infrastructure.NativeProtocol;
 namespace ScrcpySeamless.Infrastructure.NativeHost;
 
 /// <summary>Owns exactly one native process and its bounded binary channel.</summary>
-public sealed class MachineNativeSession : INativeInteractiveSession
+public sealed class MachineNativeSession : INativeInteractiveSession, INativeHandshakeEvidence
 {
     private const int MaximumQueuedFrames = 32;
     private const int MaximumQueuedBytes = 2_097_152;
@@ -27,6 +27,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     private readonly Stream standardInput;
     // Test-only pause used to verify that reserved IDs and frame publication are atomic.
     private readonly Action<ulong, string>? beforeRequestPublication;
+    private readonly Func<Process, bool> grantForegroundPermission;
     private readonly Channel<OutboundFrame> outgoing = Channel.CreateBounded<OutboundFrame>(
         new BoundedChannelOptions(MaximumQueuedFrames)
         {
@@ -65,10 +66,22 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     private bool nativeReady;
     private bool terminalObserved;
     private bool disposed;
+    private NativeHandshakeObservation? acceptedHandshake;
 
     public SessionId SessionId { get; }
     public int ProcessId { get; }
     public Task<NativeExit> Completion => completion;
+    /// <summary>Returns retained accepted negotiation after readiness without reading the lifecycle stream.</summary>
+    public NativeHandshakeObservation? AcceptedHandshake
+    {
+        get
+        {
+            lock (gate)
+            {
+                return acceptedHandshake;
+            }
+        }
+    }
     internal (int Pending, int Deadlines) OwnedCommandCounts
     {
         get
@@ -105,13 +118,15 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     }
 
     private MachineNativeSession(SessionId sessionId, Process process,
-        Action<ulong, string>? beforeRequestPublication, Func<Stream, Stream>? wrapStandardInput)
+        Action<ulong, string>? beforeRequestPublication, Func<Stream, Stream>? wrapStandardInput,
+        Func<Process, bool>? grantForegroundPermission)
     {
         SessionId = sessionId;
         this.process = process;
         standardInput = wrapStandardInput?.Invoke(process.StandardInput.BaseStream) ??
             process.StandardInput.BaseStream;
         this.beforeRequestPublication = beforeRequestPublication;
+        this.grantForegroundPermission = grantForegroundPermission ?? NativeForegroundPermission.TryGrant;
         ProcessId = process.Id;
         writerTask = WriteLoopAsync();
         readerTask = ReadLoopAsync();
@@ -123,7 +138,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     internal static async Task<MachineNativeSession> StartAsync(
         SessionId sessionId, ProcessStartInfo startInfo, CancellationToken cancellationToken,
         Action<ulong, string>? beforeRequestPublication = null,
-        Func<Stream, Stream>? wrapStandardInput = null)
+        Func<Stream, Stream>? wrapStandardInput = null,
+        Func<Process, bool>? grantForegroundPermission = null)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
         cancellationToken.ThrowIfCancellationRequested();
@@ -154,7 +170,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession
 
         try
         {
-            session = new(sessionId, process, beforeRequestPublication, wrapStandardInput);
+            session = new(sessionId, process, beforeRequestPublication, wrapStandardInput,
+                grantForegroundPermission);
         }
         catch
         {
@@ -206,8 +223,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession
             Product = ProtocolCompatibility.Product,
             ProtocolMajor = ProtocolCompatibility.Major,
             ProtocolMinor = ProtocolCompatibility.Minor,
-            RequiredCapabilities = ["focus-window", "lifecycle-v1", "stop"],
-            SupportedCapabilities = ["focus-window", "lifecycle-v1", "stop"],
+            RequiredCapabilities = ProtocolCompatibility.RequiredCapabilities,
+            SupportedCapabilities = ProtocolCompatibility.RequiredCapabilities,
         };
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(HandshakeTimeout);
@@ -225,6 +242,15 @@ public sealed class MachineNativeSession : INativeInteractiveSession
         }
 
         await ready.Task.WaitAsync(deadline.Token);
+
+        // Retain validated response data only after the separately observed NativeReady passed.
+        NativeHandshakeObservation observation = new(response.Product!, response.ProtocolMajor!.Value,
+            response.ProtocolMinor!.Value, response.Capabilities);
+
+        lock (gate)
+        {
+            acceptedHandshake = observation;
+        }
     }
 
     /// <summary>Queues FocusWindow and reports native main-thread dispatch truthfully.</summary>
@@ -423,7 +449,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession
             frame = new OutboundFrame(ProtocolJsonCodec.Encode(message));
             beforeRequestPublication?.Invoke(requestId, command);
             priorFailure = channelFailure;
-            queued = TryQueueFrameLocked(frame);
+            queued = TryQueueFrameLocked(frame, grantForeground: command == "FocusWindow");
             request = new PendingCommand(command);
 
             if (queued)
@@ -518,13 +544,24 @@ public sealed class MachineNativeSession : INativeInteractiveSession
     }
 
     /// <summary>Publishes one bounded frame while the request-order gate is held.</summary>
-    private bool TryQueueFrameLocked(OutboundFrame frame)
+    private bool TryQueueFrameLocked(OutboundFrame frame, bool grantForeground = false)
     {
         int frameBytes = frame.Payload.Length + sizeof(uint);
         bool queueUnavailable = channelFailure is not null || queuedFrames >= MaximumQueuedFrames ||
-            queuedBytes > MaximumQueuedBytes - frameBytes || !outgoing.Writer.TryWrite(frame);
+            queuedBytes > MaximumQueuedBytes - frameBytes;
 
         if (queueUnavailable)
+        {
+            return false;
+        }
+
+        // Delegate before publication: the pipe writer may run as soon as TryWrite succeeds.
+        if (grantForeground && !process.HasExited)
+        {
+            _ = grantForegroundPermission(process);
+        }
+
+        if (!outgoing.Writer.TryWrite(frame))
         {
             return false;
         }

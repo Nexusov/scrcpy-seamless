@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Input.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using ScrcpySeamless.Core.Application.Activation;
@@ -89,16 +90,30 @@ public partial class App : Application
                 NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
                     ApplyAppearance,
                     shortcuts => normalWindow?.ApplyShortcuts(shortcuts),
-                    ResolveEffectiveFont);
+                    ResolveEffectiveFont,
+                    copySessionEvidence: async evidence =>
+                    {
+                        // Resolve the existing window clipboard only when the DEV action is invoked.
+                        var clipboard = normalWindow?.Clipboard ??
+                            throw new InvalidOperationException("Clipboard is unavailable.");
+                        await clipboard.SetTextAsync(evidence);
+                    });
                 normalWindow = new MainWindow(composition.Shell);
                 normalWindow.AttachNormalComposition(composition);
                 desktopLifetime.MainWindow = normalWindow;
                 CancellationTokenSource activationCancellation = new();
-                _ = ObserveActivationAsync(activation, normalWindow, activationCancellation.Token);
+                Task activationObservation = ObserveActivationAsync(activation, normalWindow,
+                    composition, activationCancellation.Token);
                 desktopLifetime.Exit += (_, _) =>
                 {
                     activationCancellation.Cancel();
                     activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    // Observe any unexpected task fault before the owner exits.
+                    if (activationObservation.IsFaulted)
+                    {
+                        System.Diagnostics.Trace.TraceError("Control-center activation task failed: {0}",
+                            activationObservation.Exception?.GetType().Name);
+                    }
                     activationCancellation.Dispose();
                 };
                 normalWindow.Opened += async (_, _) =>
@@ -118,9 +133,9 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    /// <summary>Shows only this scope's window when its same-user owner receives activation.</summary>
+    /// <summary>Separates control-center activation from exact-session native focus requests.</summary>
     private static async Task ObserveActivationAsync(WindowsControlCenterActivation activation,
-        MainWindow window, CancellationToken cancellationToken)
+        MainWindow window, NormalDesktopComposition composition, CancellationToken cancellationToken)
     {
         try
         {
@@ -128,17 +143,43 @@ public partial class App : Application
             {
                 if (request.Kind == ControlCenterActivationKind.ShowControlCenter)
                 {
-                    Dispatcher.UIThread.Post(() =>
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         window.WindowState = WindowState.Normal;
                         window.Show();
                         window.Activate();
                     });
+
+                    continue;
+                }
+
+                if (request.Kind == ControlCenterActivationKind.FocusSession &&
+                    request.SessionId is { } sessionId && composition.DeviceSession is { } deviceSession)
+                {
+                    try
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(
+                            () => deviceSession.FocusSessionAsync(sessionId, cancellationToken));
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        System.Diagnostics.Trace.TraceError("Native focus activation failed: {0}",
+                            exception.GetType().Name);
+                    }
                 }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Control-center activation observation failed: {0}",
+                exception.GetType().Name);
         }
     }
 

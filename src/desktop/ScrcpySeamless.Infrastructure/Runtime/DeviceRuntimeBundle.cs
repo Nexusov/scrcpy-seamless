@@ -1,11 +1,21 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ScrcpySeamless.Infrastructure.NativeProtocol;
 
 namespace ScrcpySeamless.Infrastructure.Runtime;
 
 /// <summary>Result of validating an explicit, non-release development runtime.</summary>
-public enum RuntimeBundleStatus { Ready, Missing, InvalidManifest, MissingComponent, HashMismatch }
+public enum RuntimeBundleStatus
+{
+    Ready,
+    Missing,
+    InvalidManifest,
+    MissingComponent,
+    HashMismatch,
+    IncompatibleMachineContract,
+}
 
 /// <summary>Resolved files or a structured reason to keep device launch unavailable.</summary>
 public sealed record RuntimeBundleResult(DeviceRuntimeBundle? Bundle, RuntimeBundleStatus Status, string? Component);
@@ -19,6 +29,16 @@ public sealed class DeviceRuntimeManifest
     public string ServerSourceFingerprint { get; init; } = string.Empty;
     public Dictionary<string, string> Files { get; init; } = [];
     public Dictionary<string, string> Origins { get; init; } = [];
+    public MachineRuntimeContract? MachineContract { get; init; }
+}
+
+/// <summary>Describes the native machine contract claimed by a hashed DEV bundle.</summary>
+public sealed class MachineRuntimeContract
+{
+    public string Product { get; init; } = string.Empty;
+    public int ProtocolMajor { get; init; }
+    public int ProtocolMinor { get; init; }
+    public string[]? Capabilities { get; init; }
 }
 
 /// <summary>Validates the exact files selected for a device-enabled Desktop session.</summary>
@@ -74,10 +94,15 @@ public sealed class DeviceRuntimeBundle
         }
 
         DeviceRuntimeManifest? manifest;
+        bool machineContractDeclared = false;
 
         try
         {
-            manifest = JsonSerializer.Deserialize<DeviceRuntimeManifest>(File.ReadAllText(manifestPath), JsonOptions);
+            string manifestJson = File.ReadAllText(manifestPath);
+            using JsonDocument document = JsonDocument.Parse(manifestJson);
+            machineContractDeclared = document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty(nameof(DeviceRuntimeManifest.MachineContract), out _);
+            manifest = JsonSerializer.Deserialize<DeviceRuntimeManifest>(manifestJson, JsonOptions);
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -126,6 +151,42 @@ public sealed class DeviceRuntimeBundle
             }
         }
 
-        return new RuntimeBundleResult(new DeviceRuntimeBundle(fullDirectory, manifest!), RuntimeBundleStatus.Ready, null);
+        // A schema-v1 manifest without this later claim remains a recognizable legacy-only bundle.
+        MachineRuntimeContract? contract = manifest!.MachineContract;
+
+        if (contract is null)
+        {
+            RuntimeBundleStatus status = machineContractDeclared
+                ? RuntimeBundleStatus.InvalidManifest
+                : RuntimeBundleStatus.IncompatibleMachineContract;
+            return new RuntimeBundleResult(null, status, ManifestFileName);
+        }
+
+        bool malformedContract = string.IsNullOrWhiteSpace(contract.Product) ||
+            Encoding.UTF8.GetByteCount(contract.Product) > 256 || contract.Product.Contains('\0') ||
+            contract.ProtocolMajor is < 0 or > ushort.MaxValue ||
+            contract.ProtocolMinor is < 0 or > ushort.MaxValue ||
+            contract.Capabilities is null || contract.Capabilities.Length is < 1 or > 16 ||
+            contract.Capabilities.Any(capability => string.IsNullOrEmpty(capability) ||
+                Encoding.UTF8.GetByteCount(capability) > 64 || capability.Contains('\0')) ||
+            contract.Capabilities.Distinct(StringComparer.Ordinal).Count() != contract.Capabilities.Length;
+
+        if (malformedContract)
+        {
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, ManifestFileName);
+        }
+
+        bool compatibleContract = contract.Product == ProtocolCompatibility.Product &&
+            contract.ProtocolMajor == ProtocolCompatibility.Major &&
+            contract.ProtocolMinor >= ProtocolCompatibility.Minor &&
+            ProtocolCompatibility.RequiredCapabilities.All(capability =>
+                contract.Capabilities!.Contains(capability, StringComparer.Ordinal));
+
+        if (!compatibleContract)
+        {
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.IncompatibleMachineContract, ManifestFileName);
+        }
+
+        return new RuntimeBundleResult(new DeviceRuntimeBundle(fullDirectory, manifest), RuntimeBundleStatus.Ready, null);
     }
 }

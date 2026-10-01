@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
 $repositoryDirectory = Split-Path -Parent $PSScriptRoot
 $packager = Join-Path $repositoryDirectory 'scripts\package-desktop-device-dev.ps1'
 $sourceSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -12,8 +14,11 @@ $noticeNames = @(
     'Android-Platform-Tools-NOTICE.txt', 'dav1d-COPYING.txt',
     'FFmpeg-LGPL-2.1.txt', 'FFmpeg-LICENSE.md', 'GCC-GPL-3.0.txt',
     'GCC-RUNTIME-EXCEPTION.txt', 'MinGW-w64-COPYING.txt',
-    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt'
+    'MinGW-w64-runtime-COPYING.txt', 'SDL-LICENSE.txt', 'zlib-LICENSE.txt',
+    'yyjson-LICENSE.txt'
 )
+$machineContract = Get-Content -LiteralPath (Join-Path $repositoryDirectory 'spec\desktop-native\runtime-contract.json') -Raw |
+    ConvertFrom-Json
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('scrcpy desktop package test with spaces ' + [guid]::NewGuid().ToString('N'))
 
 # Build only synthetic bytes; no test invokes ADB, native mirroring or a published Desktop executable.
@@ -49,6 +54,7 @@ function New-SyntheticPackage {
         ServerSourceFingerprint = ('c' * 64)
         Files = $hashes
         Origins = $origins
+        MachineContract = $machineContract
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'runtime\runtime-dev-manifest.json') -Encoding UTF8
 }
 
@@ -100,8 +106,53 @@ try {
 
     $missingNotice = Join-Path $fixtureRoot 'missing notice'
     New-SyntheticPackage -Directory $missingNotice
-    Remove-Item -LiteralPath (Join-Path $missingNotice 'licenses\SDL-LICENSE.txt')
+    Remove-Item -LiteralPath (Join-Path $missingNotice 'licenses\yyjson-LICENSE.txt')
     Assert-RejectedPackage -Directory $missingNotice -Archive (Join-Path $fixtureRoot 'notice.zip')
+
+    $legacyRuntime = Join-Path $fixtureRoot 'legacy runtime'
+    New-SyntheticPackage -Directory $legacyRuntime
+    $legacyManifestPath = Join-Path $legacyRuntime 'runtime\runtime-dev-manifest.json'
+    $legacyManifest = Get-Content -LiteralPath $legacyManifestPath -Raw | ConvertFrom-Json
+    $legacyManifest.PSObject.Properties.Remove('MachineContract')
+    $legacyManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $legacyManifestPath -Encoding UTF8
+    Assert-RejectedPackage -Directory $legacyRuntime -Archive (Join-Path $fixtureRoot 'legacy.zip')
+
+    # The read-only verifier still recognizes an already archived old bundle without the new notice.
+    Remove-Item -LiteralPath (Join-Path $legacyRuntime 'licenses\yyjson-LICENSE.txt')
+    $legacyFiles = [string[]]@(Get-ChildItem -LiteralPath $legacyRuntime -File -Recurse |
+        ForEach-Object { $_.FullName.Substring($legacyRuntime.Length).TrimStart('\', '/').Replace('\', '/') })
+    [Array]::Sort($legacyFiles, [StringComparer]::Ordinal)
+    $legacyHashes = [ordered]@{}
+
+    foreach ($name in $legacyFiles) {
+        $legacyHashes[$name] = (Get-FileHash -LiteralPath (Join-Path $legacyRuntime $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+
+    [ordered]@{ SchemaVersion = 1; SourceSha = $sourceSha; Files = $legacyHashes } |
+        ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $legacyRuntime 'dev-package-manifest.json') -Encoding UTF8
+    $legacyArchive = Join-Path $fixtureRoot 'archived legacy.zip'
+    $legacyZip = [IO.Compression.ZipFile]::Open($legacyArchive, [IO.Compression.ZipArchiveMode]::Create)
+
+    try {
+        foreach ($name in @($legacyFiles) + 'dev-package-manifest.json') {
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($legacyZip,
+                (Join-Path $legacyRuntime $name), $name) | Out-Null
+        }
+    }
+    finally {
+        $legacyZip.Dispose()
+    }
+    $legacyArchiveHash = (Get-FileHash -LiteralPath $legacyArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$legacyArchiveHash  archived legacy.zip" | Set-Content -LiteralPath ($legacyArchive + '.sha256') -Encoding Ascii
+    & $packager -SourceSha $sourceSha -ArchivePath $legacyArchive -VerifyOnly | Out-Null
+
+    $falseClaim = Join-Path $fixtureRoot 'false machine claim'
+    New-SyntheticPackage -Directory $falseClaim
+    $falseClaimManifestPath = Join-Path $falseClaim 'runtime\runtime-dev-manifest.json'
+    $falseClaimManifest = Get-Content -LiteralPath $falseClaimManifestPath -Raw | ConvertFrom-Json
+    $falseClaimManifest.MachineContract.ProtocolMajor = 2
+    $falseClaimManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $falseClaimManifestPath -Encoding UTF8
+    Assert-RejectedPackage -Directory $falseClaim -Archive (Join-Path $fixtureRoot 'false-claim.zip')
 
     $changedRuntime = Join-Path $fixtureRoot 'changed runtime'
     New-SyntheticPackage -Directory $changedRuntime

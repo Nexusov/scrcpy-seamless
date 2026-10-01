@@ -19,11 +19,23 @@
                 AutomationProperties.AutomationId="devices.mirror" />
         <Button Content="Stop" Command="{Binding StopCommand}"
                 AutomationProperties.AutomationId="devices.stop" />
+        <!-- Focus targets only the currently owned mirror session. -->
+        <Button Content="{Binding FocusLabel}" Command="{Binding FocusCommand}"
+                AutomationProperties.AutomationId="devices.focusMirror" />
+        <!-- Explicit DEV-only copy reads retained evidence without changing the session. -->
+        <Button Content="Copy session evidence" Command="{Binding CopySessionEvidenceCommand}"
+                IsVisible="{Binding CanCopySessionEvidence}"
+                AutomationProperties.AutomationId="devices.copySessionEvidence" />
       </WrapPanel>
+      <TextBlock Text="{Binding HostModeStatus}" TextWrapping="Wrap" Classes="muted" />
       <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding FocusStatus}" TextWrapping="Wrap" Classes="muted" />
+      <TextBlock Text="{Binding EvidenceCopyStatus}" TextWrapping="Wrap" Classes="muted"
+                 IsVisible="{Binding CanCopySessionEvidence}" />
       <TextBlock Text="{Binding ChannelEvidence}" Classes="muted" />
       <TextBlock Text="{Binding ProcessId, StringFormat='Owned native PID: {0}'}" Classes="muted" />
-      <TextBlock Text="{Binding WindowHandle, StringFormat='Observed HWND: {0}'}" Classes="muted" />
+      <TextBlock Text="{Binding WindowHandle, StringFormat='Observed HWND: {0}'}"
+                 IsVisible="{Binding HasObservedWindowHandle}" Classes="muted" />
     </StackPanel>
   </Border>
 </UserControl>
