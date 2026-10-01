@@ -5,6 +5,8 @@
 
 #include "options.h"
 
+struct sc_dispatcher;
+
 enum scrcpy_exit_code {
     // Normal program termination
     SCRCPY_EXIT_SUCCESS,
@@ -17,6 +19,6 @@ enum scrcpy_exit_code {
 };
 
 enum scrcpy_exit_code
-scrcpy(struct scrcpy_options *options);
+scrcpy(struct scrcpy_options *options, struct sc_dispatcher *dispatcher);
 
 #endif

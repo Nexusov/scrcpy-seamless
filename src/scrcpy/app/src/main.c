@@ -9,6 +9,7 @@
 #include <SDL3/SDL.h>
 
 #include "cli.h"
+#include "dispatcher.h"
 #include "events.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
@@ -131,17 +132,21 @@ main_scrcpy(int argc, char *argv[]) {
 
     sc_log_configure();
 
-    if (!sc_main_thread_init()) {
-        ret = SCRCPY_EXIT_FAILURE;
-        goto net_cleanup;
-    }
-
     if (!SDL_Init(SDL_INIT_EVENTS)) {
         LOGE("Could not initialize SDL events: %s", SDL_GetError());
         ret = SCRCPY_EXIT_FAILURE;
-        goto main_thread_cleanup;
+        goto net_cleanup;
     }
     atexit(SDL_Quit);
+
+    // The application owns dispatcher storage beyond every joined producer.
+    struct sc_dispatcher dispatcher;
+
+    if (!sc_dispatcher_init(&dispatcher, SC_EVENT_DISPATCHER_WAKEUP, NULL,
+                             NULL)) {
+        ret = SCRCPY_EXIT_FAILURE;
+        goto net_cleanup;
+    }
 
     struct sc_launcher_stop launcher_stop = {0};
 #ifdef _WIN32
@@ -160,17 +165,17 @@ main_scrcpy(int argc, char *argv[]) {
     }
 
 #ifdef HAVE_USB
-    ret = args.opts.otg ? scrcpy_otg(&args.opts) :
+    ret = args.opts.otg ? scrcpy_otg(&args.opts, &dispatcher) :
 #ifdef _WIN32
           machine_active && sc_machine_stop_requested() ? SCRCPY_EXIT_SUCCESS :
 #endif
-          scrcpy(&args.opts);
+          scrcpy(&args.opts, &dispatcher);
 #else
     ret =
 #ifdef _WIN32
           machine_active && sc_machine_stop_requested() ? SCRCPY_EXIT_SUCCESS :
 #endif
-          scrcpy(&args.opts);
+          scrcpy(&args.opts, &dispatcher);
 #endif
 
 #ifdef _WIN32
@@ -189,13 +194,20 @@ main_scrcpy(int argc, char *argv[]) {
 #endif
     sc_launcher_stop_destroy(&launcher_stop);
 
-main_thread_cleanup:
+main_thread_cleanup:;
 #ifdef _WIN32
     if (machine_active) {
         sc_machine_close_commands();
     }
 #endif
-    sc_main_thread_destroy();
+    // scrcpy/OTG have joined their producers; settle only app-owned work.
+    bool shutdown = sc_dispatcher_shutdown(&dispatcher);
+    bool destroyed = shutdown && sc_dispatcher_destroy(&dispatcher);
+
+    if (!destroyed) {
+        LOGE("Dispatcher still has owned users at application shutdown");
+        ret = SCRCPY_EXIT_FAILURE;
+    }
 
 net_cleanup:
     net_cleanup();

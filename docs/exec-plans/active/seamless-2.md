@@ -31,10 +31,12 @@ or a correction to frozen DEV package bytes. Separately observed post-merge
 (push, attempt 1) completed all four jobs successfully; each retrieved job log
 identifies checkout `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`.
 
-Planning-only Phase 7 work starts on `2.0/p07-native-lifetime` from that exact
-integration merge. The [source-anchored lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-and its checkpoint contracts are proposed and pending review. No Phase 7
-implementation or Phase 8 work is authorized or started.
+Phase 7 work continues on `2.0/p07-native-lifetime` from that exact integration
+merge. The maintainer approved the [source-anchored lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
+at planning head `dbb0a9b` and authorized P7.1 only. The bounded app dispatcher
+and receiver ownership migration passed fresh local native/managed/IPC/process/
+legacy validation and internal source review, and are pending independent P7.1
+acceptance. P7.2–P7.6 and Phase 8 are unstarted and unauthorized.
 
 ## Historical Phase 6C development checkpoints
 
@@ -847,12 +849,13 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the current source map, proposed contracts, tests and exit criteria. This
-index does not authorize implementation or duplicate the design.
+owns the historical source map, implemented P7.1 contract, proposed later
+contracts, tests and exit criteria. This index records the maintainer's P7.1
+authorization and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
-| P7.1 | Plan review and separate authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Recommended first implementation slice; not started |
+| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Implemented; 20/20 native targets, 15 dispatcher groups, 10 receiver cases, bidirectional IPC, 8 process tests, 554 solution tests and 29 legacy suites passed freshly. Independent acceptance pending; only receiver queued work has the new generation guarantee. |
 | P7.2 | P7.1 | Presentation/input/frame ingress separation | Proposed; not started |
 | P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
 | P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |

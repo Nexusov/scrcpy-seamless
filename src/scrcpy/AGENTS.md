@@ -37,6 +37,20 @@ when their implementation is replaced.
 
 ## Native engineering invariants
 
+P7.1 receiver clipboard/UHID work uses `app/src/dispatcher.h`, owned by `main`
+after SDL initialization. Begin/bind/revoke and draining are main-thread-only
+and reject callback reentry. Admission transfers an owned payload only on
+`SC_DISPATCHER_ACCEPTED`; rejection keeps the producer owner. Capture generation
+values, never session-target pointers in queued payloads. Revoke before release,
+join producers, release completion callers, then remove exact-instance wakeups
+and destroy. Quiesce all threads using a completion handle before releasing its
+sole caller reference; cancellation does not release executing payload storage.
+Machine Stop/Focus remains on its application-scoped SDL path.
+See `../../docs/architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract`
+for limits, waiters, wakeup failure and remaining legacy/ACK containment. Native
+debug targets link production dispatcher and receiver adapters with controlled
+external-effect doubles; they must not read/write a real clipboard or use ADB.
+
 - Application lifetime and connection-session lifetime are distinct concepts in
   the 2.0 target.
 - A session must not retain access to resources after its lifetime ends.

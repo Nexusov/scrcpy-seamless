@@ -59,6 +59,14 @@ not a fix, and R16 remains open for evidence-based investigation if it recurs.
 
 ## Acceptance and review
 
+P7.1 adds bounded application-owned receiver clipboard/UHID dispatch with scalar
+generation validation, explicit payload/waiter ownership and controlled native
+race/pressure tests. See the [implemented contract and fresh evidence](PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract).
+This contains only migrated queued receiver work. R05/R06/R12/R15 remain open:
+direct ACK retirement order, untagged producers, media joins, complete generation
+safety and audio/worker observability are not fixed or validated by this slice.
+No old hardware result is transferred to these new native source bytes.
+
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
 and trace-timing limits. Phase 1 closed the specific R01/R02 publisher gaps;
 that does not certify reconnect reliability, complete isolation of raw ADB

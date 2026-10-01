@@ -11,6 +11,7 @@ src = [
     'src/compat.c',
     'src/control_msg.c',
     'src/controller.c',
+    'src/dispatcher.c',
     'src/decoder.c',
     'src/delay_buffer.c',
     'src/demuxer.c',
@@ -231,6 +232,14 @@ endif
 # do not build tests in release (assertions would not be executed at all)
 if get_option('buildtype') == 'debug'
     tests = [
+        ['test_dispatcher', [
+            'tests/test_dispatcher.c',
+            'src/dispatcher.c',
+            'src/events.c',
+            'src/util/thread.c',
+            'src/util/tick.c',
+            'src/util/log.c',
+        ]],
         ['test_thread_timedwait', [
             'tests/test_thread_timedwait.c',
         ]],
@@ -329,6 +338,7 @@ if get_option('buildtype') == 'debug'
     receiver_test = executable('test_receiver_dispatch', [
         'tests/test_receiver_dispatch.c',
         'src/receiver.c',
+        'src/dispatcher.c',
         'src/device_msg.c',
         'src/util/acksync.c',
         'src/util/thread.c',

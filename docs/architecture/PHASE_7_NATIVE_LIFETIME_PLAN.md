@@ -1,9 +1,11 @@
 # Phase 7 native application and connection lifetime plan
 
-Status: proposed, pending review and separate implementation authorization.
+Status: migration direction approved; P7.1 implemented locally pending source
+review. P7.2–P7.6 remain proposals and require separate authorization.
 Source inspection date: 2026-10-02. All current-source statements below refer to
 integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
-checkpoints are proposals, not implemented guarantees.
+later checkpoints are proposals. The P7.1 section separately records the new
+implemented dispatcher/receiver boundary; the baseline map remains historical.
 
 ## Authority, integration and evidence boundary
 
@@ -365,7 +367,8 @@ JSONL schema/export, rotation/privacy policy and full aggregate metrics.
 
 The maintainer approved the published direction at `dbb0a9b` and authorized only
 P7.1. The following concrete contract is recorded before production edits.
-Implementation and fresh validation remain pending; P7.2–P7.6 are unstarted.
+The scoped implementation passed the fresh local checks below and is pending
+independent P7.1 acceptance. P7.2–P7.6 are unstarted.
 
 `main` owns one `sc_dispatcher`, initialized after SDL event initialization and
 destroyed after all producers and completion users have quiesced. Independent
@@ -387,7 +390,11 @@ external effects occur outside admission/registry locks.
 
 Named limits are `SC_DISPATCHER_MAX_ITEMS = 64`,
 `SC_DISPATCHER_MAX_PAYLOAD_BYTES = 1 MiB`, and
-`SC_DISPATCHER_DRAIN_LIMIT = 8` callbacks/discards per main-thread turn. Count
+`SC_DISPATCHER_DRAIN_LIMIT = 8` callbacks/discards per normal drain. The production
+SDL wake is deferred to the event loop, giving eight per wake handling turn;
+explicit revoke/shutdown/wakeup failure settle at most the 64 retained items.
+A synchronous test wake adapter may enter a separate bounded drain after the
+preceding callback lease ends; it does not establish the production turn budget. Count
 covers fixed slots retained by queued/executing/cancelled work or a completion
 user. Payload bytes include owning receiver records and transferred text/HID
 buffers; retain budget through actual destruction, conservatively until the
@@ -405,12 +412,18 @@ Cancellation settles a caller as cancelled; a callback already executing keeps
 its payload/binding lease until return. Execution/revocation/shutdown settle
 pending waiters. A caller releases its handle; the slot retires only after both
 caller and operation are finished. No caller-stack completion storage is kept.
+The caller must quiesce every thread using a handle before releasing its sole
+caller reference; release is not cancellation and does not authorize another
+thread to continue accessing a recycled slot.
 
 `SC_EVENT_DISPATCHER_WAKEUP` follows `SC_EVENT_DISCONNECTED_TIMEOUT`, outside the
 legacy `NEW_FRAME..AOA_OPEN_ERROR` flush. Wake events carry only the app dispatcher
-pointer. Publication/pending state and publisher count are protected under the
+pointer plus a `uintptr_t` notification ticket, never a session target.
+Publication/pending state and publisher count are protected under the
 gate; SDL push occurs outside it. Coalesced scheduling failure settles affected
 accepted work as wakeup-failed, never as a producer-owned admission rejection.
+Ticket validation prevents an older failed publication from cancelling a newer
+successful notification. Ticket exhaustion settles accepted work without reuse.
 Empty-drain inspection and pending-state transition are atomic with admission;
 remaining work rearms after the bounded turn. Server wait, active event loop,
 reconnect wait and conditional OTG service this event before screen propagation.
@@ -435,12 +448,77 @@ test passes with one release and no HID/post effect. Local red/green logs are
 retained under ignored `work/phase7/p71/`; this is injected allocation-failure
 evidence, not measured hardware leakage or a historical device root cause.
 
-## Recommended first authorization and review decisions
+### P7.1 implementation evidence and limits
 
-Authorize **P7.1 only** first: app-owned dispatcher admission/envelope, captured
+The actual [dispatcher](../../src/scrcpy/app/src/dispatcher.c) and
+[receiver](../../src/scrcpy/app/src/receiver.c) are linked into
+[dispatcher tests](../../src/scrcpy/app/tests/test_dispatcher.c) and
+[receiver tests](../../src/scrcpy/app/tests/test_receiver_dispatch.c).
+Controlled gates establish ordering; finite outer timeouts only detect hangs.
+Dispatcher coverage comprises 15 groups with controlled subcases: normal binding
+and rejection, count/byte bounds, execution/revoke/shutdown waiters, replacement
+and enqueue/revoke orderings, coalesced scheduling failure, an older failed wake
+after a new notification, queued cancellation and caller departure during
+execution, bounded/nested drains, both last-empty/new-producer orderings, final
+rearming, live-publisher destruction refusal, exact-instance wake removal,
+legacy flush, generation and wake-ticket exhaustion. Receiver coverage comprises
+10 cases through actual decoding/adapters, including the original allocation
+failure, clipboard allocation failure, current clipboard/HID effects, old work,
+count pressure, maximum clipboard with and without embedded NUL, wake failure,
+absent HID target and shutdown/late publication. Effect doubles prohibit real
+clipboard, HID and network work; this lane does not exercise socket threads or
+phone recovery.
+
+Fresh local execution on 2026-10-02 used GCC 16.2.0, Meson 1.12.0, Ninja 1.13.2,
+SDL development 3.4.8 and pinned .NET SDK 10.0.401. The 11 existing reviewed
+runtime files were hash-checked against `release-manifest.json`. Final native
+source fingerprint is
+`372c104f374109be1dca6c406c81ae66ff47e95d1983eed86c3f44cb68819356`;
+ordinary `dist/scrcpy.exe` SHA-256 is
+`a6bafce22423b1e53f0a97690bc5f28d7a73767279c6052449af289cf23da367`.
+The newly compiled production-linked `test_machine_child.exe` SHA-256 is
+`f2e8f7c18c236e2cc57d6d7fa8cefcd21b4e3acb8b7df81291a62efc015451c5`.
+These are ignored native/test outputs, not a new Desktop DEV artifact.
+
+| Fresh check | Observed result |
+| --- | --- |
+| Canonical debugoptimized native build | Passed in `work/phase7/p71/native-client-final`; no production compiler warning. |
+| Complete native debug build/test | 20/20 targets passed in `work/phase7/p71/native-tests-final`; dispatcher 15 groups, receiver 10 cases. Existing minimum-Meson-version feature warning remains unrelated; pinned Meson is supported. |
+| Bidirectional C/C# IPC | Nine canonical vectors and 24 conformance frames; eight managed contract tests passed in both language directions. |
+| Separate no-phone process lane | Eight tests passed using the newly built fixture and separate production executable: ordinary/bootstrap, Stop/Focus/EOF and exact-parent death. This does not run the media graph. |
+| Locked restore / SpecGen / Release build | Passed; 113 native entries and six generated outputs current; zero managed warnings/errors. |
+| Full solution suite | 554 passed, zero failed/skipped. |
+| Legacy PowerShell | 29/29 suites passed; no physical device or shared ADB. |
+| Documentation / metadata / diff / privacy | DocsCheck passed (611 links, 82 Markdown files), pinned metadata consistent, diff checks passed; outgoing intermediate blobs reviewed. |
+
+Retain `receiver-red.log`, `receiver-green.log` and all final logs under ignored
+`work/phase7/p71`. The first debug build failed linking the new test because its
+target omitted `events.c`; that log remains `native-tests.log`. Registering the
+actual event dependency corrected the test target. Fresh final builds and tests
+passed afterward; a retry is not presented as a product fix. Source review also
+closed new implementation gaps in embedded-NUL accounting, reentrant final
+rearming, older wake failure and exhausted-ticket publisher retention before the
+final run. Source review did not independently execute Windows tests.
+
+Generation begin/revoke debug records and one receiver admission-rejection record
+per receiver carry allowlisted generation/reason only, outside lifetime locks.
+Payloads, endpoints and device identifiers are excluded from new diagnostics.
+Test stats expose bounded count/byte/publisher evidence. This is not complete
+timestamped worker/audio correlation or a diagnostic exporter; R15 remains open.
+The old verbose UHID diagnostic is preserved without extending its payload
+logging. No native wire fields, managed runtime, reconnect decisions, budgets,
+configuration, dependencies, workflows or generated outputs changed. Android
+production is unchanged and was not rebuilt. All frozen packages and incident
+evidence remain untouched. Windows `usb=false` does not validate AOA/OTG/V4L2;
+direct ACK order, other untagged work, full graph safety and responsive joins stay
+open for their later checkpoints. No new hardware or hosted CI pass is claimed.
+
+## Historical planning recommendations and later review decisions
+
+The original plan recommended **P7.1 only** first: app-owned dispatcher admission/envelope, captured
 generation token, receiver clipboard/UHID migration and production-linked
 ownership/waiter tests. Keep current reconnect, graph, presentation and machine
-semantics. Exit at green deterministic payload/late-work checks and preserved
+semantics. This slice is now authorized. Exit at green deterministic payload/late-work checks and preserved
 machine/legacy boundaries; no whole-session rewrite in this first slice.
 
 Recommendations requiring design review before their owning implementation:
@@ -460,9 +538,11 @@ Recommendations requiring design review before their owning implementation:
   a minimal negotiated wire extension separately if managed correlation later
   genuinely needs worker/generation fields. No exporter/dashboard is implied.
 
-This planning task changes documentation only. Production, tests, protocol/spec,
-generated outputs, dependencies and workflows remain unchanged. Existing AGENTS
-already states the proposed separation, producer-before-destroy and stale-input
-invariants; no path/build/implemented contract changes require an AGENTS edit.
+The original planning checkpoint changed documentation only. Its production,
+tests, protocol/spec, generated outputs, dependencies and workflows were
+unchanged. At that checkpoint existing AGENTS already stated the proposed
+separation, producer-before-destroy and stale-input invariants. P7.1 separately
+updates the native scoped guide and runtime documentation for its implemented
+ownership boundary; dependencies, protocol/spec and generated outputs stay intact.
 Implementation authorization, plan acceptance and public release acceptance
 remain separate decisions.
