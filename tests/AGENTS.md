@@ -55,3 +55,9 @@ Fixtures must not contain real pairing codes, ADB private keys, personal device
 identifiers, or private network information.
 
 Use synthetic identifiers and redacted samples.
+
+The optional `desktop/ScrcpySeamless.FocusFixture` is a human-clicked Windows
+foreground experiment, not unattended CI or phone acceptance. Its native window
+mode belongs only to `test_machine_child.exe`; obtain approval before visible
+experiments. See the Focus investigation in
+`/docs/development/phase6c-manual-acceptance.md` for the recorded evidence limits.

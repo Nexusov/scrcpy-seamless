@@ -26,12 +26,14 @@ public sealed class MachineNativePressureTests
         using EventWaitHandle ready = CreateEvent(readyName);
         using EventWaitHandle release = CreateEvent(releaseName);
         MachineNativeSession? session = null;
+        int grantCount = 0;
 
         try
         {
             session = await MachineNativeSession.StartAsync(sessionId,
                 CreateStartInfo(scriptPath, sessionId, "pending-focus", readyName, releaseName),
-                TestContext.Current.CancellationToken);
+                TestContext.Current.CancellationToken,
+                grantForegroundPermission: _ => { grantCount++; return false; });
             Task<NativeFocusOutcome>[] admitted = Enumerable.Range(0, MaximumPendingCommands)
                 .Select(_ => session.FocusWindowAsync(TestContext.Current.CancellationToken))
                 .ToArray();
@@ -39,6 +41,7 @@ public sealed class MachineNativePressureTests
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(MaximumPendingCommands, grantCount);
             release.Set();
             NativeFocusOutcome[] outcomes = await Task.WhenAll(admitted).WaitAsync(FixtureWatchdog,
                 TestContext.Current.CancellationToken);
@@ -48,6 +51,7 @@ public sealed class MachineNativePressureTests
                 TestContext.Current.CancellationToken).WaitAsync(FixtureWatchdog,
                     TestContext.Current.CancellationToken);
             Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+            Assert.Equal(MaximumPendingCommands, grantCount);
             Assert.False(IsAlive(session.ProcessId));
         }
         finally

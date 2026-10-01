@@ -43,8 +43,15 @@ attempt, but the observed second invocation did not bring the mirror above the
 other windows; the first visual result was unverified and the additional click
 was separately authorized. Foreground Focus requires review, not a passed mark.
 Phase 6C hosted checks and final acceptance remain pending; Phase 6C is unaccepted.
-The earlier work-branch upload authorization was task-scoped. This retest permits
-only local documentation changes, with no new upload, PR, integration or release.
+The subsequent bounded no-phone Focus investigation reproduced Applied without
+foreground transfer, then observed transfer after an exact-child Windows
+permission handoff. A minimal Infrastructure correction and regression retain
+best-effort native outcomes and existing ownership; see the
+[investigation record](../../development/phase6c-manual-acceptance.md#bounded-no-phone-focus-investigation-on-2026-10-01).
+Fresh 527 .NET, 8 process and 18 native tests pass. The corrected artifact still
+requires separate source review and a minimal authorized Focus retest; historical
+hardware results are not transferred. This task permits only a reviewed normal
+push of the work branch, with no PR, integration or release.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 

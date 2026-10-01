@@ -11,6 +11,9 @@ exceptions or process objects. Retain typed completion/cleanup before release.
 Preview must remain side-effect free. Exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md and process policy in
 ../../docs/development/desktop-native-runtime.md.
+User-requested machine Focus delegates Windows foreground permission only to
+the retained live child before command publication; denial remains best effort.
+Keep Win32 in Infrastructure and never infer foreground ownership from Applied.
 
 Scope: `src/desktop/`.
 

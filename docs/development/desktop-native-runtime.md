@@ -130,6 +130,17 @@ separate facts. Focus uses the explicit machine command for the current or
 exactly named session. `Applied` acknowledges an attempted focus, not actual
 Windows foreground activation.
 
+For an admitted user-requested `FocusWindow`, Infrastructure attempts
+`AllowSetForegroundWindow` for the retained, still-live owned process after
+bounded admission and before publishing the command to the single writer.
+The original process handle remains retained; no PID lookup or HWND operation
+selects a replacement target. Only Windows uses this platform adapter. A denied
+grant leaves the native command/result and healthy session unchanged. Cancellation
+before admission, terminal rejection, startup, Stop and ShowControlCenter do not
+grant permission. Native raising stays on the SDL main thread. This supported
+handoff neither guarantees foreground ownership nor changes `Applied` semantics;
+another input event or Windows policy may still prevent activation.
+
 Automatic terminal cleanup is distinct from an explicit Stop request. The
 machine adapter retains its typed `TerminalFailure` when the session result is
 `NativeFailure`. Desktop presents that result as `Native session ended:

@@ -14,6 +14,8 @@
 
 #define SC_FIXTURE_PATH_CAPACITY 1024
 #define SC_FIXTURE_STARTUP_MS 10000u
+#define SC_FIXTURE_FOCUS_WINDOW_WIDTH 480
+#define SC_FIXTURE_FOCUS_WINDOW_HEIGHT 320
 
 /** Convert one FILETIME into the exact unsigned Windows creation tick value. */
 static uint64_t
@@ -235,6 +237,74 @@ sc_fixture_request_stop(void *userdata) {
     SDL_PushEvent(&event);
 }
 
+/** Publish only this synthetic window's identity before accepting UI requests. */
+static bool
+sc_fixture_publish_focus_window(SDL_Window *window) {
+    wchar_t directory[SC_FIXTURE_PATH_CAPACITY];
+    if (!sc_fixture_environment(L"SCRCPY_IPC_TEST_DIRECTORY", directory,
+                                SC_FIXTURE_PATH_CAPACITY)) {
+        return false;
+    }
+    wchar_t temporary[SC_FIXTURE_PATH_CAPACITY];
+    wchar_t final[SC_FIXTURE_PATH_CAPACITY];
+    int temporary_length = swprintf(temporary, SC_FIXTURE_PATH_CAPACITY,
+                                   L"%ls\\focus-window-ready.json.tmp", directory);
+    int final_length = swprintf(final, SC_FIXTURE_PATH_CAPACITY,
+                               L"%ls\\focus-window-ready.json", directory);
+    if (temporary_length < 0 || final_length < 0 ||
+            temporary_length >= SC_FIXTURE_PATH_CAPACITY ||
+            final_length >= SC_FIXTURE_PATH_CAPACITY) {
+        return false;
+    }
+    const char *revision = SDL_GetRevision();
+    // The loaded library's build revision is a token, not arbitrary user text.
+    for (const char *cursor = revision; *cursor; ++cursor) {
+        bool token_character = (*cursor >= 'a' && *cursor <= 'z') ||
+                               (*cursor >= 'A' && *cursor <= 'Z') ||
+                               (*cursor >= '0' && *cursor <= '9') ||
+                               *cursor == '-' || *cursor == '_' ||
+                               *cursor == '.' || *cursor == '+';
+        if (!token_character) {
+            return false;
+        }
+    }
+    HWND hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                                       SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+    char json[1024];
+    int length = snprintf(json, sizeof(json),
+        "{\"Pid\":%lu,\"Hwnd\":%" PRIuPTR ",\"MainThreadId\":%lu,"
+        "\"IsSdlMainThread\":%s,\"SdlVersion\":%d,\"SdlRevision\":\"%s\","
+        "\"Hidden\":%s,\"Minimized\":%s,\"AlwaysOnTop\":%s,\"Focusable\":%s,"
+        "\"ActivateWhenRaised\":%s,\"ForceRaise\":%s}",
+        (unsigned long) GetCurrentProcessId(), (uintptr_t) hwnd,
+        (unsigned long) GetCurrentThreadId(), SDL_IsMainThread() ? "true" : "false",
+        SDL_GetVersion(), revision,
+        flags & SDL_WINDOW_HIDDEN ? "true" : "false",
+        flags & SDL_WINDOW_MINIMIZED ? "true" : "false",
+        flags & SDL_WINDOW_ALWAYS_ON_TOP ? "true" : "false",
+        flags & SDL_WINDOW_NOT_FOCUSABLE ? "false" : "true",
+        SDL_GetHintBoolean(SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED, true) ? "true" : "false",
+        SDL_GetHintBoolean(SDL_HINT_FORCE_RAISEWINDOW, false) ? "true" : "false");
+    if (!hwnd || length < 0 || (size_t) length >= sizeof(json)) {
+        return false;
+    }
+    HANDLE file = CreateFileW(temporary, GENERIC_WRITE, 0, NULL,
+                              CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    DWORD written = 0;
+    bool complete = WriteFile(file, json, (DWORD) length, &written, NULL) &&
+                    written == (DWORD) length && FlushFileBuffers(file);
+    CloseHandle(file);
+    if (!complete || !MoveFileExW(temporary, final, MOVEFILE_WRITE_THROUGH)) {
+        DeleteFileW(temporary);
+        return false;
+    }
+    return true;
+}
+
 /** Exercise the same production dispatcher and parent watcher without ADB. */
 int
 main(int argc, char *argv[]) {
@@ -244,11 +314,15 @@ main(int argc, char *argv[]) {
     if (!sc_machine_prepare_stdio()) {
         return 10;
     }
+    wchar_t focus_mode[2];
+    bool focus_window_enabled = sc_fixture_environment(
+        L"SCRCPY_IPC_TEST_FOCUS_WINDOW", focus_mode, 2) && focus_mode[0] == L'1';
     struct sc_machine_config config;
     if (!sc_fixture_parse_bootstrap(argc, argv, &config) ||
             !sc_fixture_before_guard() ||
             !sc_machine_init(&config) || !sc_machine_handshake() ||
-            !SDL_Init(SDL_INIT_EVENTS)) {
+            !SDL_Init(focus_window_enabled ? SDL_INIT_VIDEO | SDL_INIT_EVENTS :
+                                            SDL_INIT_EVENTS)) {
         return 11;
     }
     HANDLE stop = CreateEventW(NULL, TRUE, FALSE, NULL);
@@ -260,9 +334,35 @@ main(int argc, char *argv[]) {
         SDL_Quit();
         return 12;
     }
-    if (!sc_fixture_spawn_daemon() ||
+    SDL_Window *window = NULL;
+    if (focus_window_enabled) {
+        // Do not enable SDL's input-thread/topmost workaround in this experiment.
+        if (!SDL_GetHintBoolean(SDL_HINT_FORCE_RAISEWINDOW, false)) {
+            window = SDL_CreateWindow("Seamless synthetic focus target",
+                SC_FIXTURE_FOCUS_WINDOW_WIDTH, SC_FIXTURE_FOCUS_WINDOW_HEIGHT,
+                SDL_WINDOW_RESIZABLE);
+        }
+        sc_machine_set_window(window);
+        if (!window || !sc_fixture_publish_focus_window(window)) {
+            sc_machine_close_commands();
+            sc_machine_set_window(NULL);
+            if (window) {
+                SDL_DestroyWindow(window);
+            }
+            sc_machine_destroy();
+            CloseHandle(stop);
+            SDL_Quit();
+            return 14;
+        }
+    }
+    if ((!focus_window_enabled && !sc_fixture_spawn_daemon()) ||
             !sc_machine_emit_lifecycle("NativeReady", "native", NULL,
                                        "none", "none")) {
+        sc_machine_close_commands();
+        sc_machine_set_window(NULL);
+        if (window) {
+            SDL_DestroyWindow(window);
+        }
         sc_machine_destroy();
         CloseHandle(stop);
         SDL_Quit();
@@ -275,6 +375,10 @@ main(int argc, char *argv[]) {
         }
     }
     sc_machine_close_commands();
+    sc_machine_set_window(NULL);
+    if (window) {
+        SDL_DestroyWindow(window);
+    }
     if (WaitForSingleObject(stop, 0) == WAIT_OBJECT_0) {
         sc_machine_emit_lifecycle("SessionStopped", "native", NULL,
                                    "userStop", "none");

@@ -724,3 +724,103 @@ validation and current checkpoint status; no architecture, protocol, lifecycle
 invariant, path or workflow changed, so AGENTS and the runtime guide need no
 edit. DocsCheck, diff and privacy review validate this documentation change;
 earlier automated totals are not represented as rerun here.
+
+### Bounded no-phone Focus investigation on 2026-10-01
+
+Starting checkout was clean on `2.0/p06c-desktop-ipc` at
+`a694b485d302342f9412a44a29f59f642b37da6d`. An independent remote query found
+`1bb4f4d54451078c51a264b3e468a0f547d6142b`. Changes from frozen package source
+`3a99a1ed` to that starting HEAD affected only this record and the execution
+plan. The historical ZIP passed fresh independent extraction/VerifyOnly;
+previous packages and observation records remain unchanged.
+
+The production path is DeviceSessionViewModel's exact-session/generation-guarded
+Focus → MachineNativeSession's correlated ordered command → native machine
+dispatcher → SDL main-thread callback → registered live screen window →
+SDL_RaiseWindow. The inspected path lacked an explicit Windows foreground
+permission handoff. SDL's Windows release-3.4.8 backend calls
+SetForegroundWindow on the normal raise route without propagating its BOOL;
+Applied therefore cannot establish foreground success. This is consistent with
+the [SDL contract](https://wiki.libsdl.org/SDL3/SDL_RaiseWindow) and the
+[Windows restrictions](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow).
+The exact historical hardware cause remains unproven: the first visual result
+was unobserved, the second was negative, and unchanged FocusStatus text alone
+does not prove a fresh second response.
+
+One separately approved visible experiment used a human-clicked isolated
+WinForms parent, production MachineNativeHost/MachineNativeSession and the
+production-linked test_machine_child with an optional real SDL window. Neither
+ADB nor a phone was used. The experiment executable was compiled before the
+production correction; later rebuilt fixtures include the corrected production
+route on both buttons and label the second probe as an extra grant. This
+optional fixture is outside unattended CI and is not a public product mode.
+
+The actual loaded SDL DLL matched the frozen runtime SHA-256
+`f8bb1698f618949498ac517a0766eaa91972ecc818d80deb00634e197ee923cf` and reported
+version 3.4.8, revision `SDL-3.4.8-HEAD-HASH-NOTFOUND`. Release-3.4.8 source
+correspondence is version-based, not an attested bit-identical DLL rebuild.
+The tested native executable hash was
+`84cb891e843e2dfe39a5d9c73579a01f1670abb7d202718957e81d8d683c44dd`;
+the parent EXE hash was
+`99b8eac2bdb5f444640b2f43d2e4d8221d0428899ee231daadd7a165f2690654`.
+These identify test binaries, not a new hardware-tested product package.
+
+| One-shot human action | Correlated result | Independent read-only foreground observation | Maintainer visual report |
+| --- | --- | --- | --- |
+| Original production Focus | Applied; no explicit grant | parent → parent during the bounded 2029 ms observation | Target did not come forward |
+| Exact-child AllowSetForegroundWindow then the same production Focus | Grant returned true; Applied | parent → child at the first post-result observation | Target came forward |
+
+Both cases retained child PID 62080, creation `2026-10-01T16:43:06.9430593Z`
+and HWND 13830518; parent PID was 42632. HWND owner/thread matched the owned
+fixture and SDL main thread. The window was visible, focusable, not minimized
+or always-on-top, activate-when-raised true and force-raise false. The session
+remained healthy. Foreground measurement never activated a window; unrelated
+foreground was mapped only to other. SDL's native SetForegroundWindow return
+was not exposed and remains unknown. The second observation proves an observed
+transfer, not sustained foreground ownership or behavior under every OS policy.
+Normal parent closure ended both synthetic windows; subsequent exact-PID
+observations found both absent. No real DEV application was launched.
+
+This controlled difference demonstrates a missing supported parent/child
+permission boundary in the no-phone route. It does not reconstruct the old
+phone run or prove that all future raises succeed. Wrong-target/main-thread,
+hidden/minimized/non-focusable and force-raise alternatives were excluded for
+the synthetic case; historical elevation, input interference and occlusion
+remain unknown. The [supported exact-child delegation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-allowsetforegroundwindow)
+is the smallest justified correction. Infrastructure now attempts it under the
+existing admission gate after bounded checks and before Focus frame publication.
+The retained process handle prevents PID lookup/replacement targeting. Denial
+does not fabricate success, fail the channel or stop a healthy session. No
+native production code, wire contract, budgets, media, cleanup intent,
+ShowControlCenter, configuration or ADB policy changed.
+
+The controlled regression failed twice before the correction (expected one
+permission attempt, observed zero), then the same two cases passed. It protects
+exact-child delegation, denied-grant/native-result separation, startup and
+Stop exclusion, pre-cancellation and terminal/disposed rejection. The pipe
+marker verifies the observed grant precedes receipt in these runs; strict
+before-publication ordering is additionally established by code inspection,
+not by the marker's absence alone. Added NoWindow/Failed cases preserve native
+outcomes, and the existing 16-pending pressure case verifies no extra grant for
+rejected work. Original neighboring concurrency, late-result and cleanup tests
+remain intact. Red/green outputs and raw synthetic observations are retained
+locally under ignored `work/phase6c/`; the experiment directory is
+`focus-experiment-20261001T164304Z-64fc9ead`.
+
+Fresh checks passed: locked restore, warning-free Release build, 527/527 full
+.NET tests, 8/8 separate real-process/parent-death checks, 18/18 native Meson
+tests including the default no-window fixture, SpecGen (113 entries/six outputs)
+and build metadata. These do not establish phone foreground success or hosted
+CI. Earlier phone/activation/close results remain attached only to g3a99a1ed.
+AGENTS/docs impact adds only the Infrastructure handoff invariant and opt-in
+fixture guidance; architecture ownership and protocol remain unchanged.
+
+After source review and separate hardware authorization, the minimal proposed
+retest is one USB session on the separately identified corrected package:
+confirm video/control/audio independently, capture running evidence and exact
+identity, bring Desktop forward by normal user interaction, then click Focus
+once. Record FocusStatus separately from actual foreground behavior and retain
+the same session/child identity. Preserve evidence and pause on an unexpected
+result. No recovery, pairing, activation or close campaign is proposed; normal
+cleanup after the single session remains required. Phase 6C is unaccepted and
+phone-backed validation is paused.

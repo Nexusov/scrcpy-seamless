@@ -27,6 +27,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
     private readonly Stream standardInput;
     // Test-only pause used to verify that reserved IDs and frame publication are atomic.
     private readonly Action<ulong, string>? beforeRequestPublication;
+    private readonly Func<Process, bool> grantForegroundPermission;
     private readonly Channel<OutboundFrame> outgoing = Channel.CreateBounded<OutboundFrame>(
         new BoundedChannelOptions(MaximumQueuedFrames)
         {
@@ -117,13 +118,15 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
     }
 
     private MachineNativeSession(SessionId sessionId, Process process,
-        Action<ulong, string>? beforeRequestPublication, Func<Stream, Stream>? wrapStandardInput)
+        Action<ulong, string>? beforeRequestPublication, Func<Stream, Stream>? wrapStandardInput,
+        Func<Process, bool>? grantForegroundPermission)
     {
         SessionId = sessionId;
         this.process = process;
         standardInput = wrapStandardInput?.Invoke(process.StandardInput.BaseStream) ??
             process.StandardInput.BaseStream;
         this.beforeRequestPublication = beforeRequestPublication;
+        this.grantForegroundPermission = grantForegroundPermission ?? NativeForegroundPermission.TryGrant;
         ProcessId = process.Id;
         writerTask = WriteLoopAsync();
         readerTask = ReadLoopAsync();
@@ -135,7 +138,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
     internal static async Task<MachineNativeSession> StartAsync(
         SessionId sessionId, ProcessStartInfo startInfo, CancellationToken cancellationToken,
         Action<ulong, string>? beforeRequestPublication = null,
-        Func<Stream, Stream>? wrapStandardInput = null)
+        Func<Stream, Stream>? wrapStandardInput = null,
+        Func<Process, bool>? grantForegroundPermission = null)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
         cancellationToken.ThrowIfCancellationRequested();
@@ -166,7 +170,8 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
 
         try
         {
-            session = new(sessionId, process, beforeRequestPublication, wrapStandardInput);
+            session = new(sessionId, process, beforeRequestPublication, wrapStandardInput,
+                grantForegroundPermission);
         }
         catch
         {
@@ -444,7 +449,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
             frame = new OutboundFrame(ProtocolJsonCodec.Encode(message));
             beforeRequestPublication?.Invoke(requestId, command);
             priorFailure = channelFailure;
-            queued = TryQueueFrameLocked(frame);
+            queued = TryQueueFrameLocked(frame, grantForeground: command == "FocusWindow");
             request = new PendingCommand(command);
 
             if (queued)
@@ -539,13 +544,24 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
     }
 
     /// <summary>Publishes one bounded frame while the request-order gate is held.</summary>
-    private bool TryQueueFrameLocked(OutboundFrame frame)
+    private bool TryQueueFrameLocked(OutboundFrame frame, bool grantForeground = false)
     {
         int frameBytes = frame.Payload.Length + sizeof(uint);
         bool queueUnavailable = channelFailure is not null || queuedFrames >= MaximumQueuedFrames ||
-            queuedBytes > MaximumQueuedBytes - frameBytes || !outgoing.Writer.TryWrite(frame);
+            queuedBytes > MaximumQueuedBytes - frameBytes;
 
         if (queueUnavailable)
+        {
+            return false;
+        }
+
+        // Delegate before publication: the pipe writer may run as soon as TryWrite succeeds.
+        if (grantForeground && !process.HasExited)
+        {
+            _ = grantForegroundPermission(process);
+        }
+
+        if (!outgoing.Writer.TryWrite(frame))
         {
             return false;
         }
