@@ -1,10 +1,11 @@
 # Phase 6C DEV manual acceptance proposal
 
-The original run below is frozen against `gd9d12a12`. Current phone validation
-remains paused. The pending [consolidated evidence retest](#proposed-consolidated-supervised-retest)
-uses the separately identified cleanup-initiator corrective artifact below after
-independent source review and separate hardware authorization; do not resume
-the old commands.
+The original run below is frozen against `gd9d12a12`. The separately authorized
+[two-session corrective retest](#supervised-corrective-retest-on-2026-10-01)
+used the existing `g3a99a1ed` artifact and completed its bounded sequence.
+Phase 6C remains unaccepted; further phone-backed checks require separate
+authorization. Do not resume the historical commands or transfer their results
+to another artifact.
 
 This procedure is prepared for the local package built from source commit
 `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`. Supervised validation stopped
@@ -546,8 +547,9 @@ hashes remained unchanged. No phone-backed validation occurred.
 | Package inventory | `4ba923ff9ebeec28de2c6d9ed0fd4183d8a7fa7adaca317aa3c691c02029cbb9` |
 | Runtime manifest | `f753e9792f199807dbb5a77aaa1a83a08b1212259b366b3b380c9fc2e4b795cc` |
 
-Use this exact package for the existing consolidated supervised proposal after
-independent source review and separate hardware confirmation:
+The following command identifies the package proposed at that source-review
+handoff. The separately authorized run is recorded below; this historical
+command is not permission to repeat phone-backed testing:
 
 ```powershell
 $package = 'D:\My Projects\scrcpy-seamless\dist\dev\scrcpy-seamless-desktop-p06c-g3a99a1ed'
@@ -564,6 +566,89 @@ and post-Desktop-exit retention limits are unchanged.
 The artifact-identity follow-up is documentation-only, so the package remains
 bound to corrective source `3a99a1ed`, not the subsequent documentation HEAD.
 Source review compares reviewed tip `90c6ce92629f47bb968c6f4960536bcc5547302e`
-with the full independently verified remote tip in the handoff. Only that work
-branch is authorized for normal fast-forward upload; upload is not acceptance,
-hosted CI success, a PR or integration. No source-review archive is prepared.
+with the full independently verified remote tip in that handoff. Its upload
+permission applied only to that task and that work branch; it grants no remote
+write during this retest. Upload is not acceptance, hosted CI success, a PR or
+integration. No source-review archive was prepared.
+
+### Supervised corrective retest on 2026-10-01
+
+This run used only the existing `g3a99a1ed` package and `.dev-data/p06c` root,
+after maintainer readiness confirmation and authorization of computer-use for
+the intended DEV stages. Starting branch was `2.0/p06c-desktop-ipc`, clean at
+`1bb4f4d54451078c51a264b3e468a0f547d6142b`. Its difference from artifact source
+`3a99a1ed27fc4439d0c616182f9e8199563f0b5e` was documentation-only. Before launch,
+independent VerifyOnly extraction and actual file hashing verified the complete
+package/runtime inventories and the seven specified ZIP, Desktop EXE/DLL,
+manifest, native and server hashes. Both manifests identified the exact source
+above. No rebuild or artifact relabelling occurred.
+
+Observation sources were computer-use actions/screenshots and UI text, explicit
+version-1 Copy session evidence snapshots from the existing single consumer,
+read-only exact-executable CIM/process observations, and maintainer confirmation
+of physical USB actions, live video, usable PC control and audible PC output.
+No autonomous phone input, pairing or shared-ADB restart occurred. No second
+lifecycle/stdout reader was used. The six snapshots were saved without overwrite
+in ignored local `work/phase6c/supervised-g3a99a1ed-20261001T142204Z-2952f1c1/`;
+only this sanitized summary is committed. Each snapshot is below 64 KiB.
+
+| Checkpoint | Observed result and evidence |
+| --- | --- |
+| `01-idle` | Passed: visible responsive device-enabled startup; Copy left Status unchanged, retained NoSession, null SessionId, no accepted handshake and zero lifecycle entries. Exact-package native count was zero. Known configuration bytes were unchanged. No Refresh/Pair/Connect/Mirror action was performed before capture; an exhaustive process audit of idle ADB activity was not performed. |
+| `02-disabled-usb-running` | Passed: Apply changed only profile fallback to false; Reconnect remained true. USB route and saved profile were selected. Actual helloResult accepted product `scrcpy-seamless`, protocol 1.0 and `focus-window`, `lifecycle-v1`, `stop`, with zero omitted capabilities. NativeReady and events 1–3 were retained. The maintainer confirmed video/control/PC audio before unplugging. |
+| `03-disabled-terminal` | Passed within the stated native-classification boundary: no user Stop, no observed Wi-Fi recovery; window closed. Status was `Native session ended: NativeFailure.` Same-session NativeExit remained NativeFailure. Cleanup was Succeeded, intent AutomaticTerminal, StopCallState Failed with typed TerminalFailure/StopOperation, ExactChildExitObserved true and OwnershipReleased true. Independent CIM found no exact-package native child and no original PID. This is successful managed cleanup of an unsuccessful session, not successful mirroring or a disposal failure. |
+| `04-enabled-usb-running` | Passed: fallback enabled through Save to draft → Apply, existing identity/endpoint and mirroring settings retained. A new explicitly selected USB session accepted the same actual handshake and retained events 1–3. The maintainer independently confirmed all three media/control channels. Desktop was then switched to Settings without edits. |
+| `05-enabled-recovered` | Passed: after physical USB removal with Wi-Fi retained, the maintainer confirmed recovered video/control/audible PC audio. Settings remained visible during recovery. Returning to Devices showed `First video frame observed after reconnect; audio and control remain unknown.` The snapshot retained the same SessionId/native child and events 1–7 with two distinct attempt IDs. Process creation time and nonzero HWND were unchanged. |
+| `06-enabled-stopped` | Passed: one Desktop Stop click; Status `Native session stopped.` Same-session completion retained UserStop, intent ExplicitStop, StopCallState Succeeded, Cleanup Succeeded, ExactChildExitObserved true and OwnershipReleased true. Independent CIM confirmed original-child absence and zero replacement children. Desktop remained responsive and the saved profile remained present. |
+
+The disabled session ID was `7cd09eb0-a000-4069-9522-db5ccee0e8cc`, PID 40780,
+creation `2026-10-01T14:34:57.8575660Z`, HWND 6360774. Its terminal retained range
+was 1–6: NativeReady → Connecting → StreamStarted → TransportLost → FatalError
+(NativeFailure/InternalFailure) → SessionStopped (NativeFailure).
+
+The enabled session ID was `efcbc8ad-c5bb-4a7e-b8fc-808afe463e6e`, PID 53896,
+creation `2026-10-01T14:42:37.6800700Z`, HWND 26480946 before and after recovery.
+Attempt `52aa909d-9303-4e30-ba63-d93cea8d65d8` preceded transport loss; recovery
+used `e5a190da-357b-46aa-9324-7ddb2cc06707`. Its retained order was NativeReady →
+Connecting → StreamStarted → TransportLost → ReconnectScheduled → Reconnecting
+→ StreamResumed → SessionStopped (UserStop), sequences 1–8. Both final snapshots
+retained all observed events with OmittedCount `0`; exact integer sequence and
+monotonic values were checked without floating-point conversion. Attempt events
+do not independently name the physical transport; the recovery conclusion also
+uses the supervised USB removal and observed continuing media.
+
+An external checkpoint comparison initially reported an identity mismatch
+because a timestamp string was compared with a deserialized date using different
+fractional-second formatting. The run paused before Stop. Inspection of the
+unchanged original checkpoints, invariant-culture parsing of their original ISO
+timestamps and the current exact DEV window established equal PID, creation
+instant and HWND. An intermediate local diagnostic also used culture-sensitive
+date conversion; `05-identity-validated.json` retains the definitive comparison.
+No product identity failure was observed, no additional Mirror was launched,
+and no production code or diagnostic instrument was changed to continue the
+existing session's authorized Stop step.
+
+The original fallback choice was true and remains committed true. A final UI
+inspection found no staged profile edit; the final configuration file hash
+matches its pre-launch hash, including retained profile and mirroring values.
+Desktop is left idle; no active-window-close test was performed. All six captures
+remain available independently of the in-memory projection.
+
+NativeFailure, managed cleanup and initiating intent remain distinct. Neither
+terminal capture records wire Stop queued/written/acknowledged, process exit
+code, local receipt timestamps, native scope or phone-side cleanup. Escalation
+is null/unknown, not a proved absence. No audio/control-ready lifecycle event is
+manufactured from user-heard audio or video events. AutomaticTerminal is the
+observed initiator; this run does not exercise completion-first hardware ordering
+or independently rerun the earlier Windows regression tests.
+
+Focus, same-root activation, ordinary native-window close, active-Desktop-close
+and Phase 6C hosted checks remain pending. No cold-start discovery, accessibility,
+multi-monitor DPI, stress/soak, unavailable-Wi-Fi or abnormal-parent-death campaign
+was added. Historical packages and incident evidence remain unchanged. This
+bounded result is not final Phase 6C acceptance, publication or integration.
+AGENTS/docs impact: validation evidence and current plan status changed; no
+architecture, lifecycle invariant, protocol, configuration, path or workflow
+changed, so no AGENTS or runtime-guide edit is required. Documentation-only
+validation uses DocsCheck and diff checks; the prior automated totals remain
+historical evidence rather than fresh test runs.

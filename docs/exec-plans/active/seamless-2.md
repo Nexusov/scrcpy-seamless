@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Status during local Phase 6C development on 2026-09-30: Phase 5 is accepted for
+Status during local Phase 6C development on 2026-10-01: Phase 5 is accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
@@ -22,17 +22,22 @@ stopped before further Mirror launches; the remaining scenarios and final
 acceptance are pending.
 The bounded terminal-status correction now distinguishes unsuccessful session
 results from automatic cleanup and explicit Stop. Both terminal/completion
-orders have red/green regressions; the [corrective artifact](../../development/phase6c-manual-acceptance.md#corrective-artifact-identity)
-requires separately supervised targeted retest. Original hardware results
+orders have red/green regressions; the earlier [corrective artifact](../../development/phase6c-manual-acceptance.md#corrective-artifact-identity)
+remains hardware-unverified. The subsequent `g3a99a1ed` retest is recorded below.
+Original hardware results
 remain attached only to `gd9d12a12`.
 The explicit DEV evidence action is implemented and synthetically validated;
 its earlier `ge8ed3565` package remains frozen and hardware-unverified.
 The bounded first-initiator correction has red/green coverage and a separately
-verified clean-source `g3a99a1ed` package for the pending supervised proposal.
-The maintainer authorized only work-branch upload for independent GitHub source
-review after outgoing-history review; the handoff records the verified remote
-tip and any observed hosted results. No Phase 6C PR, integration or release is
-authorized. The evidence retest remains separately supervised and paused.
+verified clean-source `g3a99a1ed` package. Independent source review closed that
+finding. The separately authorized [two-session retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01)
+completed idle/copy, disabled-fallback termination with successful managed cleanup,
+USB media/control, recovery while Settings was visible, same SessionId/PID/
+creation/HWND, ordered attempts and one explicit Stop. Evidence remains tied to
+artifact source `3a99a1ed`, not documentation HEAD. Focus, activation, both active
+close paths and Phase 6C hosted checks remain pending; Phase 6C is unaccepted.
+The earlier work-branch upload authorization was task-scoped. This retest permits
+only local documentation changes, with no new upload, PR, integration or release.
 Phases 7–13 have not started.
 Final Phase 0 artifact evidence remains in the local handoff report.
 
@@ -645,13 +650,13 @@ Phase 6C checkpoints, in dependency order:
 | --- | --- | --- |
 | 6C.1 | Select the explicit normal Desktop machine route and define old-bundle compatibility without silent fallback | Complete locally; old hash-valid bundle is incompatible, not downgraded |
 | 6C.2 | Validate machine contract metadata while preserving source, path and hash checks | Complete locally; canonical claim parity and synthetic package tests pass |
-| 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass. Hidden-page primary recovery and Desktop Stop observed on `gd9d12a12`; disabled-fallback terminal status requires review, and Focus/distinct active-close paths remain unverified. |
+| 6C.3 | Own one UI-independent lifecycle consumer and integrate Stop/Focus/terminal cleanup | Complete locally; focused ViewModel tests pass. Initial `gd9d12a12` observations prompted the bounded terminal-status correction. The exact `g3a99a1ed` retest observed hidden-page recovery, separate NativeFailure/successful managed cleanup, and explicit Stop; Focus/activation/distinct active-close paths remain unverified. |
 | 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
 | 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Complete locally for source `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`; ZIP SHA-256 `e33c68d863dae2e700a1839e9bcb0df0546ce6affc1bc9535522bdc117533f00` |
-| 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | [Recorded partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30): primary USB/recovery media and same-child identity, hidden-page presentation and Desktop Stop observed. Disabled fallback prevented observed recovery, but an unexpected terminal Stop-failure status requires review. Native-window close, normal Desktop close with an active mirror, and Focus remain pending. Structured lifecycle correlation has an external-access gap; no final acceptance claimed. |
-| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed. Original `gd9d12a12` and incident unchanged; targeted hardware retest and maintainer review remain pending, with no ADB or remote operations. |
+| 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | The [original partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30) remains frozen on `gd9d12a12`; its automatic terminal status prompted the bounded correction. The separately authorized [corrective two-session run](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) on `g3a99a1ed` recorded primary media, ordered lifecycle/attempt identity, disabled fallback, successful managed settlement and explicit Stop. Native-window close, active-Desktop-close, Focus and activation remain pending; no final acceptance claimed. |
+| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed; that earlier package remains hardware-unverified. Original `gd9d12a12` and incident are unchanged. The later evidence-capable `g3a99a1ed` retest is recorded under 6C.8; final acceptance remains pending. |
 
-| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Observation source uploaded for review. Bounded initiator correction preserves the first route while shared cleanup is active and permits a new route after failed cleanup; direct red/green and 34 owner cases pass. Artifact and validation are recorded in the [acceptance handoff](../../development/phase6c-manual-acceptance.md#cleanup-initiator-source-review-correction). Phone validation remains paused; Phase 6C is unaccepted. |
+| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Independent static review closed the bounded initiator finding. Existing red/green and 34 owner cases remain automated evidence. The exact `g3a99a1ed` [supervised retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) captured all six checkpoints: accepted handshake, disabled fallback with NativeFailure and successful cleanup, Settings-hidden recovery with unchanged child/window identity and a new attempt, then explicit Stop/UserStop with successful cleanup. Wire/exit-code/escalation unknowns remain explicit. Focus, activation, both active close paths and hosted validation remain pending; Phase 6C is unaccepted and further phone testing is paused. |
 
 Phase 6B checkpoints, in dependency order:
 
