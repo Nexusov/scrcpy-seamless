@@ -1,6 +1,36 @@
 # Seamless 2.0 execution plan
 
-Status during local Phase 6C development on 2026-10-01: Phase 5 is accepted for
+Current status on 2026-10-01: Phase 6C is accepted for engineering integration
+and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
+merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
+`85197957352c1606ce4d96970bf7a20d3ee1f531` and
+`9f0dd98d8395fc20f6708cd2d1882268b6cd28c3`; reviewed tree
+`fbdd7bca5e99c0d32e76fcf3f13196f1c5d68813` and all 20 granular work commits
+are preserved. The [maintainer acceptance/disposition](https://github.com/Nexusov/scrcpy-seamless/pull/12#issuecomment-5939687829)
+retains the [artifact-specific evidence and limits](../../development/phase6c-manual-acceptance.md#current-artifact-evidence-and-review-gates).
+This is not public prerelease, RC or stable acceptance. PR run
+[36912915271](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36912915271)
+(pull_request, attempt 1) passed all four jobs on synthetic test-merge
+`1d6c2828242dd36529a0c7cd39846ac5c6afc863`. Separately observed post-merge
+[run 36920087526](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36920087526)
+(push, attempt 1, merge head `f08e603f0a4187b227c67a1eec4d845b814e095e`)
+completed test, native, android-server and desktop successfully. Neither run
+validates the later compatibility candidate or changes frozen DEV package bytes.
+
+[Issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13) remains open.
+Its inherited numeric-zero time-limit defect was temporarily non-blocking only
+for PR #12's merge and is not accepted as correct product behavior. The bounded
+`2.0/fix-time-limit-zero` branch starts from the verified integration merge;
+its source correction is being prepared for independent review. Phase 7
+implementation and any public 2.0 prerelease remain blocked until that correction
+is reviewed and separately integrated. No Phase 7/8 work has started.
+
+## Historical Phase 6C development checkpoints
+
+The following checkpoints preserve the status at each pre-integration stage;
+their pending acceptance statements do not override the current decision above.
+
+Status during local Phase 6C development on 2026-10-01: Phase 5 was accepted for
 continued development and integrated through PR #9 merge
 `3d171eb40b59860717cd3dfa8f853638c41683cc`, preserving approved head
 `63cd2579ec71c9a11b0af8f49914446b6da75f3f` and all 15 Phase 5D commits.
@@ -88,7 +118,9 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [debugging](../../development/debugging.md), and
 [release](../../development/release-process.md) policies remaining canonical.
 
-The local `2.0/p06c-desktop-ipc` branch starts from the verified PR #11 merge.
+The preserved `2.0/p06c-desktop-ipc` branch started from the verified PR #11
+merge. The current bounded `2.0/fix-time-limit-zero` task starts from PR #12's
+verified integration merge and does not reopen the Phase 6C hardware campaign.
 Keep the current launcher, separate legacy native-host implementation and imported
 runtime fallback functional. Phase 6C Desktop integration, Phase 7 native
 lifetime and Phase 8 ConnectionManager remain separate work.
@@ -681,9 +713,10 @@ rules; these slices do not renumber later Phases.
 | --- | --- | --- | --- |
 | 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
 | 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Integrated through PR #11 merge `85197957352c1606ce4d96970bf7a20d3ee1f531`; final-head hosted checks passed. No phone/media claim. |
-| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, normal Desktop machine route, synthetic/process validation and artifact-specific supervised hardware evidence | Implementation and bounded hardware records prepared for review PR; hosted checks, final review and separate acceptance/integration decision pending. |
+| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, normal Desktop machine route, synthetic/process validation and artifact-specific supervised hardware evidence | Accepted for engineering integration through PR #12 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`; PR and separate post-merge runs passed all four jobs. Exact-artifact limitations remain; issue #13 remains open and blocks Phase 7/public prerelease pending independent review and separate integration. |
 
-Phase 6C checkpoints, in dependency order:
+Phase 6C checkpoints, in dependency order (local counts below are retained
+historical executions, not fresh compatibility-task validation):
 
 | Checkpoint | Reviewable result | Status |
 | --- | --- | --- |
@@ -693,9 +726,9 @@ Phase 6C checkpoints, in dependency order:
 | 6C.4 | Run deterministic composition, process and cross-language validation without ADB or a phone | Complete locally: 499 .NET tests, 18 Meson tests, 8 separate process tests, 9 golden/24 conformance frames, 29 PowerShell suites, SpecGen and DocsCheck pass |
 | 6C.5 | Stage one source-identified, isolated machine-capable DEV package and verify its ZIP | Complete locally for source `d9d12a12bc94bd5b272824631d38e0cb6be1a4f0`; ZIP SHA-256 `e33c68d863dae2e700a1839e9bcb0df0546ce6affc1bc9535522bdc117533f00` |
 | 6C.6 | Prepare and execute supervised phone acceptance against the exact artifact | The [original partial validation](../../development/phase6c-manual-acceptance.md#supervised-observations-on-2026-09-30) remains frozen on `gd9d12a12`; its automatic terminal status prompted the bounded correction. The separately authorized [corrective two-session run](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) and [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) on `g3a99a1ed` recorded media, ordered identity, disabled fallback, recovery, explicit Stop, same-root activation, WindowClosed with typed successful cleanup and active-Desktop-close with exact exits. Its observed Focus failed; the separately corrected `g81fba9b1` [USB/Focus/Stop retest](../../development/phase6c-manual-acceptance.md#supervised-corrected-focus-session-on-2026-10-01) measured foreground transfer and successful explicit cleanup. Source review, hosted checks and final acceptance remain distinct; no cross-artifact coverage transfer. |
-| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed; that earlier package remains hardware-unverified. Original `gd9d12a12` and incident are unchanged. The later evidence-capable `g3a99a1ed` retest is recorded under 6C.8; final acceptance remains pending. |
+| 6C.7 | Reproduce and correct the bounded automatic terminal-status defect; validate neighboring ownership paths and prepare a distinct artifact | Complete locally; lifecycle-first and completion-first red/green, six new process-backed regressions, 505/505 solution tests, 8/8 separate IPC process tests, warning-free Release build and spec/docs/metadata checks. Clean-source `g1eafa0cf` staging and ZIP/extraction verification passed; that earlier package remains hardware-unverified. Original `gd9d12a12` and incident are unchanged. The later evidence-capable `g3a99a1ed` retest is recorded under 6C.8; engineering acceptance and integration are now recorded in the current summary above. |
 
-| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Independent static review closed the bounded initiator finding. Existing red/green and 34 owner cases remain automated evidence. The exact `g3a99a1ed` [supervised retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) captured the six corrective checkpoints. The [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) retained five additional bounded snapshots for two new USB sessions, including unchanged A identity through Focus/activation, WindowClosed with successful cleanup and B's pre-Desktop-close evidence. No final typed B result was invented after Desktop exit. The separately corrected `g81fba9b1` [targeted USB/Focus/Stop session](../../development/phase6c-manual-acceptance.md#supervised-corrected-focus-session-on-2026-10-01) retained three snapshots, independent media confirmations, measured exact-child foreground transfer after one click and successful explicit Stop cleanup. Older hardware coverage is not transferred. Wire/exit-code/escalation unknowns remain explicit. Hosted validation and final acceptance remain pending; Phase 6C is unaccepted and further phone testing is paused. |
+| 6C.8 | Expose explicit DEV-only bounded session evidence, retain actual handshake/terminal/cleanup values, validate ordering and privacy, and prepare a distinct artifact for independent GitHub source review | Independent static review closed the bounded initiator finding. Existing red/green and 34 owner cases remain automated evidence. The exact `g3a99a1ed` [supervised retest](../../development/phase6c-manual-acceptance.md#supervised-corrective-retest-on-2026-10-01) captured the six corrective checkpoints. The [window continuation](../../development/phase6c-manual-acceptance.md#supervised-focus-activation-and-close-continuation-on-2026-10-01) retained five additional bounded snapshots for two new USB sessions, including unchanged A identity through Focus/activation, WindowClosed with successful cleanup and B's pre-Desktop-close evidence. No final typed B result was invented after Desktop exit. The separately corrected `g81fba9b1` [targeted USB/Focus/Stop session](../../development/phase6c-manual-acceptance.md#supervised-corrected-focus-session-on-2026-10-01) retained three snapshots, independent media confirmations, measured exact-child foreground transfer after one click and successful explicit Stop cleanup. Older hardware coverage is not transferred. Wire/exit-code/escalation unknowns remain explicit. Engineering acceptance and PR #12 integration are recorded in the current summary above; exact-artifact limits and unavailable fields remain, and no further phone testing is authorized by the compatibility task. |
 
 Phase 6B checkpoints, in dependency order:
 
