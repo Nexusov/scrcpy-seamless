@@ -11,6 +11,7 @@ src = [
     'src/compat.c',
     'src/control_msg.c',
     'src/controller.c',
+    'src/dispatcher.c',
     'src/decoder.c',
     'src/delay_buffer.c',
     'src/demuxer.c',
@@ -231,6 +232,14 @@ endif
 # do not build tests in release (assertions would not be executed at all)
 if get_option('buildtype') == 'debug'
     tests = [
+        ['test_dispatcher', [
+            'tests/test_dispatcher.c',
+            'src/dispatcher.c',
+            'src/events.c',
+            'src/util/thread.c',
+            'src/util/tick.c',
+            'src/util/log.c',
+        ]],
         ['test_thread_timedwait', [
             'tests/test_thread_timedwait.c',
         ]],
@@ -324,6 +333,25 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    # Link actual receiver/deserializer ownership with external-effect doubles.
+    receiver_test = executable('test_receiver_dispatch', [
+        'tests/test_receiver_dispatch.c',
+        'src/receiver.c',
+        'src/dispatcher.c',
+        'src/device_msg.c',
+        'src/util/acksync.c',
+        'src/util/thread.c',
+        'src/util/tick.c',
+        'src/util/log.c',
+        'src/util/str.c',
+        'src/util/strbuf.c',
+        'src/compat.c',
+    ], include_directories: src_dir,
+       dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=malloc', '-Wl,--wrap=free'])
+    test('test_receiver_dispatch', receiver_test)
 
     ipc_test = executable('test_ipc_contract', [
         'tests/test_ipc_contract.c',

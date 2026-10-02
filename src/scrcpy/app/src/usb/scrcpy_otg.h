@@ -7,6 +7,6 @@
 #include "scrcpy.h"
 
 enum scrcpy_exit_code
-scrcpy_otg(struct scrcpy_options *options);
+scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher);
 
 #endif

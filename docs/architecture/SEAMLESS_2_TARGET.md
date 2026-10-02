@@ -3,9 +3,16 @@
 Status: accepted target; Phase 6A is integrated through PR #10 merge
 `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad`, and Phase 6B through PR #11
 merge `85197957352c1606ce4d96970bf7a20d3ee1f531` for continued development.
-Phase 6C integrates the machine process route into normal Desktop composition
-for compatible explicit DEV runtimes; its hardware acceptance is pending.
-Native lifetime and ConnectionManager remain Phases 7–8. See the
+Phase 6C is accepted for engineering integration through PR #12 merge
+`f08e603f0a4187b227c67a1eec4d845b814e095e`, with the
+[artifact-specific observations and remaining coverage limits](../development/phase6c-manual-acceptance.md#current-artifact-evidence-and-review-gates)
+retained; this is not public release acceptance. PR #14 merge
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` integrates the separately reviewed
+numeric-zero preflight correction and closes issue #13 for that source defect.
+Frozen DEV packages do not acquire the correction. Native lifetime and
+ConnectionManager remain Phases 7–8; the
+[Phase 7 lifetime plan](PHASE_7_NATIVE_LIFETIME_PLAN.md) is proposed, not implemented.
+See the
 [execution plan](../exec-plans/active/seamless-2.md),
 [current baseline](SEAMLESS_1_BASELINE.md) and [risk register](SEAMLESS_2_RISK_REGISTER.md).
 

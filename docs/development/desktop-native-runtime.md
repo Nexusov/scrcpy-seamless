@@ -255,3 +255,33 @@ only on pre-device paths, with no ADB or phone access.
 The focused source and process checks establish a bounded machine route.
 Normal Desktop selects it only with an explicit compatible DEV bundle. They do
 not establish full native reconnect or audio/control behavior.
+
+## Phase 7 P7.1 receiver dispatcher boundary
+
+Native `main` now owns an explicit `sc_dispatcher` after SDL event initialization.
+`scrcpy` allocates a fresh value before each legacy connection attempt starts,
+binds initialized UHID storage before controller/receiver start, and revokes
+admission before target release. Receiver clipboard/UHID work transfers an owned
+device-message record through this dispatcher. Its destructor needs no target;
+the run callback obtains a target only after validating the captured generation.
+Clipboard byte accounting uses the actual decoded wire allocation, including
+embedded NUL content and terminator, rather than its displayed string length.
+
+The [implemented contract](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract)
+defines 64 retained slots, 1 MiB owned payload, eight items per drain, separate
+caller/operation settlement, main-thread execution lease, coalesced wake tickets
+and accepted-but-wakeup-failed ownership. SDL wakeups are outside the legacy
+session flush and are handled in server wait, playback, reconnect wait and the
+conditional OTG loop. Final destruction removes only exact-instance wakeups
+after producers and completion users quiesce.
+
+Machine commands, framed stdio, managed Stop/Focus/cleanup and parent-death
+contracts remain unchanged on their application-scoped route. Raw frame,
+server/controller/demux notifications and screen icon/size events retain their
+existing join/drain/flush containment. Direct receiver ACK is not generation
+protected; the conditional ACK-before-receiver-join risk remains open. This is
+not full app/session ownership, asynchronous retirement or responsive joins.
+Native debug tests link actual dispatcher and receiver/deserializer code with
+controlled clipboard/HID/network doubles. A Windows `usb=false` pass does not
+validate physical devices, AOA/OTG or V4L2 runtime behavior. No frozen Desktop
+package receives these changed native bytes.

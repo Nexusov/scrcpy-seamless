@@ -33,13 +33,19 @@ remaining entries are open. A local containment does not close a risk.
 Phase 6B containment for R08 and R15 is integrated through PR #11 at its
 approved final head. The owned machine route has bounded process I/O, typed
 ordered lifecycle observations and deterministic parent-death/Stop tests.
-Phase 6C locally selects this route for compatible explicit Desktop DEV bundles
+Phase 6C selects this route for compatible explicit Desktop DEV bundles
 and consumes its lifecycle stream independent of the visible page. The event
 seams identify native readiness, connection attempts, transport loss and first
 successfully presented video frame, but do not prove audible audio or control
-readiness. The final Phase 6B hosted run passed all four jobs; Phase 6C's new
-normal Desktop route still requires artifact-specific phone acceptance. R08/R15
-remain open through integration and later observability work.
+readiness. Phase 6C is accepted for engineering integration through PR #12;
+its [hardware observations and coverage limits](../development/phase6c-manual-acceptance.md#current-artifact-evidence-and-review-gates)
+remain attached to their exact artifacts. PR #14 merge
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` and the
+[completed issue #13 resolution](https://github.com/Nexusov/scrcpy-seamless/issues/13#issuecomment-5940669161)
+close only the numeric-zero preflight defect in integrated source. The
+[Phase 7 lifetime plan](PHASE_7_NATIVE_LIFETIME_PLAN.md) is proposed work, not a
+mitigation already implemented. R05, R06, R08, R12 and R15 remain open; neither
+the source correction nor planning transfers old hardware results to new bytes.
 
 R16 recurred once during Phase 6B validation in the unchanged
 `AdbTests.CancellationTerminatesTheOwnedChildAfterItStarts` fixture. The
@@ -52,6 +58,14 @@ establish a cause or justify a product/fixture change. The passing reruns are
 not a fix, and R16 remains open for evidence-based investigation if it recurs.
 
 ## Acceptance and review
+
+P7.1 adds bounded application-owned receiver clipboard/UHID dispatch with scalar
+generation validation, explicit payload/waiter ownership and controlled native
+race/pressure tests. See the [implemented contract and fresh evidence](PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract).
+This contains only migrated queued receiver work. R05/R06/R12/R15 remain open:
+direct ACK retirement order, untagged producers, media joins, complete generation
+safety and audio/worker observability are not fixed or validated by this slice.
+No old hardware result is transferred to these new native source bytes.
 
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
 and trace-timing limits. Phase 1 closed the specific R01/R02 publisher gaps;

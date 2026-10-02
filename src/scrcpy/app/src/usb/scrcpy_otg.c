@@ -9,6 +9,7 @@
 # include "adb/adb.h"
 #endif
 #include "events.h"
+#include "dispatcher.h"
 #include "screen.h"
 #include "sdl_hints.h"
 #include "usb/aoa_hid.h"
@@ -35,10 +36,16 @@ sc_usb_on_disconnected(struct sc_usb *usb, void *userdata) {
     sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
 }
 
+/** Service the app dispatcher alongside the existing conditional OTG events. */
 static enum scrcpy_exit_code
-event_loop(struct scrcpy_otg *s) {
+event_loop(struct scrcpy_otg *s, struct sc_dispatcher *dispatcher) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
+
+        if (sc_dispatcher_handle_event(dispatcher, &event)) {
+            continue;
+        }
+
         switch (event.type) {
             case SC_EVENT_DEVICE_DISCONNECTED:
                 LOGW("Device disconnected");
@@ -58,8 +65,9 @@ event_loop(struct scrcpy_otg *s) {
     return SCRCPY_EXIT_FAILURE;
 }
 
+/** Preserve the OTG path while borrowing the application-owned dispatcher. */
 enum scrcpy_exit_code
-scrcpy_otg(struct scrcpy_options *options) {
+scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     static struct scrcpy_otg scrcpy_otg;
     struct scrcpy_otg *s = &scrcpy_otg;
 
@@ -209,7 +217,7 @@ scrcpy_otg(struct scrcpy_options *options) {
     sc_usb_device_destroy(&usb_device);
     usb_device_initialized = false;
 
-    ret = event_loop(s);
+    ret = event_loop(s, dispatcher);
     disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
 
 end:

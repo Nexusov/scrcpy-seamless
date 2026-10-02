@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-01: Phase 6C is accepted for engineering integration
+Current status on 2026-10-03: Phase 6C is accepted for engineering integration
 and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
 `85197957352c1606ce4d96970bf7a20d3ee1f531` and
@@ -17,13 +17,34 @@ This is not public prerelease, RC or stable acceptance. PR run
 completed test, native, android-server and desktop successfully. Neither run
 validates the later compatibility candidate or changes frozen DEV package bytes.
 
-[Issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13) remains open.
-Its inherited numeric-zero time-limit defect was temporarily non-blocking only
-for PR #12's merge and is not accepted as correct product behavior. The bounded
-`2.0/fix-time-limit-zero` branch starts from the verified integration merge;
-its source correction is being prepared for independent review. Phase 7
-implementation and any public 2.0 prerelease remain blocked until that correction
-is reviewed and separately integrated. No Phase 7/8 work has started.
+[PR #14](https://github.com/Nexusov/scrcpy-seamless/pull/14#issuecomment-5940633310)
+integrated the separately reviewed numeric-zero preflight correction at merge
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`, ordered parents
+`f08e603f0a4187b227c67a1eec4d845b814e095e` and
+`10bffce348c587ebf64ec96a639d3870989d615c`, reviewed tree
+`7e90594e64bbdf397d94398858bceee972ceb0c0`, preserving both work commits.
+[Issue #13](https://github.com/Nexusov/scrcpy-seamless/issues/13#issuecomment-5940669161)
+is closed as completed for that defined integrated-source defect. Its specific
+compatibility prerequisite is satisfied; this is not public release acceptance
+or a correction to frozen DEV package bytes. Separately observed post-merge
+[run 36926881013](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36926881013)
+(push, attempt 1) completed all four jobs successfully; each retrieved job log
+identifies checkout `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`.
+
+Phase 7 work continues on `2.0/p07-native-lifetime` from that exact integration
+merge. The maintainer approved the [source-anchored lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
+at planning head `dbb0a9b` and authorized P7.1 only. The bounded app dispatcher
+and receiver ownership migration passed fresh local native/managed/IPC/process/
+legacy validation and internal source review, and are pending independent P7.1
+acceptance. P7.2–P7.6 and Phase 8 are unstarted and unauthorized.
+
+[PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
+in the unchanged activation fixture: desktop 553/554, while test, native and
+Android server succeeded. The bounded correction addresses a demonstrated raw-
+peer caller-context dependency with controlled production-linked coverage and
+an optional internal observation seam; the original CI cause remains unresolved.
+Original failure evidence is preserved. P7.1 still requires follow-up hosted
+checks, independent review and a separate acceptance/integration decision.
 
 ## Historical Phase 6C development checkpoints
 
@@ -119,8 +140,10 @@ charter on 2026-09-23. This plan implements its ordered checkpoints, with reposi
 [release](../../development/release-process.md) policies remaining canonical.
 
 The preserved `2.0/p06c-desktop-ipc` branch started from the verified PR #11
-merge. The current bounded `2.0/fix-time-limit-zero` task starts from PR #12's
-verified integration merge and does not reopen the Phase 6C hardware campaign.
+merge; `2.0/fix-time-limit-zero` started from PR #12's verified merge. The current
+planning-only `2.0/p07-native-lifetime` branch starts from PR #14 merge
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` and does not reopen the Phase 6C
+hardware campaign or expand the integrated compatibility correction.
 Keep the current launcher, separate legacy native-host implementation and imported
 runtime fallback functional. Phase 6C Desktop integration, Phase 7 native
 lifetime and Phase 8 ConnectionManager remain separate work.
@@ -713,7 +736,7 @@ rules; these slices do not renumber later Phases.
 | --- | --- | --- | --- |
 | 6A — wire foundation | Accepted Phase 5 integration | Reviewed contract, independent bounded C#/C codecs and shared golden/complete-message conformance vectors; no application process route | Integrated by merge commit `7a2c75b8675096bf6ab41c5aca1cf8c54363c4ad` after PR #10 passed all required checks at the approved head. |
 | 6B — owned process connection | Accepted 6A | Explicit machine mode, stdio handshake, Stop/Focus, truthful lifecycle emission, exact-child/EOF/parent-death cleanup, bounded I/O | Integrated through PR #11 merge `85197957352c1606ce4d96970bf7a20d3ee1f531`; final-head hosted checks passed. No phone/media claim. |
-| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, normal Desktop machine route, synthetic/process validation and artifact-specific supervised hardware evidence | Accepted for engineering integration through PR #12 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`; PR and separate post-merge runs passed all four jobs. Exact-artifact limitations remain; issue #13 remains open and blocks Phase 7/public prerelease pending independent review and separate integration. |
+| 6C — Desktop integration and acceptance | Accepted 6B | Capability/package compatibility, normal Desktop machine route, synthetic/process validation and artifact-specific supervised hardware evidence | Accepted for engineering integration through PR #12 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`; PR and separate post-merge runs passed all four jobs. Exact-artifact limitations remain. PR #14 merge `eaccb407` and completed issue #13 satisfy the separate numeric-zero source gate; Phase 7 implementation still needs authorization. |
 
 Phase 6C checkpoints, in dependency order (local counts below are retained
 historical executions, not fresh compatibility-task validation):
@@ -830,6 +853,28 @@ and pins them; planning-date observations are not installation instructions.
 | 11 | 10 | Remove legacy production paths/adapters/imported native baseline only after parity; beta eligibility |
 | 12 | 11 | Fuzz/sanitizers/fault/soak/performance/UI/accessibility/hardware/security/package hardening; diagnostic bundle, metrics, privacy and rotation validation; RC eligibility |
 | 13 | Accepted 12 RC | Minimal blocker fixes and repeated RC acceptance; exact approved stable source, immutable v2.0.0 only after remote authorization |
+
+## Phase 7 planning checkpoint index
+
+The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
+owns the historical source map, implemented P7.1 contract, proposed later
+contracts, tests and exit criteria. This index records the maintainer's P7.1
+authorization and does not authorize later checkpoints.
+
+| Checkpoint | Dependency | Proposed bounded result | Status |
+| --- | --- | --- | --- |
+| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Implemented; 20/20 native targets, 15 dispatcher groups, 10 receiver cases, bidirectional IPC, 8 process tests, 554 solution tests and 29 legacy suites passed freshly. Independent acceptance pending; only receiver queued work has the new generation guarantee. |
+| P7.2 | P7.1 | Presentation/input/frame ingress separation | Proposed; not started |
+| P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
+| P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
+| P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |
+| P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Proposed; not started |
+
+Phase 8 retains new transport/retry/backoff/hysteresis/degradation and
+recording/headless/deadline policy; Phase 12 retains broad diagnostic export and
+soak/hardening. R05/R06/R12/R15 stay open. Existing recovery must remain usable
+through coherent intermediate states; no plan-only hardware or lifetime pass is
+claimed.
 
 ## Observability developed with the 2.0 architecture
 

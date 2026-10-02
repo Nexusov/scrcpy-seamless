@@ -21,6 +21,8 @@ enum {
     SC_EVENT_AOA_OPEN_ERROR,
     SC_EVENT_DISCONNECTED_ICON_LOADED,
     SC_EVENT_DISCONNECTED_TIMEOUT,
+    // Application-owned wakeups must survive the legacy session event flush.
+    SC_EVENT_DISPATCHER_WAKEUP,
 };
 
 bool
@@ -31,24 +33,5 @@ sc_push_event_impl(uint32_t type, void *ptr, const char *name);
 
 bool
 sc_dequeue_event(uint32_t type, SDL_Event *event);
-
-typedef SDL_MainThreadCallback sc_runnable_fn;
-
-bool
-sc_main_thread_init(void);
-
-void
-sc_main_thread_destroy(void);
-
-bool
-sc_run_on_main_thread(sc_runnable_fn run, void *userdata, bool wait_complete);
-
-// Resume callbacks after all previous session threads have joined.
-void
-sc_main_thread_resume(void);
-
-// Reject new runnables after this call
-void
-sc_main_thread_stop(void);
 
 #endif

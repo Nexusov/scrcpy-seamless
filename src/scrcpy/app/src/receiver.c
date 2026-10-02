@@ -11,11 +11,13 @@
 #include "util/str.h"
 #include "util/thread.h"
 
-struct sc_uhid_output_task_data {
-    struct sc_uhid_devices *uhid_devices;
-    uint16_t id;
-    uint16_t size;
-    uint8_t *data;
+struct sc_receiver_task_data {
+    struct sc_device_msg message;
+};
+
+enum {
+    SC_RECEIVER_CLIPBOARD_HEADER_BYTES = 5,
+    SC_RECEIVER_CLIPBOARD_TERMINATOR_BYTES = 1,
 };
 
 bool
@@ -29,6 +31,9 @@ sc_receiver_init(struct sc_receiver *receiver, sc_socket control_socket,
     receiver->control_socket = control_socket;
     receiver->acksync = NULL;
     receiver->uhid_devices = NULL;
+    receiver->dispatcher = NULL;
+    receiver->generation = 0;
+    receiver->dispatch_rejection_reported = false;
 
     assert(cbs && cbs->on_ended);
     receiver->cbs = cbs;
@@ -42,12 +47,14 @@ sc_receiver_destroy(struct sc_receiver *receiver) {
     sc_mutex_destroy(&receiver->mutex);
 }
 
+/** Execute the clipboard effect only after the dispatcher admits its generation. */
 static void
-task_set_clipboard(void *userdata) {
+task_set_clipboard(const char *text) {
     assert(sc_thread_is_main());
 
-    char *text = userdata;
-
+#ifdef SC_TEST
+    sc_receiver_test_set_clipboard(text);
+#else
     char *current = SDL_GetClipboardText();
     bool same = current && !strcmp(current, text);
     SDL_free(current);
@@ -62,38 +69,91 @@ task_set_clipboard(void *userdata) {
         }
     }
 
-    free(text);
+#endif
 }
 
+/** Resolve the validated binding for this callback, never from a queued pointer. */
 static void
-task_uhid_output(void *userdata) {
+task_run(void *binding, void *userdata) {
     assert(sc_thread_is_main());
 
-    struct sc_uhid_output_task_data *data = userdata;
+    struct sc_receiver_task_data *data = userdata;
+    struct sc_device_msg *message = &data->message;
 
-    sc_uhid_devices_process_hid_output(data->uhid_devices, data->id, data->data,
-                                       data->size);
+    if (message->type == DEVICE_MSG_TYPE_CLIPBOARD) {
+        task_set_clipboard(message->clipboard.text);
+        return;
+    }
 
-    free(data->data);
+    assert(message->type == DEVICE_MSG_TYPE_UHID_OUTPUT);
+    assert(binding);
+    sc_uhid_devices_process_hid_output(binding, message->uhid_output.id,
+                                       message->uhid_output.data,
+                                       message->uhid_output.size);
+}
+
+/** Release owned data without accessing a generation-owned destination. */
+static void
+task_destroy(void *userdata) {
+    struct sc_receiver_task_data *data = userdata;
+    sc_device_msg_destroy(&data->message);
     free(data);
 }
 
+/** Transfer payload ownership once, or destroy it under the producer on rejection. */
 static void
-process_msg(struct sc_receiver *receiver, struct sc_device_msg *msg) {
+post_msg(struct sc_receiver *receiver, struct sc_device_msg *message,
+          size_t message_size) {
+#ifdef SC_TEST
+    struct sc_receiver_task_data *data =
+        sc_receiver_test_allocate_task(sizeof(*data));
+#else
+    struct sc_receiver_task_data *data = malloc(sizeof(*data));
+#endif
+
+    if (!data) {
+        LOG_OOM();
+        sc_device_msg_destroy(message);
+        return;
+    }
+
+    data->message = *message;
+    size_t payload_size = message->type == DEVICE_MSG_TYPE_CLIPBOARD
+        ? message_size - SC_RECEIVER_CLIPBOARD_HEADER_BYTES
+            + SC_RECEIVER_CLIPBOARD_TERMINATOR_BYTES
+        : message->uhid_output.size;
+    struct sc_dispatcher_task task = {
+        .run = task_run,
+        .destroy = task_destroy,
+        .payload = data,
+        .payload_bytes = sizeof(*data) + payload_size,
+    };
+    enum sc_dispatcher_admission admission = receiver->dispatcher
+        ? sc_dispatcher_post(receiver->dispatcher, receiver->generation,
+                             &task, NULL)
+        : SC_DISPATCHER_REJECTED_CLOSED;
+
+    if (admission == SC_DISPATCHER_ACCEPTED) {
+        // The callback can already have retired data; never inspect it here.
+        return;
+    }
+
+    task_destroy(data);
+
+    if (!receiver->dispatch_rejection_reported) {
+        receiver->dispatch_rejection_reported = true;
+        LOGW("Receiver work rejected for generation %" PRIu64_ " (reason=%d)",
+             receiver->generation, (int) admission);
+    }
+}
+
+static void
+process_msg(struct sc_receiver *receiver, struct sc_device_msg *msg,
+             size_t message_size) {
     switch (msg->type) {
-        case DEVICE_MSG_TYPE_CLIPBOARD: {
-            // Take ownership of the text (do not destroy the msg)
-            char *text = msg->clipboard.text;
-
-            bool ok = sc_run_on_main_thread(task_set_clipboard, text, false);
-            if (!ok) {
-                LOGW("Could not post clipboard to main thread");
-                free(text);
-                return;
-            }
-
+        case DEVICE_MSG_TYPE_CLIPBOARD:
+            post_msg(receiver, msg, message_size);
             break;
-        }
         case DEVICE_MSG_TYPE_ACK_CLIPBOARD:
             LOGD("Ack device clipboard sequence=%" PRIu64_,
                  msg->ack_clipboard.sequence);
@@ -131,28 +191,7 @@ process_msg(struct sc_receiver *receiver, struct sc_device_msg *msg) {
                 return;
             }
 
-            struct sc_uhid_output_task_data *data = malloc(sizeof(*data));
-            if (!data) {
-                LOG_OOM();
-                return;
-            }
-
-            // It is guaranteed that these pointers will still be valid when
-            // the main thread will process them (the main thread will stop
-            // processing on exit, when everything gets deinitialized)
-            data->uhid_devices = receiver->uhid_devices;
-            data->id = msg->uhid_output.id;
-            data->data = msg->uhid_output.data; // take ownership
-            data->size = msg->uhid_output.size;
-
-            bool ok = sc_run_on_main_thread(task_uhid_output, data, false);
-            if (!ok) {
-                LOGW("Could not post UHID output to main thread");
-                free(data->data);
-                free(data);
-                return;
-            }
-
+            post_msg(receiver, msg, message_size);
             break;
     }
 }
@@ -170,7 +209,7 @@ process_msgs(struct sc_receiver *receiver, const uint8_t *buf, size_t len) {
             return head;
         }
 
-        process_msg(receiver, &msg);
+        process_msg(receiver, &msg, (size_t) r);
         // the device msg must be destroyed by process_msg()
 
         head += r;
@@ -180,6 +219,15 @@ process_msgs(struct sc_receiver *receiver, const uint8_t *buf, size_t len) {
         }
     }
 }
+
+#ifdef SC_TEST
+/** Expose the production decode-to-owner boundary to deterministic tests. */
+ssize_t
+sc_receiver_test_process_messages(struct sc_receiver *receiver,
+                                   const uint8_t *buffer, size_t length) {
+    return process_msgs(receiver, buffer, length);
+}
+#endif
 
 static int
 run_receiver(void *data) {

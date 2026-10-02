@@ -19,6 +19,7 @@
 #include "decoder.h"
 #include "delay_buffer.h"
 #include "demuxer.h"
+#include "dispatcher.h"
 #include "events.h"
 #include "file_pusher.h"
 #ifdef _WIN32
@@ -124,10 +125,17 @@ sc_machine_observe_quit(Uint32 event_type) {
 }
 #endif // _WIN32
 
+/** Service application wakeups without changing legacy session exit policy. */
 static enum scrcpy_exit_code
-event_loop(struct scrcpy *s, bool has_screen, bool reconnect) {
+event_loop(struct scrcpy *s, bool has_screen, bool reconnect,
+           struct sc_dispatcher *dispatcher) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
+
+        if (sc_dispatcher_handle_event(dispatcher, &event)) {
+            continue;
+        }
+
         switch (event.type) {
             case SC_EVENT_DEVICE_DISCONNECTED:
                 LOGW("Device disconnected");
@@ -166,11 +174,17 @@ event_loop(struct scrcpy *s, bool has_screen, bool reconnect) {
     return SCRCPY_EXIT_FAILURE;
 }
 
-// Return true on success, false on error
+/** Wait for the server while servicing app-scoped work and existing events. */
 static bool
-await_for_server(bool *connected, struct sc_screen *screen) {
+await_for_server(bool *connected, struct sc_screen *screen,
+                 struct sc_dispatcher *dispatcher) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
+
+        if (sc_dispatcher_handle_event(dispatcher, &event)) {
+            continue;
+        }
+
         switch (event.type) {
             case SDL_EVENT_QUIT:
 #ifdef _WIN32
@@ -202,7 +216,7 @@ await_for_server(bool *connected, struct sc_screen *screen) {
 
 /** Wait between attempts while processing close and repaint events. */
 static bool
-sc_wait_reconnect(struct sc_screen *screen) {
+sc_wait_reconnect(struct sc_screen *screen, struct sc_dispatcher *dispatcher) {
     const Uint64 retry_delay_ms = 1000;
     const int event_poll_ms = 50;
     Uint64 deadline = SDL_GetTicks() + retry_delay_ms;
@@ -210,6 +224,10 @@ sc_wait_reconnect(struct sc_screen *screen) {
 
     while (SDL_GetTicks() < deadline) {
         if (!SDL_WaitEventTimeout(&event, event_poll_ms)) {
+            continue;
+        }
+
+        if (sc_dispatcher_handle_event(dispatcher, &event)) {
             continue;
         }
 
@@ -353,8 +371,9 @@ init_sdl_gamepads(void) {
     }
 }
 
+/** Retain sequential legacy attempts with explicitly scoped receiver work. */
 enum scrcpy_exit_code
-scrcpy(struct scrcpy_options *options) {
+scrcpy(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     static struct scrcpy scrcpy;
 #ifndef NDEBUG
     // Detect missing initializations
@@ -374,7 +393,6 @@ scrcpy(struct scrcpy_options *options) {
         LOGE("Reconnect requires video playback without recording, time limit or AOA");
         return SCRCPY_EXIT_FAILURE;
     }
-
     bool screen_initialized = false;
     bool retrying = false;
 #ifdef _WIN32
@@ -382,6 +400,24 @@ scrcpy(struct scrcpy_options *options) {
 #endif
 
 restart_session:;
+    // Allocate by value before any generation producer may start.
+    sc_dispatcher_generation generation;
+
+    if (!sc_dispatcher_generation_begin(dispatcher, NULL, &generation)) {
+        LOGE("Could not begin receiver dispatch generation");
+
+        if (screen_initialized) {
+            sc_screen_interrupt(&s->screen);
+            sc_screen_join(&s->screen);
+#ifdef _WIN32
+            sc_machine_set_window(NULL);
+#endif
+            sc_screen_destroy(&s->screen);
+        }
+
+        return SCRCPY_EXIT_FAILURE;
+    }
+    LOGD("Receiver dispatch generation=%" PRIu64_ " begin", generation);
     enum scrcpy_exit_code ret = SCRCPY_EXIT_FAILURE;
     bool retry_session = false;
 
@@ -479,6 +515,11 @@ restart_session:;
         .on_disconnected = sc_server_on_disconnected,
     };
     if (!sc_server_init(&s->server, &params, &cbs, NULL)) {
+        // Partial initialization started no producers, but owns a generation.
+        bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
+        assert(revoked);
+        (void) revoked;
+
         if (screen_initialized) {
             sc_screen_interrupt(&s->screen);
             sc_screen_join(&s->screen);
@@ -525,7 +566,7 @@ restart_session:;
 #endif
 
     if (options->list) {
-        bool ok = await_for_server(NULL, NULL);
+        bool ok = await_for_server(NULL, NULL, dispatcher);
         ret = ok ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
         goto end;
     }
@@ -567,7 +608,8 @@ restart_session:;
 
     // Await for server without blocking Ctrl+C handling
     bool connected;
-    if (!await_for_server(&connected, screen_initialized ? &s->screen : NULL)) {
+    if (!await_for_server(&connected, screen_initialized ? &s->screen : NULL,
+                           dispatcher)) {
         LOGE("Server connection failed");
         retry_session = reconnect;
         goto end;
@@ -813,7 +855,14 @@ aoa_complete:
             uhid_devices = &s->uhid_devices;
         }
 
-        sc_controller_configure(&s->controller, acksync, uhid_devices);
+        // Bind only the initialized target; queued work carries no target ptr.
+        if (!sc_dispatcher_generation_bind(dispatcher, generation,
+                                            uhid_devices)) {
+            goto end;
+        }
+
+        sc_controller_configure(&s->controller, acksync, uhid_devices,
+                                 dispatcher, generation);
 
         if (!sc_controller_start(&s->controller)) {
             goto end;
@@ -984,7 +1033,7 @@ aoa_complete:
         }
     }
 
-    ret = event_loop(s, options->window, reconnect);
+    ret = event_loop(s, options->window, reconnect, dispatcher);
     retry_session = reconnect && ret == SCRCPY_EXIT_DISCONNECTED;
 
     disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
@@ -1011,8 +1060,13 @@ end:
         sc_screen_prepare_reconnect(&s->screen);
     }
 
-    // Stop callbacks before session-owned objects are released.
-    sc_main_thread_stop();
+    // Revoke before any destination release. Machine callbacks stay app-scoped.
+    bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
+    assert(revoked);
+    (void) revoked;
+    LOGD("Receiver dispatch generation=%" PRIu64_ " revoked", generation);
+    // Retain the legacy SDL callback containment for unmigrated producers.
+    SDL_PumpEvents();
 
     if (timeout_started) {
         sc_timeout_stop(&s->timeout);
@@ -1146,8 +1200,8 @@ end:
             sc_screen_clear_pending_frames(&s->screen);
         }
 
-        if (sc_wait_reconnect(screen_initialized ? &s->screen : NULL)) {
-            sc_main_thread_resume();
+        if (sc_wait_reconnect(screen_initialized ? &s->screen : NULL,
+                               dispatcher)) {
             retrying = true;
             LOGI("Reconnecting to %s", reconnect_serial);
             goto restart_session;

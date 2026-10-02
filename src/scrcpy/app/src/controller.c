@@ -69,12 +69,18 @@ sc_controller_init(struct sc_controller *controller, sc_socket control_socket,
     return true;
 }
 
+/** Capture receiver dispatch scope before starting its producer thread. */
 void
 sc_controller_configure(struct sc_controller *controller,
                         struct sc_acksync *acksync,
-                        struct sc_uhid_devices *uhid_devices) {
+                        struct sc_uhid_devices *uhid_devices,
+                        struct sc_dispatcher *dispatcher,
+                        sc_dispatcher_generation generation) {
     controller->receiver.acksync = acksync;
     controller->receiver.uhid_devices = uhid_devices;
+    // Capture the admission identity before the receiver producer starts.
+    controller->receiver.dispatcher = dispatcher;
+    controller->receiver.generation = generation;
 }
 
 void

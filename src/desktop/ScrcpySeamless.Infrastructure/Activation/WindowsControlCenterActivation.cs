@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -14,6 +15,8 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
     private const int RequestTimeoutMilliseconds = 5000;
     private const int MaximumRequestBytes = 64;
     private readonly SemaphoreSlim acquisition = new(1, 1);
+    // An internal, nonblocking test observer; normal composition never installs it.
+    private readonly Action<ActivationObservation>? observation;
     private readonly CancellationTokenSource lifetime = new();
     private readonly Channel<ActivationRequest> requests = Channel.CreateBounded<ActivationRequest>(
         new BoundedChannelOptions(16) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
@@ -26,7 +29,14 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
 
     /// <summary>Uses the explicit normal data root as the scope of the activation endpoint.</summary>
     public WindowsControlCenterActivation(string dataRoot)
+        : this(dataRoot, null)
     {
+    }
+
+    /// <summary>Observes the real pipe path in controlled tests without replacing timing or transport.</summary>
+    internal WindowsControlCenterActivation(string dataRoot, Action<ActivationObservation>? observation)
+    {
+        this.observation = observation;
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
 
         if (!OperatingSystem.IsWindows())
@@ -69,6 +79,7 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
 
             if (candidate.IsOwner)
             {
+                Observe(ActivationStage.OwnershipAcquired);
                 NamedPipeServerStream server;
 
                 try
@@ -121,6 +132,7 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
             }
 
             disposed = true;
+            Observe(ActivationStage.DisposeStarted);
             lifetime.Cancel();
             activeServer?.Dispose();
 
@@ -131,7 +143,13 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
 
             requests.Writer.TryComplete();
             owner?.Dispose();
+
+            if (owner is not null)
+            {
+                Observe(ActivationStage.OwnershipReleased);
+            }
             lifetime.Dispose();
+            Observe(ActivationStage.DisposeCompleted);
         }
         finally
         {
@@ -139,12 +157,25 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
         }
     }
 
-    private NamedPipeServerStream CreateServer() => new(
-        PipeName,
-        PipeDirection.InOut,
-        1,
-        PipeTransmissionMode.Byte,
-        PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+    /// <summary>Creates the unchanged same-user, single-instance activation endpoint.</summary>
+    private NamedPipeServerStream CreateServer()
+    {
+        NamedPipeServerStream server = new(
+            PipeName,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        Observe(ActivationStage.ListenerCreated);
+        return server;
+    }
+
+    /// <summary>Emits bounded stage data only to an explicitly installed nonblocking test observer.</summary>
+    private void Observe(ActivationStage stage, int byteCount = 0,
+        ActivationCancellationCause cancellationCause = ActivationCancellationCause.None, int? errorHResult = null)
+    {
+        observation?.Invoke(new ActivationObservation(stage, Stopwatch.GetTimestamp(), byteCount, cancellationCause, errorHResult));
+    }
 
     private async Task ListenAsync(NamedPipeServerStream server, CancellationToken cancellationToken)
     {
@@ -152,35 +183,62 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                using (server)
+                try
                 {
-                    await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
-                    using CancellationTokenSource requestDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    requestDeadline.CancelAfter(RequestTimeoutMilliseconds);
-
-                    try
+                    using (server)
                     {
-                        ActivationRequest? request = await ReadRequestAsync(server, requestDeadline.Token)
-                            .ConfigureAwait(false);
-                        bool accepted = request is not null;
+                        Observe(ActivationStage.AcceptStarted);
+                        await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+                        Observe(ActivationStage.Accepted);
+                        using CancellationTokenSource requestDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        requestDeadline.CancelAfter(RequestTimeoutMilliseconds);
+                        Observe(ActivationStage.DeadlineArmed);
 
-                        if (request is not null)
+                        try
                         {
-                            await requests.Writer.WriteAsync(request, requestDeadline.Token).ConfigureAwait(false);
-                        }
+                            ActivationRequest? request = await ReadRequestAsync(server, requestDeadline.Token, observation)
+                                .ConfigureAwait(false);
+                            bool accepted = request is not null;
 
-                        await server.WriteAsync(Encoding.ASCII.GetBytes(accepted ? "OK\n" : "NO\n"), requestDeadline.Token)
-                            .ConfigureAwait(false);
-                        await server.FlushAsync(requestDeadline.Token).ConfigureAwait(false);
+                            if (request is not null)
+                            {
+                                await requests.Writer.WriteAsync(request, requestDeadline.Token).ConfigureAwait(false);
+                                Observe(ActivationStage.Delivered);
+                            }
+
+                            if (!accepted)
+                            {
+                                Observe(ActivationStage.Rejected);
+                            }
+
+                            Observe(ActivationStage.ResponseWriteStarted);
+                            await server.WriteAsync(Encoding.ASCII.GetBytes(accepted ? "OK\n" : "NO\n"), requestDeadline.Token)
+                                .ConfigureAwait(false);
+                            Observe(ActivationStage.ResponseWritten);
+                            await server.FlushAsync(requestDeadline.Token).ConfigureAwait(false);
+                            Observe(ActivationStage.ResponseFlushed);
+                        }
+                        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            // Observe cancellation after the actual read/write settles, not via a racing token callback.
+                            ActivationCancellationCause cancellationCause = cancellationToken.IsCancellationRequested
+                                ? ActivationCancellationCause.Lifetime
+                                : requestDeadline.IsCancellationRequested
+                                    ? ActivationCancellationCause.RequestDeadline : ActivationCancellationCause.None;
+                            Observe(ActivationStage.DeadlineCancelled, cancellationCause: cancellationCause,
+                                errorHResult: exception.HResult);
+                            // A silent peer cannot hold the single activation listener indefinitely.
+                        }
+                        catch (IOException exception) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            Observe(ActivationStage.PeerDisconnected, errorHResult: exception.HResult);
+                            // A disconnected peer does not change primary ownership.
+                        }
                     }
-                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        // A silent peer cannot hold the single activation listener indefinitely.
-                    }
-                    catch (IOException) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        // A disconnected peer does not change primary ownership.
-                    }
+                }
+                finally
+                {
+                    Observe(ActivationStage.PipeDisposed);
                 }
 
                 server = CreateServer();
@@ -224,9 +282,11 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
         }
     }
 
-    private static async Task<ActivationRequest?> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)
+    /// <summary>Validates the unchanged bounded command syntax on the production pipe path.</summary>
+    private static async Task<ActivationRequest?> ReadRequestAsync(Stream stream, CancellationToken cancellationToken,
+        Action<ActivationObservation>? observation)
     {
-        string? command = await ReadLineAsync(stream, MaximumRequestBytes, cancellationToken).ConfigureAwait(false);
+        string? command = await ReadLineAsync(stream, MaximumRequestBytes, cancellationToken, observation).ConfigureAwait(false);
 
         if (command == "SHOW")
         {
@@ -242,8 +302,11 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
         return null;
     }
 
-    private static async Task<string?> ReadLineAsync(Stream stream, int maximumBytes, CancellationToken cancellationToken)
+    /// <summary>Reads the bounded ASCII line and optionally observes allowlisted byte progress.</summary>
+    private static async Task<string?> ReadLineAsync(Stream stream, int maximumBytes, CancellationToken cancellationToken,
+        Action<ActivationObservation>? observation = null)
     {
+        observation?.Invoke(new ActivationObservation(ActivationStage.ReadStarted, Stopwatch.GetTimestamp()));
         byte[] buffer = new byte[maximumBytes];
         byte[] oneByte = new byte[1];
         int length = 0;
@@ -251,6 +314,7 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
         while (length < maximumBytes)
         {
             int count = await stream.ReadAsync(oneByte, cancellationToken).ConfigureAwait(false);
+            observation?.Invoke(new ActivationObservation(ActivationStage.ReadProgress, Stopwatch.GetTimestamp(), count));
 
             if (count == 0)
             {
@@ -259,6 +323,7 @@ public sealed class WindowsControlCenterActivation : IControlCenterActivation
 
             if (oneByte[0] == (byte)'\n')
             {
+                observation?.Invoke(new ActivationObservation(ActivationStage.LineComplete, Stopwatch.GetTimestamp(), length + 1));
                 return Encoding.ASCII.GetString(buffer, 0, length);
             }
 

@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 
+#include "dispatcher.h"
 #include "uhid/uhid_output.h"
 #include "util/acksync.h"
 #include "util/net.h"
@@ -19,6 +20,11 @@ struct sc_receiver {
 
     struct sc_acksync *acksync;
     struct sc_uhid_devices *uhid_devices;
+
+    // Captured before the receiver starts; queued work never stores the target.
+    struct sc_dispatcher *dispatcher;
+    sc_dispatcher_generation generation;
+    bool dispatch_rejection_reported;
 
     const struct sc_receiver_callbacks *cbs;
     void *cbs_userdata;
@@ -42,5 +48,20 @@ sc_receiver_start(struct sc_receiver *receiver);
 
 void
 sc_receiver_join(struct sc_receiver *receiver);
+
+#ifdef SC_TEST
+/** Fail only the receiver work-envelope allocation in production-linked tests. */
+void *
+sc_receiver_test_allocate_task(size_t size);
+
+/** Replace only the clipboard side effect in production-linked receiver tests. */
+void
+sc_receiver_test_set_clipboard(const char *text);
+
+/** Exercise actual decoding and receiver ownership without a socket or device. */
+ssize_t
+sc_receiver_test_process_messages(struct sc_receiver *receiver,
+                                   const uint8_t *buffer, size_t length);
+#endif
 
 #endif
