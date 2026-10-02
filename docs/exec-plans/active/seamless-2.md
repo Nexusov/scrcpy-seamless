@@ -1,6 +1,6 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-02: Phase 6C is accepted for engineering integration
+Current status on 2026-10-03: Phase 6C is accepted for engineering integration
 and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
 `85197957352c1606ce4d96970bf7a20d3ee1f531` and
@@ -37,6 +37,14 @@ at planning head `dbb0a9b` and authorized P7.1 only. The bounded app dispatcher
 and receiver ownership migration passed fresh local native/managed/IPC/process/
 legacy validation and internal source review, and are pending independent P7.1
 acceptance. P7.2–P7.6 and Phase 8 are unstarted and unauthorized.
+
+[PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
+in the unchanged activation fixture: desktop 553/554, while test, native and
+Android server succeeded. The bounded correction addresses a demonstrated raw-
+peer caller-context dependency with controlled production-linked coverage and
+an optional internal observation seam; the original CI cause remains unresolved.
+Original failure evidence is preserved. P7.1 still requires follow-up hosted
+checks, independent review and a separate acceptance/integration decision.
 
 ## Historical Phase 6C development checkpoints
 

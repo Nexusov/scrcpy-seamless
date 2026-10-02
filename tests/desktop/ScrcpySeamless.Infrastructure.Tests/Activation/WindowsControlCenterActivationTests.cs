@@ -91,10 +91,12 @@ public sealed class WindowsControlCenterActivationTests
 
         try
         {
-            Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, "FOCUS:00000000-0000-0000-0000-000000000000\n"));
+            Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, "FOCUS:00000000-0000-0000-0000-000000000000\n",
+                cancellationToken: TestContext.Current.CancellationToken));
             try
             {
-                Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, new string('X', 65) + "\n"));
+                Assert.Equal("NO", await SendRawCommandAsync(primary.PipeName, new string('X', 65) + "\n",
+                    cancellationToken: TestContext.Current.CancellationToken));
             }
             catch (IOException)
             {
@@ -110,6 +112,11 @@ public sealed class WindowsControlCenterActivationTests
             Assert.True(await next.WaitAsync(TestDeadline, TestContext.Current.CancellationToken));
             Assert.Equal(ActivationKind.FocusSession, observed.Current.Kind);
             Assert.Equal(sessionId, observed.Current.SessionId);
+
+            // Complete the real channel to prove neither invalid peer nor a duplicate was delivered.
+            await primary.DisposeAsync();
+            next = observed.MoveNextAsync().AsTask();
+            Assert.False(await next.WaitAsync(TestDeadline, TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -165,15 +172,26 @@ public sealed class WindowsControlCenterActivationTests
     private static string NewSyntheticRoot() =>
         Path.Combine(Path.GetTempPath(), "scrcpy-activation-test-" + Guid.NewGuid().ToString("N"));
 
-    private static async Task<string> SendRawCommandAsync(string pipeName, string command)
+    /// <summary>Publishes a bounded raw peer independently of the caller's context and owns cancellation through disposal.</summary>
+    internal static async Task<string> SendRawCommandAsync(string pipeName, string command,
+        Action<string>? observe = null, CancellationToken cancellationToken = default)
     {
         await using NamedPipeClientStream client = new(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-        using CancellationTokenSource deadline = new(TestDeadline);
-        await client.ConnectAsync(deadline.Token);
-        await client.WriteAsync(Encoding.ASCII.GetBytes(command), deadline.Token);
-        await client.FlushAsync(deadline.Token);
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TestDeadline);
+        observe?.Invoke("ConnectStarted");
+        // Fixture transport progress must not wait for the caller's synchronization context.
+        await client.ConnectAsync(deadline.Token).ConfigureAwait(false);
+        observe?.Invoke("Connected");
+        observe?.Invoke("WriteStarted");
+        await client.WriteAsync(Encoding.ASCII.GetBytes(command), deadline.Token).ConfigureAwait(false);
+        observe?.Invoke("Written");
+        await client.FlushAsync(deadline.Token).ConfigureAwait(false);
+        observe?.Invoke("Flushed");
         byte[] response = new byte[3];
-        await client.ReadExactlyAsync(response, deadline.Token);
+        await client.ReadExactlyAsync(response, deadline.Token).ConfigureAwait(false);
+        observe?.Invoke("ResponseRead");
         return Encoding.ASCII.GetString(response).TrimEnd('\n');
     }
 }
