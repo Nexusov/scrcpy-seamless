@@ -2,8 +2,15 @@
 
 ## Original execution and retained evidence
 
-[PR #15](https://github.com/Nexusov/scrcpy-seamless/pull/15) remains unaccepted
-and unmerged. Original run
+Current disposition: P7.1 is accepted for engineering integration through
+[PR #15](https://github.com/Nexusov/scrcpy-seamless/pull/15#issuecomment-5963180390),
+merge `7dff15837c4c39dd63f8488500d5f5c5c423027e`. Follow-up PR run
+`37074773751` and separate post-merge push run `37078698690` completed all four
+jobs successfully. The original hosted cause below remains unknown and is an
+accepted non-blocking watch item, not a proven fixed incident. Earlier failure
+and observation-time status remain historical evidence.
+
+Original run
 [36950070637](https://github.com/Nexusov/scrcpy-seamless/actions/runs/36950070637),
 `pull_request`, attempt 1, tested head
 `ba560a5bdfe90dfa4675827b270593165ebc96f1` against base

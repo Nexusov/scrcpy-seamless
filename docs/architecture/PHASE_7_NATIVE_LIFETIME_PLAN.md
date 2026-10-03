@@ -1,7 +1,8 @@
 # Phase 7 native application and connection lifetime plan
 
-Status: migration direction approved; P7.1 implemented locally pending source
-review. P7.2–P7.6 remain proposals and require separate authorization.
+Status: migration direction approved; P7.1 accepted and integrated through
+PR #15. P7.2 is authorized on its separate work branch. P7.3–P7.6 remain
+proposals and require separate authorization.
 Source inspection date: 2026-10-02. All current-source statements below refer to
 integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
 later checkpoints are proposals. The P7.1 section separately records the new
@@ -512,6 +513,68 @@ production is unchanged and was not rebuilt. All frozen packages and incident
 evidence remain untouched. Windows `usb=false` does not validate AOA/OTG/V4L2;
 direct ACK order, other untagged work, full graph safety and responsive joins stay
 open for their later checkpoints. No new hardware or hosted CI pass is claimed.
+
+## P7.2 implementation contract recorded before production changes
+
+P7.1 is accepted for engineering integration through PR #15 merge
+`7dff15837c4c39dd63f8488500d5f5c5c423027e`. Its separate push run
+`37078698690`, attempt 1, completed successfully in all four jobs. The original
+activation incident remains an unresolved non-blocking watch item; the fixture
+context correction does not establish its historical cause.
+
+P7.2 keeps `sc_screen` as the persistent presentation owner (window, renderer,
+texture, displayed/resume frame and local UI state). `sc_video_ingress` owns a
+mutex-protected latest-frame mailbox, current scalar generation, per-frame
+metadata and one coalesced notification ticket. A separately initialized
+`sc_video_bridge` implements the frame sink and retains producer-local stream
+metadata/open state and a captured generation. The orchestrator owns each bridge
+until decoder/delay producers have joined and sink close has completed.
+
+Begin/revoke/bind use the existing dispatcher. Its single binding becomes a
+small `sc_generation_targets` bundle containing presentation and UHID targets;
+both receiver and video resolvers use it after dispatcher validation. It is not
+a service registry. Queued notifications retain the app-owned ingress and value
+generation/ticket, never a bridge or session pointer.
+
+Ingress bind/revoke, publication and consume validate the generation under the
+same ingress mutex, including frame reference and associated metadata updates.
+No dispatcher call, SDL effect or blocking wait occurs under that mutex. Queue
+publication follows unlocking; dispatcher callbacks/destructors acquire ingress
+only after dispatcher admission locks have been released. A ticket clears only
+its own pending notification; obsolete destruction cannot clear a new ticket.
+Admission failure or wake failure rearms current progress for a later publication.
+Revocation discards only the matching generation, before producer stop, while
+producer storage remains alive through join. Old close/metadata never reset a
+replacement mailbox. Mailbox reset/discard/consume use explicit frame-buffer APIs.
+
+Frame retention is independent of the dispatcher's one-MiB payload limit: one
+pending reference plus one transient ref candidate, one displayed frame, one
+paused/resume frame and one main-thread presentation candidate. Notifications
+account their small owned records; decoded pixel buffers stay referenced rather
+than copied or stored in a per-frame FIFO. Push failure preserves the previous
+pending ref and producer ownership. Metadata is captured with the admitted frame,
+not read from a later producer update. Latest publication overwrites the pending
+ref without multiplying queued notifications.
+
+`sc_input_binding` contains generation/controller/file/key/mouse/gamepad
+endpoints. Main-thread bind/detach/presented transitions use explicit DETACHED,
+WAITING_PRESENTATION and READY states. Detach clears all borrowed endpoints and
+transient input/ACK state before destination stop/release. Remote key/text/paste,
+mouse/wheel/touch/gamepad/file/resize paths require READY; local window actions
+and local gamepad handle cleanup remain independent. Non-video endpoints become
+READY at bind; visual endpoints wait for a new current frame successfully
+textured/rendered/presented. Retained pause frames do not emit stream readiness.
+Capture restoration additionally requires a compatible live binding, prior
+capture intent and actual relevant window focus.
+
+Continuous-resize watching resolves endpoints only on the SDL main thread and
+only for this window; other-thread watcher calls leave handling to the ordinary
+main event switch. Track successful watch installation and remove it before
+freeing presentation context. All main-thread callbacks run outside admission
+locks; no nested generation transition is allowed during dispatcher execution.
+Machine Focus/Stop/quit and first-new-frame stream observation stay unchanged.
+Remaining status events retain legacy join/flush containment. Full graph extraction,
+async joins, ACK retirement and audio quiescence remain later checkpoints.
 
 ## Historical planning recommendations and later review decisions
 

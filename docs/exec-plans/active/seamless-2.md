@@ -31,20 +31,29 @@ or a correction to frozen DEV package bytes. Separately observed post-merge
 (push, attempt 1) completed all four jobs successfully; each retrieved job log
 identifies checkout `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`.
 
-Phase 7 work continues on `2.0/p07-native-lifetime` from that exact integration
-merge. The maintainer approved the [source-anchored lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-at planning head `dbb0a9b` and authorized P7.1 only. The bounded app dispatcher
-and receiver ownership migration passed fresh local native/managed/IPC/process/
-legacy validation and internal source review, and are pending independent P7.1
-acceptance. P7.2–P7.6 and Phase 8 are unstarted and unauthorized.
+P7.1 is accepted for engineering integration through
+[PR #15](https://github.com/Nexusov/scrcpy-seamless/pull/15#issuecomment-5963180390),
+actual merge `7dff15837c4c39dd63f8488500d5f5c5c423027e`, ordered parents
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` and
+`270328b782afc2280bd863182a6c3273a9ffac55`, reviewed tree
+`d851042c70c1371df0080584d332c449683d0a2a`. All four granular work commits
+are preserved. PR run `37074773751` passed on synthetic checkout
+`603f038cb4a24c7f68e7b316103ef6a20ae4a7ff`; separate post-merge push run
+[37078698690](https://github.com/Nexusov/scrcpy-seamless/actions/runs/37078698690),
+attempt 1, completed all four jobs successfully. Retrieved job logs identify
+the actual merge checkout. This is not complete Phase 7 or hardware acceptance.
+The accepted [lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
+now guides authorized P7.2 on `2.0/p07-2-presentation-input`, created from that
+actual merge. P7.3–P7.6 and Phase 8 are unstarted and unauthorized.
 
 [PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
 in the unchanged activation fixture: desktop 553/554, while test, native and
 Android server succeeded. The bounded correction addresses a demonstrated raw-
 peer caller-context dependency with controlled production-linked coverage and
 an optional internal observation seam; the original CI cause remains unresolved.
-Original failure evidence is preserved. P7.1 still requires follow-up hosted
-checks, independent review and a separate acceptance/integration decision.
+Original failure evidence is preserved. Its cause remains unknown and is an
+explicitly accepted non-blocking watch item for P7.1 integration. Successful
+follow-up checks do not establish historical causality or ThreadPool starvation.
 
 ## Historical Phase 6C development checkpoints
 
