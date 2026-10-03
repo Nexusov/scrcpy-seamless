@@ -5,8 +5,8 @@ PR #15. P7.2 is authorized on its separate work branch. P7.3–P7.6 remain
 proposals and require separate authorization.
 Source inspection date: 2026-10-02. All current-source statements below refer to
 integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
-later checkpoints are proposals. The P7.1 section separately records the new
-implemented dispatcher/receiver boundary; the baseline map remains historical.
+later checkpoints are proposals. The P7.1 and P7.2 sections separately record
+implemented contracts and their evidence; the original source map remains historical.
 
 ## Authority, integration and evidence boundary
 
@@ -623,6 +623,32 @@ and the full normal-concurrency solution suite passed **556/556**, zero skipped.
 The separate cross-language check passed nine canonical vectors and 24 complete
 conformance frames in both directions; its focused managed lane passed 8/8.
 Ignored raw logs and all diagnostic failures remain under `work/phase7/p72/`.
+
+The ordinary production native build completed from clean committed corrective
+source `74b17dd4684ac6f546b202a00ed7d474c327e8d9` using the pinned toolchain.
+Its source fingerprint is
+`506fe1ee4b653b5e9cec2314aa2ff002455af05bd3066cdf2c4f99f109f4a494`
+and executable SHA-256 is
+`0349df1a4070021d6a2f1d753df40cd31a46929916d71c77d7c2757ed70d2334`.
+These identify the ignored validation executable, not a Desktop DEV package.
+The separate process lane passed **8/8**, including owned Stop/Focus and exact-child
+parent death plus production entry-point pre-device rejection/help/version.
+It completes no production handshake that could reach ADB. Source legacy suites
+passed **29/29**; independently staged native-backed 1.x validation ZIP suites
+passed **29/29** as a separate lane. This local validation archive is not a
+public distribution or frozen Desktop artifact.
+
+Metadata and DocsCheck passed (625 links/83 tracked Markdown files), together
+with diff/semantic checks. Managed source, native machine/IPC modules, specs,
+generated outputs, dependencies and workflows remain unchanged. Scoped native
+AGENTS and canonical runtime/change/risk/execution-plan documents were updated
+for the owning APIs, producer joins and observation limits. Windows native tests
+use the existing `usb=false` bootstrap: physical AOA/OTG and Linux V4L2 are not
+validated. The existing Meson minimum-version warning is retained; compiler
+errors or failed tests were not hidden or resolved by changing dependencies.
+The baseline push run `37078698690` was rechecked successfully in all four jobs;
+it validates P7.1's integration SHA, not this P7.2 source. No PR or hosted P7.2
+validation is created by the authorized single work-branch publication.
 
 Behavioral red evidence precedes the corresponding green paths: old ordinary
 keyboard delivery while disconnected, lost displayed ref on failed paused resume,
