@@ -22,6 +22,7 @@
 #include "dispatcher.h"
 #include "events.h"
 #include "file_pusher.h"
+#include "generation_targets.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
 # include "ipc/machine_exit.h"
@@ -54,6 +55,8 @@
 struct scrcpy {
     struct sc_server server;
     struct sc_screen screen;
+    struct sc_video_bridge video_bridge;
+    struct sc_generation_targets generation_targets;
     struct sc_audio_player audio_player;
     struct sc_demuxer video_demuxer;
     struct sc_demuxer audio_demuxer;
@@ -403,7 +406,9 @@ restart_session:;
     // Allocate by value before any generation producer may start.
     sc_dispatcher_generation generation;
 
-    if (!sc_dispatcher_generation_begin(dispatcher, NULL, &generation)) {
+    s->generation_targets = (struct sc_generation_targets) {0};
+    if (!sc_dispatcher_generation_begin(dispatcher, &s->generation_targets,
+                                         &generation)) {
         LOGE("Could not begin receiver dispatch generation");
 
         if (screen_initialized) {
@@ -856,8 +861,9 @@ aoa_complete:
         }
 
         // Bind only the initialized target; queued work carries no target ptr.
+        s->generation_targets.uhid_devices = uhid_devices;
         if (!sc_dispatcher_generation_bind(dispatcher, generation,
-                                            uhid_devices)) {
+                                            &s->generation_targets)) {
             goto end;
         }
 
@@ -878,6 +884,8 @@ aoa_complete:
             options->window_title ? options->window_title : info->device_name;
 
         struct sc_screen_params screen_params = {
+            .dispatcher = dispatcher,
+            .generation = generation,
             .video = options->video_playback,
             .camera = options->video_source == SC_VIDEO_SOURCE_CAMERA,
             .flex_display = options->flex_display,
@@ -914,6 +922,8 @@ aoa_complete:
             }
             screen_initialized = true;
         }
+        s->generation_targets.screen = &s->screen;
+        sc_video_bridge_init(&s->video_bridge, &s->screen.ingress, generation);
 #ifdef _WIN32
         if (sc_machine_is_active()) {
             sc_machine_set_window(s->screen.window);
@@ -929,7 +939,7 @@ aoa_complete:
                 src = &s->video_buffer.frame_source;
             }
 
-            sc_frame_source_add_sink(src, &s->screen.frame_sink);
+            sc_frame_source_add_sink(src, &s->video_bridge.frame_sink);
         }
     }
 
@@ -1059,6 +1069,9 @@ end:
     if (retry_session && screen_initialized) {
         sc_screen_prepare_reconnect(&s->screen);
     }
+    if (screen_initialized) {
+        sc_screen_detach(&s->screen);
+    }
 
     // Revoke before any destination release. Machine callbacks stay app-scoped.
     bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
@@ -1155,6 +1168,12 @@ end:
     }
 #endif
 
+    // Receiver posters can retire video notifications on a wake-failure path.
+    // Join them as well before releasing the app-owned ingress context.
+    if (controller_started) {
+        sc_controller_join(&s->controller);
+    }
+
     // Destroy the screen only after the video demuxer is guaranteed to be
     // finished, because otherwise the screen could receive new frames after
     // destruction
@@ -1166,9 +1185,6 @@ end:
         sc_screen_destroy(&s->screen);
     }
 
-    if (controller_started) {
-        sc_controller_join(&s->controller);
-    }
     if (controller_initialized) {
         sc_controller_destroy(&s->controller);
     }
@@ -1193,7 +1209,6 @@ end:
 
     if (retry_session) {
         // All event producers have joined; no stale session event can follow.
-        sc_screen_discard_pending_open_window_events();
         SDL_FlushEvents(SC_EVENT_NEW_FRAME, SC_EVENT_AOA_OPEN_ERROR);
 
         if (screen_initialized) {

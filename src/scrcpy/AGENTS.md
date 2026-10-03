@@ -46,6 +46,16 @@ join producers, release completion callers, then remove exact-instance wakeups
 and destroy. Quiesce all threads using a completion handle before releasing its
 sole caller reference; cancellation does not release executing payload storage.
 Machine Stop/Focus remains on its application-scoped SDL path.
+P7.2 presentation uses `app/src/video_ingress.h` and a generation-owned sink
+bridge. The single dispatcher binding is `sc_generation_targets` for both
+presentation and receiver UHID resolution. Input borrowing lives only in
+`sc_input_binding`; detach before destination stop. Visual input requires a
+new current frame successfully presented. Move replaced video refs under the
+ingress mutex, then unref outside it; buffer release callbacks may reenter.
+Revocation does not settle failure-thread destructors: join controller/receiver
+posters and video/delay producers before ingress destruction. Remove the SDL
+watch before releasing its context; foreign-thread watches resolve no context.
+See the lifetime plan's P7.2 contract for independent video reference bounds.
 See `../../docs/architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract`
 for limits, waiters, wakeup failure and remaining legacy/ACK containment. Native
 debug targets link production dispatcher and receiver adapters with controlled

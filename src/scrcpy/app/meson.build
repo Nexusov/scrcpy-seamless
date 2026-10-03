@@ -22,6 +22,7 @@ src = [
     'src/file_pusher.c',
     'src/fps_counter.c',
     'src/frame_buffer.c',
+    'src/video_ingress.c',
     'src/input_manager.c',
     'src/keyboard_sdk.c',
     'src/mouse_capture.c',
@@ -232,6 +233,11 @@ endif
 # do not build tests in release (assertions would not be executed at all)
 if get_option('buildtype') == 'debug'
     tests = [
+        ['test_input_binding', [
+            'tests/test_input_binding.c',
+            'src/input_manager.c',
+            'src/options.c',
+        ]],
         ['test_dispatcher', [
             'tests/test_dispatcher.c',
             'src/dispatcher.c',
@@ -333,6 +339,38 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    # Exercise real FFmpeg reference ownership and allocation failures.
+    framebuffer_test = executable('test_frame_buffer', [
+        'tests/test_frame_buffer.c', 'src/frame_buffer.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free'])
+    test('test_frame_buffer', framebuffer_test)
+
+    # Exercise production ingress and bounded notification/frame ownership.
+    ingress_test = executable('test_video_ingress', [
+        'tests/test_video_ingress.c', 'src/video_ingress.c',
+        'src/frame_buffer.c', 'src/dispatcher.c', 'src/events.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free',
+                   '-Wl,--wrap=malloc', '-Wl,--wrap=free'])
+    test('test_video_ingress', ingress_test)
+
+    # Exercise production presentation with deterministic external-effect doubles.
+    presentation_test = executable('test_screen_presentation', [
+        'tests/test_screen_presentation.c', 'src/screen.c',
+        'src/input_manager.c', 'src/video_ingress.c', 'src/frame_buffer.c',
+        'src/dispatcher.c', 'src/events.c', 'src/options.c', 'src/control_msg.c',
+        'src/fps_counter.c', 'src/disconnect.c', 'src/util/thread.c',
+        'src/util/tick.c', 'src/util/log.c', 'src/util/str.c',
+        'src/util/strbuf.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST', '-DSC_SCREEN_TEST'],
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free'])
+    test('test_screen_presentation', presentation_test)
 
     # Link actual receiver/deserializer ownership with external-effect doubles.
     receiver_test = executable('test_receiver_dispatch', [

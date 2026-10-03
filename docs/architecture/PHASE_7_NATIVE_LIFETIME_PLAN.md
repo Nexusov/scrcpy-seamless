@@ -368,8 +368,9 @@ JSONL schema/export, rotation/privacy policy and full aggregate metrics.
 
 The maintainer approved the published direction at `dbb0a9b` and authorized only
 P7.1. The following concrete contract is recorded before production edits.
-The scoped implementation passed the fresh local checks below and is pending
-independent P7.1 acceptance. P7.2–P7.6 are unstarted.
+The checks below retain the pre-integration evidence. P7.1 was subsequently
+accepted and integrated through PR #15; P7.2 is the authorized current slice.
+P7.3–P7.6 remain unstarted.
 
 `main` owns one `sc_dispatcher`, initialized after SDL event initialization and
 destroyed after all producers and completion users have quiesced. Independent
@@ -538,7 +539,9 @@ generation/ticket, never a bridge or session pointer.
 
 Ingress bind/revoke, publication and consume validate the generation under the
 same ingress mutex, including frame reference and associated metadata updates.
-No dispatcher call, SDL effect or blocking wait occurs under that mutex. Queue
+No dispatcher call, SDL effect, final AVBuffer release callback or blocking wait
+occurs under that mutex. Publication/take move replaced references into empty
+owner-allocated AVFrame headers; final unref runs after unlocking. Queue
 publication follows unlocking; dispatcher callbacks/destructors acquire ingress
 only after dispatcher admission locks have been released. A ticket clears only
 its own pending notification; obsolete destruction cannot clear a new ticket.
@@ -547,11 +550,18 @@ Revocation discards only the matching generation, before producer stop, while
 producer storage remains alive through join. Old close/metadata never reset a
 replacement mailbox. Mailbox reset/discard/consume use explicit frame-buffer APIs.
 
-Frame retention is independent of the dispatcher's one-MiB payload limit: one
-pending reference plus one transient ref candidate, one displayed frame, one
-paused/resume frame and one main-thread presentation candidate. Notifications
-account their small owned records; decoded pixel buffers stay referenced rather
-than copied or stored in a per-frame FIFO. Push failure preserves the previous
+Frame retention is independent of `SC_DISPATCHER_MAX_PAYLOAD_BYTES` (one MiB).
+The serialized producer accepts only refcounted YUV420P frames of validated
+dimensions: one pending frame, one transient reference acquisition, one displayed
+frame, one paused/resume frame and one main presentation candidate. There is one
+producer retirement header and one main-thread revoke retirement header. Each
+notification additionally owns an empty retirement header; its record **and**
+`sizeof(AVFrame)` are charged to dispatcher bytes. A failed-wakeup destructor can
+temporarily retain a moved pixel reference. Their independent upper bound is
+`SC_DISPATCHER_MAX_ITEMS` (64 retained notification operations), not the video
+resolution or the byte budget. Header/reference counts are checked independently;
+this is not a total decoded-video or process-memory bound. No per-frame FIFO or
+deep-copy fallback is introduced. Push reference failure preserves the previous
 pending ref and producer ownership. Metadata is captured with the admitted frame,
 not read from a later producer update. Latest publication overwrites the pending
 ref without multiplying queued notifications.
@@ -567,14 +577,68 @@ textured/rendered/presented. Retained pause frames do not emit stream readiness.
 Capture restoration additionally requires a compatible live binding, prior
 capture intent and actual relevant window focus.
 
-Continuous-resize watching resolves endpoints only on the SDL main thread and
-only for this window; other-thread watcher calls leave handling to the ordinary
-main event switch. Track successful watch installation and remove it before
+Continuous-resize watching renders only on the SDL main thread and for this
+window; it never routes remote resize. The ordinary main event switch routes
+remote resize once through the current READY binding. Foreign-thread watchers
+return before resolving the context. Track successful installation and remove it before
 freeing presentation context. All main-thread callbacks run outside admission
 locks; no nested generation transition is allowed during dispatcher execution.
 Machine Focus/Stop/quit and first-new-frame stream observation stay unchanged.
+The pinned SDL 3.4.8 [event-watch implementation](https://github.com/libsdl-org/SDL/blob/release-3.4.8/src/events/SDL_eventwatch.c)
+serializes watch dispatch/removal with its watch-list mutex. Main-thread removal
+precedes presentation destruction. Receiver posters can retire video records on
+failed wakeup; controller/receiver join therefore also precedes ingress destruction,
+alongside video/delay joins. Revocation alone is not producer quiescence. Bridge
+open/push/metadata/close are serialized by the existing decoder/delay lifecycle;
+sink close precedes producer join completion. App bind/revoke are non-reentrant.
+Narrow stderr records report generation bind/revoke and first visual input gate;
+they expose no endpoint, payload or new wire fields.
+
 Remaining status events retain legacy join/flush containment. Full graph extraction,
 async joins, ACK retirement and audio quiescence remain later checkpoints.
+
+### P7.2 implemented source checkpoint and review boundary
+
+The current slice implements the contract above through the persistent screen,
+generation sink bridge, explicit mailbox APIs and one input endpoint binding.
+Successful presentation commits the CPU frame/geometry and then local/remote
+resize effects. Failed texture/draw/clear/present stages leave the input gate
+closed and retain the previous CPU frame. Texture restoration is best-effort:
+its own failure is logged and does not prove the previous GPU pixels remain
+visible. Paused/resume ownership uses the same transaction and never emits
+first-new-frame readiness from a retained pause frame.
+
+| Production-linked target | Evidence boundary |
+| --- | --- |
+| `test_frame_buffer` (5 groups) | Actual FFmpeg reference acquisition/move/discard, failed header/ref allocation and deferred final buffer release. |
+| `test_video_ingress` (11 groups) | Latest-frame metadata/coalescing, stale open/frame/metadata/close, count/byte pressure, wake failure, publish/revoke orderings, allocation failures, ticket exhaustion, reentrant final release and held failure-thread retirement through replacement and producer join. |
+| `test_input_binding` | Real router with controlled key/mouse/gamepad/controller/file/clipboard effects: detached and gated routes, explicit endpoint selection, old accepted operations not replayed, current resize, non-video/no-control/camera and local handles. |
+| `test_screen_presentation` (15 groups) | Actual screen/router/ingress with SDL/texture boundary doubles and real FFmpeg refs: successful first-frame gate, failure transactions, last frame/pause/reset, metadata/orientation, capture, watcher and partial acquisition ledgers. No physical window or GPU test. |
+| Existing `test_dispatcher` (15 groups), `test_receiver_dispatch` (10 cases) | P7.1 ownership/wakeup/waiter regressions remain; UHID resolves the same typed target bundle used by presentation. |
+
+Fresh debug Meson execution passed **24 targets**, including every target above;
+groups are subcases, not additional targets. Locked managed restore, SpecGen
+verification (113 entries/six outputs), Release compilation (zero warnings/errors)
+and the full normal-concurrency solution suite passed **556/556**, zero skipped.
+The separate cross-language check passed nine canonical vectors and 24 complete
+conformance frames in both directions; its focused managed lane passed 8/8.
+Ignored raw logs and all diagnostic failures remain under `work/phase7/p72/`.
+
+Behavioral red evidence precedes the corresponding green paths: old ordinary
+keyboard delivery while disconnected, lost displayed ref on failed paused resume,
+failed replacement texture/geometry rollback, present after failed draw, readiness
+after failed clear and transient resize before successful presentation. Initial
+scaffold mistakes (including treating a generic dispatcher wake as stale generation
+work), a build-environment failure and a stale-binary invocation are preserved
+separately and are not product regression evidence.
+
+This checkpoint awaits independent source review; P7.3–P7.6 and Phase 8 are
+unstarted. The first separately authorized changed-runtime smoke should use one
+new traceable package: USB video/control/audible audio, local resize and pause,
+one USB-to-Wi-Fi transition retaining window/last frame until the new frame,
+then basic input and Stop/Focus settlement. This is a proposed minimal retest,
+not authorization to build/launch it or transfer previous hardware evidence.
+No Desktop DEV package is built by this task. All frozen artifacts remain separate.
 
 ## Historical planning recommendations and later review decisions
 

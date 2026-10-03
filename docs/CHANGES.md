@@ -1,5 +1,18 @@
 # Changes from scrcpy 4.0
 
+## Phase 7 P7.2 presentation and input ownership
+
+The persistent screen now owns presentation and an application video ingress;
+a captured-generation sink bridge owns producer metadata/open state. Mailbox
+publication/take APIs keep frame metadata and references consistent and release
+replaced buffers outside the ingress lock. A typed dispatcher bundle preserves
+UHID and presentation resolution after generation validation. One explicit input
+binding detaches controller/processors/file-pusher before destination stop and
+gates visual input on successful new-frame presentation. The native
+[lifetime contract and test boundaries](architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
+retain legacy status-event containment and open ACK/audio/retirement work.
+No frozen package or previous hardware result acquires these source changes.
+
 ## Selective upstream correctness ports during Phase 2
 
 The client retains its scrcpy 4.0 protocol and imported 1.x server/runtime.

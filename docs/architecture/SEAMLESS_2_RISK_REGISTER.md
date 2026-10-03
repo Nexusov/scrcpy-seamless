@@ -43,8 +43,9 @@ remain attached to their exact artifacts. PR #14 merge
 `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` and the
 [completed issue #13 resolution](https://github.com/Nexusov/scrcpy-seamless/issues/13#issuecomment-5940669161)
 close only the numeric-zero preflight defect in integrated source. The
-[Phase 7 lifetime plan](PHASE_7_NATIVE_LIFETIME_PLAN.md) is proposed work, not a
-mitigation already implemented. R05, R06, R08, R12 and R15 remain open; neither
+[Phase 7 lifetime plan](PHASE_7_NATIVE_LIFETIME_PLAN.md) now distinguishes accepted
+P7.1 dispatch, the P7.2 source checkpoint and later proposed work. R05, R06, R08,
+R12 and R15 remain open; neither
 the source correction nor planning transfers old hardware results to new bytes.
 
 R16 recurred once during Phase 6B validation in the unchanged
@@ -66,6 +67,15 @@ This contains only migrated queued receiver work. R05/R06/R12/R15 remain open:
 direct ACK retirement order, untagged producers, media joins, complete generation
 safety and audio/worker observability are not fixed or validated by this slice.
 No old hardware result is transferred to these new native source bytes.
+
+P7.2 contains presentation/input borrowing and screen frame ingress through a
+captured generation, coalesced bounded notifications and explicit latest-frame
+reference APIs. Failed presentation does not release the visual gate; input
+detaches before borrowed destination stop. Its deterministic ownership tests
+do not close R05/R06 or certify the complete native graph, audio callbacks,
+direct ACK lifetime, asynchronous joins, physical HID/OTG or actual GPU failure.
+The [source checkpoint](PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
+is pending independent review and any separately authorized changed-runtime test.
 
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
 and trace-timing limits. Phase 1 closed the specific R01/R02 publisher gaps;

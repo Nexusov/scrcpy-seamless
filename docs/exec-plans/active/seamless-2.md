@@ -46,6 +46,13 @@ The accepted [lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
 now guides authorized P7.2 on `2.0/p07-2-presentation-input`, created from that
 actual merge. P7.3–P7.6 and Phase 8 are unstarted and unauthorized.
 
+P7.2 now implements persistent presentation, one detached generation input
+binding and captured-generation frame ingress; its
+[contract and production-linked evidence](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
+are pending independent source review. This changes native runtime source;
+there is no new Desktop DEV package or phone-backed validation. The full
+generation graph, ACK/audio ownership and responsive media joins remain open.
+
 [PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
 in the unchanged activation fixture: desktop 553/554, while test, native and
 Android server succeeded. The bounded correction addresses a demonstrated raw-

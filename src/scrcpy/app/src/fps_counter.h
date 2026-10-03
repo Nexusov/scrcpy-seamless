@@ -56,4 +56,8 @@ sc_fps_counter_add_rendered_frame(struct sc_fps_counter *counter);
 void
 sc_fps_counter_add_skipped_frame(struct sc_fps_counter *counter);
 
+/** Aggregate mailbox overwrites without unbounded work on the SDL thread. */
+void
+sc_fps_counter_add_skipped_frames(struct sc_fps_counter *counter, unsigned count);
+
 #endif
