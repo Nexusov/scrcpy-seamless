@@ -12,6 +12,12 @@ gates visual input on successful new-frame presentation. The native
 [lifetime contract and test boundaries](architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
 retain legacy status-event containment and open ACK/audio/retirement work.
 No frozen package or previous hardware result acquires these source changes.
+The bounded follow-up sends buffered metadata and the first ASAP frame through
+one worker FIFO. ASAP skips timing wait without overtaking predecessors; later
+frame deadlines remain. Initialized frame admission and post-join queue release
+are covered by the real delay-to-ingress composition test. See the
+[ordering correction](architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction)
+for red/green evidence and remaining limits.
 
 ## Selective upstream correctness ports during Phase 2
 

@@ -588,9 +588,15 @@ The pinned SDL 3.4.8 [event-watch implementation](https://github.com/libsdl-org/
 serializes watch dispatch/removal with its watch-list mutex. Main-thread removal
 precedes presentation destruction. Receiver posters can retire video records on
 failed wakeup; controller/receiver join therefore also precedes ingress destruction,
-alongside video/delay joins. Revocation alone is not producer quiescence. Bridge
-open/push/metadata/close are serialized by the existing decoder/delay lifecycle;
-sink close precedes producer join completion. App bind/revoke are non-reentrant.
+alongside video/delay joins. Revocation alone is not producer quiescence.
+Unbuffered bridge calls use the serialized decoder producer. Buffered frame and
+metadata publication uses the existing delay queue: one worker delivers both in
+FIFO order, including the first ASAP frame and a metadata callback already in
+flight. ASAP bypasses only the configured timing wait, never a predecessor.
+Open completes before worker start; close stops and joins the worker before
+closing downstream sinks. The upstream owner still serializes publication and
+close; worker join does not settle arbitrary concurrent external callers.
+App bind/revoke are non-reentrant.
 Narrow stderr records report generation bind/revoke and first visual input gate;
 they expose no endpoint, payload or new wire fields.
 
@@ -616,7 +622,7 @@ first-new-frame readiness from a retained pause frame.
 | `test_screen_presentation` (15 groups) | Actual screen/router/ingress with SDL/texture boundary doubles and real FFmpeg refs: successful first-frame gate, failure transactions, last frame/pause/reset, metadata/orientation, capture, watcher and partial acquisition ledgers. No physical window or GPU test. |
 | Existing `test_dispatcher` (15 groups), `test_receiver_dispatch` (10 cases) | P7.1 ownership/wakeup/waiter regressions remain; UHID resolves the same typed target bundle used by presentation. |
 
-Fresh debug Meson execution passed **24 targets**, including every target above;
+The initial P7.2 debug Meson execution passed **24 targets**, including every target above;
 groups are subcases, not additional targets. Locked managed restore, SpecGen
 verification (113 entries/six outputs), Release compilation (zero warnings/errors)
 and the full normal-concurrency solution suite passed **556/556**, zero skipped.
@@ -665,6 +671,88 @@ one USB-to-Wi-Fi transition retaining window/last frame until the new frame,
 then basic input and Stop/Focus settlement. This is a proposed minimal retest,
 not authorization to build/launch it or transfer previous hardware evidence.
 No Desktop DEV package is built by this task. All frozen artifacts remain separate.
+
+### P7.2 delayed first-frame ordering correction
+
+Static review found a caller-composition gap at reviewed source
+`d1231fd12ee773518379db5986dbdedcf6a8b5f9`. The direct first-frame-ASAP
+producer path could overtake metadata already queued or being forwarded by the
+delay worker. Matching generations did not serialize these within-generation
+operations. The previous direct bridge tests did not link `delay_buffer.c`;
+their passing results remain historical evidence, not proof of that composition.
+
+The controlled `test_delay_buffer_ingress` target links the real delay buffer,
+frame source, bridge, ingress, mailbox and dispatcher. Its observing adapter
+holds metadata delivery before forwarding into the bridge. Before the correction,
+the producer's first frame reached actual ingress with width 64 and
+`client_resized=false`, although width 128 / `client_resized=true` metadata had
+already been published. One executed ordering case failed its assertion with
+exit 3. This demonstrates an admitted ordering defect, not a historical phone
+failure or an attempt to observe undefined concurrent access. The ignored
+ordering-red log is separate from an initial wrong-Ninja-target build failure.
+The retained red test source SHA-256 is
+`8c1ab1851fe23cd3b5260e4be9bdc749ef6000818a9d89f8d167a34fdee3c26a`;
+its executable is
+`7a3d49cc3c46c4df9c25b0000995432211beff515fb8b1af07f29cb89cb058ee`.
+The original invocation used
+`work/phase7/p72/native-tests-final/app/test_delay_buffer_ingress.exe`;
+the immutable copies, exit records and SHA-256 inventory are retained under
+ignored `work/phase7/p72-order/`.
+
+A separate allocation-admission reproduction ran one case and exited 3 with
+one invalid queue slot after injected `av_frame_alloc` failure. It recompiles
+the retained reviewed delay implementation against the compatible extended
+packet layout and links the extended test: this is an isolated old-boundary
+experiment, not a pristine reviewed full build. The primary ordering red above
+predates production changes. Green executes nine composition groups, with no
+early presentation and actual consumed metadata 128 / `client_resized=true`;
+failed admission leaves zero queue slots. Real FFmpeg pixel/header and queue
+backing ledgers settle exactly once through close/revoke/rejection. Reference
+acquisition, queue allocation, downstream open and worker-start failures are
+also injected at the real boundaries.
+
+The final targeted command after the canonical native debug build is:
+
+```powershell
+$env:PATH = (Resolve-Path '.\work\bootstrap\scrcpy-release\scrcpy-win64-v4.0').Path + ';' + $env:PATH
+& '.\work\phase7\p72-delay-order\native-tests\app\test_delay_buffer_ingress.exe'
+```
+
+Fixture scaffold failures are retained separately: wrong Ninja target, test
+thread name beyond the existing 15-character limit and duplicate fixture revoke.
+The first full-build attempt also correctly refused changed source fingerprints
+while targeted tests were still being extended; no full pass is attributed to
+that attempt. The subsequent stable-source debug build passed 25/25 targets.
+Fresh locked restore, SpecGen verify (113 entries/six outputs), zero-warning
+Release build and normal-concurrency managed tests passed 556/556, zero skipped.
+The separate C/C# lane passed nine canonical vectors and 24 conformance frames
+in both directions, plus its eight focused managed cases. The legacy source
+lane passed 29/29. Broader validation logs use `work/phase7/p72-delay-order/`.
+
+All frame and metadata deliveries now use the existing single worker FIFO.
+The first frame carries an ASAP flag and skips the playback-delay wait after
+its predecessors settle. Subsequent frames retain the existing clock-based
+deadline and maximum-delay calculation. This preserves the timing policy;
+no measured wall-clock handoff bound is claimed. A later metadata update cannot
+retroactively change an earlier frame's captured metadata. Bridge calls need no
+new mutex when these actual producer/worker ownership preconditions hold.
+
+Successful push means queue admission, including for the first frame; it does
+not promise a later downstream acceptance. Worker rejection stops admission
+and drains owned packets. A frame candidate acquires its FFmpeg reference before
+queue publication; rejection releases it outside the queue mutex. Failed frame
+initialization cannot leave an invalid admitted slot. Close stops the worker;
+join settles its in-flight callback and queue-reference drain before queue
+backing is freed and sinks are closed.
+The initialized empty queue is also released on open/start rollback.
+
+This uses no additional queue or dispatcher. Delay-buffer frame retention is
+separate from the bounded ingress mailbox and dispatcher payload accounting;
+the existing delay FIFO is growable and this correction does not impose a new
+total video-memory bound. No audio/ACK lifetime, asynchronous retirement,
+generation graph or transport policy is changed. P7.2 remains pending independent
+corrective source review; P7.3–P7.6 and Phase 8 are unstarted. No Desktop DEV
+package or hardware run is authorized by this correction.
 
 ## Historical planning recommendations and later review decisions
 

@@ -52,6 +52,12 @@ binding and captured-generation frame ingress; its
 are pending independent source review. This changes native runtime source;
 there is no new Desktop DEV package or phone-backed validation. The full
 generation graph, ACK/audio ownership and responsive media joins remain open.
+The bounded [delayed-first-frame correction](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction)
+reproduces preceding metadata being overtaken through the real delay-to-ingress
+path and orders all deliveries on its existing worker. ASAP timing intent and
+ordinary delayed deadlines remain. Corrective validation is separate from the
+original P7.2 runs; independent acceptance and later hosted/hardware gates remain
+pending. P7.3–P7.6 and Phase 8 are not started.
 
 [PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
 in the unchanged activation fixture: desktop 553/554, while test, native and

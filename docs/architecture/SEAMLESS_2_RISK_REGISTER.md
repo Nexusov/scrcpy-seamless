@@ -76,6 +76,11 @@ do not close R05/R06 or certify the complete native graph, audio callbacks,
 direct ACK lifetime, asynchronous joins, physical HID/OTG or actual GPU failure.
 The [source checkpoint](PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
 is pending independent review and any separately authorized changed-runtime test.
+The delayed first-frame caller-composition gap was reproduced deterministically
+and corrected by single-worker FIFO delivery of metadata and frames, with ASAP
+skipping only the configured wait. Its [targeted evidence](PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction)
+does not establish a historical hardware incident, full producer quiescence or
+a total bound on the existing delay queue. The broader lifetime risks stay open.
 
 The owner accepted and closed Phase 0 on 2026-09-24 with its documented hardware
 and trace-timing limits. Phase 1 closed the specific R01/R02 publisher gaps;

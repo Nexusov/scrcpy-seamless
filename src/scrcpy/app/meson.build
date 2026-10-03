@@ -359,6 +359,22 @@ if get_option('buildtype') == 'debug'
                    '-Wl,--wrap=malloc', '-Wl,--wrap=free'])
     test('test_video_ingress', ingress_test)
 
+    # Link the real delayed producer path and gate scheduling at external waits.
+    delay_ingress_test = executable('test_delay_buffer_ingress', [
+        'tests/test_delay_buffer_ingress.c', 'src/delay_buffer.c',
+        'src/clock.c', 'src/trait/frame_source.c', 'src/video_ingress.c',
+        'src/frame_buffer.c', 'src/dispatcher.c', 'src/events.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+        'src/util/memory.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free',
+                   '-Wl,--wrap=sc_tick_now', '-Wl,--wrap=sc_cond_timedwait',
+                   '-Wl,--wrap=sc_thread_join', '-Wl,--wrap=free',
+                   '-Wl,--wrap=av_frame_ref', '-Wl,--wrap=reallocarray',
+                   '-Wl,--wrap=sc_thread_create'])
+    test('test_delay_buffer_ingress', delay_ingress_test)
+
     # Exercise production presentation with deterministic external-effect doubles.
     presentation_test = executable('test_screen_presentation', [
         'tests/test_screen_presentation.c', 'src/screen.c',

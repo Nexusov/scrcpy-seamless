@@ -297,3 +297,11 @@ no real window and performs no actual clipboard/HID/ADB operation. FFmpeg frame
 references remain real. Controller/receiver join now also precedes ingress
 destruction because a failed receiver-thread wake can retire a video record.
 The pre-existing direct ACK teardown risk remains open.
+Buffered video now forwards metadata and every frame through one delay-worker
+FIFO. The first ASAP frame skips its timing wait after predecessor callbacks;
+subsequent frame deadlines are unchanged. `test_delay_buffer_ingress` exercises
+this real composition with gated sink effects and actual FFmpeg references.
+Admission is separate from later downstream acceptance. Worker join precedes
+queue release and sink close; the upstream producer still owns publication/close
+serialization. This does not bound the existing growable delay queue or validate
+hardware latency. See the [ordering correction](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction).

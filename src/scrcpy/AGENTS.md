@@ -56,6 +56,10 @@ Revocation does not settle failure-thread destructors: join controller/receiver
 posters and video/delay producers before ingress destruction. Remove the SDL
 watch before releasing its context; foreign-thread watches resolve no context.
 See the lifetime plan's P7.2 contract for independent video reference bounds.
+Buffered bridge frame/metadata delivery belongs to the single delay worker FIFO;
+ASAP skips timing delay, never preceding metadata. Open precedes worker start;
+join precedes downstream close and queue release. The upstream owner must still
+serialize publication and close. Preserve real delay-to-ingress composition tests.
 See `../../docs/architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p71-authorized-implementation-contract`
 for limits, waiters, wakeup failure and remaining legacy/ACK containment. Native
 debug targets link production dispatcher and receiver adapters with controlled
