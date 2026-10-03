@@ -879,14 +879,14 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the historical source map, implemented P7.1 contract, proposed later
-contracts, tests and exit criteria. This index records the maintainer's P7.1
-authorization and does not authorize later checkpoints.
+owns the historical source map, implemented P7.1/P7.2 contracts, proposed later
+contracts, tests and exit criteria. This index summarizes their scoped status
+and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
-| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Implemented; 20/20 native targets, 15 dispatcher groups, 10 receiver cases, bidirectional IPC, 8 process tests, 554 solution tests and 29 legacy suites passed freshly. Independent acceptance pending; only receiver queued work has the new generation guarantee. |
-| P7.2 | P7.1 | Presentation/input/frame ingress separation | Proposed; not started |
+| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
+| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Implemented with bounded delayed-first-frame correction; pending independent acceptance. Fresh correction checks: 25 native targets including nine delay-composition groups, 556 managed tests, bidirectional IPC, eight process tests and separate 29/29 source/archive legacy lanes. No new Desktop package or hardware pass. |
 | P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
 | P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
 | P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |

@@ -729,6 +729,35 @@ The separate C/C# lane passed nine canonical vectors and 24 conformance frames
 in both directions, plus its eight focused managed cases. The legacy source
 lane passed 29/29. Broader validation logs use `work/phase7/p72-delay-order/`.
 
+The canonical production native build ran from clean committed source
+`b9491f18becfe769570255d090d44f58f9dd5baf`. Its source fingerprint is
+`dd9b43994c139cb9dea46d7e33a3094551a08d4dfa84f2994cab6c5ec2d0b0c3`
+and executable SHA-256 is
+`144df701052452fef570068aeaac042e94b2dd86e881362be3aac6a1efb38639`.
+This identifies only the ignored validation executable. Fresh owned-process,
+production-bootstrap and parent-death checks passed 8/8, without a production
+handshake reaching devices. The separately staged native-backed legacy ZIP
+passed 29/29, independently of the 29/29 source lane; its SHA-256 is
+`17a6f5587268faf629619f0f12811b1ab32545130f73403e407df8b44f9a92ac`.
+No Desktop DEV artifact was built or changed. Previous validation executable,
+manifest and legacy archive bytes were copied into ignored evidence before
+replacement; frozen Desktop packages and incident records are unchanged.
+
+Build metadata, documentation links, diff and semantic/source-scope checks
+passed. Only the delay-buffer boundary, its new composition test/Meson and
+owning documentation/AGENTS changed; managed code, native IPC/Stop/Focus,
+dependencies, specs/generated outputs and workflows are unchanged. Independent
+agent review found no blocking source finding and read the fresh native logs;
+it did not execute another Windows or hardware run. Debug/production builds
+retain the existing toolchain and `usb=false` limitations: no physical HID/OTG,
+V4L2, GPU, audible output or latency pass is claimed.
+
+The baseline push run `37078698690`, attempt 1 at
+`7dff15837c4c39dd63f8488500d5f5c5c423027e`, was rechecked as completed/success
+for test, native, android-server and desktop. It validates the integration
+baseline only. This branch push creates no PR or hosted P7.2 pass; later review,
+hosted validation and changed-runtime smoke remain separate authorization gates.
+
 All frame and metadata deliveries now use the existing single worker FIFO.
 The first frame carries an ASAP flag and skips the playback-delay wait after
 its predecessors settle. Subsequent frames retain the existing clock-based
