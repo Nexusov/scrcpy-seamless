@@ -276,8 +276,11 @@ conditional OTG loop. Final destruction removes only exact-instance wakeups
 after producers and completion users quiesce.
 
 Machine commands, framed stdio, managed Stop/Focus/cleanup and parent-death
-contracts remain unchanged on their application-scoped route. Raw frame,
-server/controller/demux notifications and screen icon/size events retain their
+contracts remain unchanged on their application-scoped route. P7.2 moves screen
+open/frame/metadata work to a captured-generation video bridge and app ingress,
+with frame-associated metadata and a first-successful-presentation input gate.
+The dispatcher binding is a typed presentation/UHID bundle, not a replacement
+UHID pointer. Server/controller/demux status and screen icon events retain their
 existing join/drain/flush containment. Direct receiver ACK is not generation
 protected; the conditional ACK-before-receiver-join risk remains open. This is
 not full app/session ownership, asynchronous retirement or responsive joins.
@@ -285,3 +288,20 @@ Native debug tests link actual dispatcher and receiver/deserializer code with
 controlled clipboard/HID/network doubles. A Windows `usb=false` pass does not
 validate physical devices, AOA/OTG or V4L2 runtime behavior. No frozen Desktop
 package receives these changed native bytes.
+
+The [P7.2 contract](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implementation-contract-recorded-before-production-changes)
+defines detached input and mailbox ownership. Its production-linked debug targets
+are `test_frame_buffer`, `test_video_ingress`, `test_input_binding` and
+`test_screen_presentation`; the latter replaces only external effects, creates
+no real window and performs no actual clipboard/HID/ADB operation. FFmpeg frame
+references remain real. Controller/receiver join now also precedes ingress
+destruction because a failed receiver-thread wake can retire a video record.
+The pre-existing direct ACK teardown risk remains open.
+Buffered video now forwards metadata and every frame through one delay-worker
+FIFO. The first ASAP frame skips its timing wait after predecessor callbacks;
+subsequent frame deadlines are unchanged. `test_delay_buffer_ingress` exercises
+this real composition with gated sink effects and actual FFmpeg references.
+Admission is separate from later downstream acceptance. Worker join precedes
+queue release and sink close; the upstream producer still owns publication/close
+serialization. This does not bound the existing growable delay queue or validate
+hardware latency. See the [ordering correction](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction).

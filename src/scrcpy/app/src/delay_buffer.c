@@ -13,6 +13,7 @@ static bool
 sc_delayed_packet_init_frame(struct sc_delayed_packet *dpacket,
                              const AVFrame *frame) {
     dpacket->type = SC_DELAYED_PACKET_TYPE_FRAME;
+    dpacket->asap = false;
     dpacket->frame = av_frame_alloc();
     if (!dpacket->frame) {
         LOG_OOM();
@@ -32,6 +33,7 @@ static void
 sc_delayed_packet_init_session(struct sc_delayed_packet *dpacket,
                                const struct sc_stream_session *session) {
     dpacket->type = SC_DELAYED_PACKET_TYPE_SESSION;
+    dpacket->asap = false;
     dpacket->session = *session;
 }
 
@@ -70,7 +72,7 @@ run_buffering(void *data) {
             sc_tick pts = SC_TICK_FROM_US(dpacket.frame->pts);
 
             bool timed_out = false;
-            while (!db->stopped && !timed_out) {
+            while (!db->stopped && !dpacket.asap && !timed_out) {
                 sc_tick deadline = sc_clock_to_system_time(&db->clock, pts)
                                  + db->delay;
                 if (deadline > max_deadline) {
@@ -91,7 +93,7 @@ run_buffering(void *data) {
 
 #ifdef SC_BUFFERING_DEBUG
             LOGD("Buffering: %" PRItick ";%" PRItick ";%" PRItick,
-                 pts, dframe.push_date, sc_tick_now());
+                 pts, dpacket.push_date, sc_tick_now());
 #endif
 
             ok = sc_frame_source_sinks_push(&db->frame_source, dpacket.frame);
@@ -169,6 +171,7 @@ sc_delay_buffer_frame_sink_open(struct sc_frame_sink *sink,
 error_close_sinks:
     sc_frame_source_sinks_close(&db->frame_source);
 error_destroy_wait_cond:
+    sc_vecdeque_destroy(&db->queue);
     sc_cond_destroy(&db->wait_cond);
 error_destroy_queue_cond:
     sc_cond_destroy(&db->queue_cond);
@@ -190,6 +193,8 @@ sc_delay_buffer_frame_sink_close(struct sc_frame_sink *sink) {
 
     sc_thread_join(&db->thread, NULL);
 
+    // Join settles popped work and queue draining before backing storage release.
+    sc_vecdeque_destroy(&db->queue);
     sc_frame_source_sinks_close(&db->frame_source);
 
     sc_cond_destroy(&db->wait_cond);
@@ -202,36 +207,35 @@ sc_delay_buffer_frame_sink_push(struct sc_frame_sink *sink,
                                 const AVFrame *frame) {
     struct sc_delay_buffer *db = DOWNCAST(sink);
 
+    // Prepare ownership before publication; a failed init cannot leave a slot.
+    struct sc_delayed_packet candidate;
+
+    if (!sc_delayed_packet_init_frame(&candidate, frame)) {
+        return false;
+    }
+
     sc_mutex_lock(&db->mutex);
 
     if (db->stopped) {
         sc_mutex_unlock(&db->mutex);
+        sc_delayed_packet_destroy(&candidate);
         return false;
-    }
-
-    sc_tick pts = SC_TICK_FROM_US(frame->pts);
-    sc_clock_update(&db->clock, sc_tick_now(), pts);
-    sc_cond_signal(&db->wait_cond);
-
-    if (db->first_frame_asap && db->clock.range == 1) {
-        sc_mutex_unlock(&db->mutex);
-        return sc_frame_source_sinks_push(&db->frame_source, frame);
     }
 
     struct sc_delayed_packet *dpacket =
         sc_vecdeque_push_uninitialized(&db->queue);
     if (!dpacket) {
         sc_mutex_unlock(&db->mutex);
+        sc_delayed_packet_destroy(&candidate);
         LOG_OOM();
         return false;
     }
 
-    bool ok = sc_delayed_packet_init_frame(dpacket, frame);
-    if (!ok) {
-        sc_mutex_unlock(&db->mutex);
-        LOG_OOM();
-        return false;
-    }
+    sc_tick pts = SC_TICK_FROM_US(frame->pts);
+    sc_clock_update(&db->clock, sc_tick_now(), pts);
+    sc_cond_signal(&db->wait_cond);
+    candidate.asap = db->first_frame_asap && db->clock.range == 1;
+    *dpacket = candidate; // ownership transfers only with a fully initialized slot
 
 #ifdef SC_BUFFERING_DEBUG
     dpacket->push_date = sc_tick_now();

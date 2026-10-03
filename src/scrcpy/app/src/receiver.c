@@ -7,6 +7,7 @@
 
 #include "device_msg.h"
 #include "events.h"
+#include "generation_targets.h"
 #include "util/log.h"
 #include "util/str.h"
 #include "util/thread.h"
@@ -87,7 +88,9 @@ task_run(void *binding, void *userdata) {
 
     assert(message->type == DEVICE_MSG_TYPE_UHID_OUTPUT);
     assert(binding);
-    sc_uhid_devices_process_hid_output(binding, message->uhid_output.id,
+    struct sc_generation_targets *targets = binding;
+    assert(targets->uhid_devices);
+    sc_uhid_devices_process_hid_output(targets->uhid_devices, message->uhid_output.id,
                                        message->uhid_output.data,
                                        message->uhid_output.size);
 }

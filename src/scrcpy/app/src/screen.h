@@ -23,24 +23,17 @@
 #include "trait/frame_sink.h"
 #include "trait/mouse_processor.h"
 #include "util/thread.h"
+#include "video_ingress.h"
 
 #ifdef __APPLE__
 # define SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
 #endif
 
 struct sc_screen {
-    struct sc_frame_sink frame_sink; // frame sink trait
-
-#ifndef NDEBUG
-    bool open; // track the open/close state to assert correct behavior
-#endif
-
     bool video;
     bool camera;
     bool window_aspect_ratio_lock;
     bool flex_display;
-
-    struct sc_controller *controller;
 
     struct sc_screen_bg_color {
         uint8_t r;
@@ -53,10 +46,10 @@ struct sc_screen {
     struct sc_mouse_capture mc; // only used in mouse relative mode
     struct sc_fps_counter fps_counter;
 
-    struct sc_mutex mutex;
-    struct sc_frame_buffer fb; // protected by mutex
-    // When true, a frame size change must not cause the window to be resized
-    bool prevent_auto_resize; // protected by mutex
+    struct sc_video_ingress ingress;
+    sc_dispatcher_generation generation; // SDL main thread
+    bool event_watch_installed;
+    bool resize_in_progress; // reject reentrant resize effects
 
     // The initial requested window properties
     struct {
@@ -90,10 +83,8 @@ struct sc_screen {
     struct SDL_FRect rect;
     bool window_shown;
 
-    // only accessed from the thread calling sc_frame_sink_ops functions
-    struct sc_stream_session current_session;
-
     AVFrame *frame;
+    AVFrame *candidate_frame;
 
     bool paused;
     AVFrame *resume_frame;
@@ -114,6 +105,8 @@ struct sc_screen {
 };
 
 struct sc_screen_params {
+    struct sc_dispatcher *dispatcher;
+    sc_dispatcher_generation generation;
     bool video;
     bool camera;
     bool flex_display;
@@ -158,9 +151,9 @@ sc_screen_init(struct sc_screen *screen, const struct sc_screen_params *params);
 void
 sc_screen_prepare_reconnect(struct sc_screen *screen);
 
-// Release queued initial-size payloads before reconnect event flushing.
+// Revoke borrowed input endpoints and frame ingress before destination stop.
 void
-sc_screen_discard_pending_open_window_events(void);
+sc_screen_detach(struct sc_screen *screen);
 
 // Bind a new session without recreating the SDL window.
 void

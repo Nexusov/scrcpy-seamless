@@ -31,20 +31,42 @@ or a correction to frozen DEV package bytes. Separately observed post-merge
 (push, attempt 1) completed all four jobs successfully; each retrieved job log
 identifies checkout `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`.
 
-Phase 7 work continues on `2.0/p07-native-lifetime` from that exact integration
-merge. The maintainer approved the [source-anchored lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-at planning head `dbb0a9b` and authorized P7.1 only. The bounded app dispatcher
-and receiver ownership migration passed fresh local native/managed/IPC/process/
-legacy validation and internal source review, and are pending independent P7.1
-acceptance. P7.2–P7.6 and Phase 8 are unstarted and unauthorized.
+P7.1 is accepted for engineering integration through
+[PR #15](https://github.com/Nexusov/scrcpy-seamless/pull/15#issuecomment-5963180390),
+actual merge `7dff15837c4c39dd63f8488500d5f5c5c423027e`, ordered parents
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775` and
+`270328b782afc2280bd863182a6c3273a9ffac55`, reviewed tree
+`d851042c70c1371df0080584d332c449683d0a2a`. All four granular work commits
+are preserved. PR run `37074773751` passed on synthetic checkout
+`603f038cb4a24c7f68e7b316103ef6a20ae4a7ff`; separate post-merge push run
+[37078698690](https://github.com/Nexusov/scrcpy-seamless/actions/runs/37078698690),
+attempt 1, completed all four jobs successfully. Retrieved job logs identify
+the actual merge checkout. This is not complete Phase 7 or hardware acceptance.
+The accepted [lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
+now guides authorized P7.2 on `2.0/p07-2-presentation-input`, created from that
+actual merge. P7.3–P7.6 and Phase 8 are unstarted and unauthorized.
+
+P7.2 now implements persistent presentation, one detached generation input
+binding and captured-generation frame ingress; its
+[contract and production-linked evidence](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-implemented-source-checkpoint-and-review-boundary)
+are pending independent source review. This changes native runtime source;
+there is no new Desktop DEV package or phone-backed validation. The full
+generation graph, ACK/audio ownership and responsive media joins remain open.
+The bounded [delayed-first-frame correction](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction)
+reproduces preceding metadata being overtaken through the real delay-to-ingress
+path and orders all deliveries on its existing worker. ASAP timing intent and
+ordinary delayed deadlines remain. Corrective validation is separate from the
+original P7.2 runs; independent acceptance and later hosted/hardware gates remain
+pending. P7.3–P7.6 and Phase 8 are not started.
 
 [PR #15's original hosted gate](../../development/p71-activation-ci.md) failed
 in the unchanged activation fixture: desktop 553/554, while test, native and
 Android server succeeded. The bounded correction addresses a demonstrated raw-
 peer caller-context dependency with controlled production-linked coverage and
 an optional internal observation seam; the original CI cause remains unresolved.
-Original failure evidence is preserved. P7.1 still requires follow-up hosted
-checks, independent review and a separate acceptance/integration decision.
+Original failure evidence is preserved. Its cause remains unknown and is an
+explicitly accepted non-blocking watch item for P7.1 integration. Successful
+follow-up checks do not establish historical causality or ThreadPool starvation.
 
 ## Historical Phase 6C development checkpoints
 
@@ -857,14 +879,14 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the historical source map, implemented P7.1 contract, proposed later
-contracts, tests and exit criteria. This index records the maintainer's P7.1
-authorization and does not authorize later checkpoints.
+owns the historical source map, implemented P7.1/P7.2 contracts, proposed later
+contracts, tests and exit criteria. This index summarizes their scoped status
+and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
-| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Implemented; 20/20 native targets, 15 dispatcher groups, 10 receiver cases, bidirectional IPC, 8 process tests, 554 solution tests and 29 legacy suites passed freshly. Independent acceptance pending; only receiver queued work has the new generation guarantee. |
-| P7.2 | P7.1 | Presentation/input/frame ingress separation | Proposed; not started |
+| P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
+| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Implemented with bounded delayed-first-frame correction; pending independent acceptance. Fresh correction checks: 25 native targets including nine delay-composition groups, 556 managed tests, bidirectional IPC, eight process tests and separate 29/29 source/archive legacy lanes. No new Desktop package or hardware pass. |
 | P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
 | P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
 | P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |

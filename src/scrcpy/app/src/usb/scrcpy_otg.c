@@ -116,6 +116,14 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
         return SCRCPY_EXIT_FAILURE;
     }
 
+    // P7.2: reuse the application allocator for non-video input binding.
+    sc_dispatcher_generation generation;
+
+    if (!sc_dispatcher_generation_begin(dispatcher, NULL, &generation)) {
+        sc_usb_destroy(&s->usb);
+        return SCRCPY_EXIT_FAILURE;
+    }
+
     struct sc_usb_device usb_device;
     ok = sc_usb_select_device(&s->usb, serial, &usb_device);
     if (!ok) {
@@ -183,6 +191,8 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     }
 
     struct sc_screen_params params = {
+        .dispatcher = dispatcher,
+        .generation = generation,
         .video = false,
         .camera = false,
         .controller = false,
@@ -221,6 +231,15 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
 
 end:
+    // Detach every borrowed processor before AOA stop or destruction.
+    if (screen_initialized) {
+        sc_screen_detach(&s->screen);
+    }
+
+    bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
+    assert(revoked);
+    (void) revoked;
+
     if (aoa_started) {
         sc_aoa_stop(&s->aoa);
     }
