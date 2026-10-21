@@ -1,6 +1,47 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-03: Phase 6C is accepted for engineering integration
+Current status on 2026-10-21: P7.2 is accepted for engineering integration through
+[PR #16](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6322014379),
+actual merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`, ordered parents
+`7dff15837c4c39dd63f8488500d5f5c5c423027e` and
+`e8dc1259103f713904bc826c0a22a8cad455c6bf`, tree
+`ef69d301e2aef0107e90b6eb07c9776e7da752d2`. Five granular work commits are
+preserved. Separate push run [39642247608](https://github.com/Nexusov/scrcpy-seamless/actions/runs/39642247608),
+attempt 1, completed all four jobs successfully; complete job logs identify
+the actual merge checkout. This baseline does not validate P7.3.
+
+P7.3 is authorized on `2.0/p07-3-generation-graph` from that merge. Its bounded
+[owner/release contract](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p73-implementation-contract-recorded-before-production-changes)
+retains sequential retirement and synchronous joins. P7.4–P7.6 and Phase 8 are
+unstarted. Frozen `ge8dc1259` and all earlier artifacts/evidence remain unchanged;
+the [artifact-specific results and watch items](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-integration-and-artifact-specific-carry-forward)
+do not transfer to changed native bytes. Historical geometry and P7.1 activation
+CI cause remain unresolved, non-blocking engineering-integration watch items.
+This is not completion of Phase 7 or public release acceptance.
+
+P7.3's committed implementation is `b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`.
+Implementation-source validation passed 33/33 canonical native checks, 35/35 additional
+USB-enabled checks, 556/556 managed tests, bidirectional conformance, eight
+owned-process/bootstrap/parent-death tests and separate 29/29 source/archive
+legacy lanes. The clean-source native build and exact evidence boundaries are
+in the [final validation record](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fresh-final-validation-and-proposed-runtime-gate).
+Subsequent [fixture teardown review](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fixture-dispatcher-teardown-correction)
+demonstrated unchecked false destruction in three targets/six exits before
+adding application shutdown. The correction changes only those fixtures and
+their documentation; fresh canonical/USB debug checks passed 33/33 and 35/35
+with zero pre-shutdown ownership counts and required shutdown/destroy results.
+The original runs retain their actual assertions but did not check these
+dispatcher releases. The original native artifact remains unchanged; corrective
+source-specific build/process evidence is kept separately, with no DEV bundle.
+Independent P7.3 review remains pending; no Desktop DEV package/hardware gate,
+PR, integration or later checkpoint follows automatically from these results.
+
+## Prior integration decisions and development checkpoints
+
+The following dated entries retain their original evidence boundaries. Their
+then-pending checkpoint statements do not override the current status above.
+
+Status on 2026-10-03: Phase 6C is accepted for engineering integration
 and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
 `85197957352c1606ce4d96970bf7a20d3ee1f531` and
@@ -879,15 +920,15 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the historical source map, implemented P7.1/P7.2 contracts, proposed later
+owns the historical source map, implemented P7.1/P7.2/P7.3 contracts, proposed later
 contracts, tests and exit criteria. This index summarizes their scoped status
 and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
 | P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
-| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Implemented with bounded delayed-first-frame correction; pending independent acceptance. Fresh correction checks: 25 native targets including nine delay-composition groups, 556 managed tests, bidirectional IPC, eight process tests and separate 29/29 source/archive legacy lanes. No new Desktop package or hardware pass. |
-| P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
+| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Accepted for engineering integration through PR #16 merge `799c5a31…`; artifact-specific buffered smoke and single geometry check remain bounded as recorded above. Historical geometry causality is unresolved. |
+| P7.3 | Accepted P7.2 and bounded implementation authorization | Explicit generation graph and complete scoped producer migration | Implemented source checkpoint pending independent review. Stable owner/stage cleanup, scoped value notifications, direct ACK release proof and actual SDL dummy callback settlement; synchronous joins and platform/backend limits remain. No new Desktop DEV package or hardware pass. |
 | P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
 | P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |
 | P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Proposed; not started |

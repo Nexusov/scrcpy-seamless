@@ -20,6 +20,9 @@
 #define TEST_WINDOW_ID 7
 #define TEST_OTHER_WINDOW_ID 8
 #define TEST_TITLE_CAPACITY 128
+#define TEST_HELPER_CAPACITY 2
+#define TEST_ICON_CAPACITY 8
+#define TEST_DISCONNECT_POLL_MS 50
 #ifdef _WIN32
 # define TEST_FIRST_READINESS 1
 # define TEST_SECOND_READINESS 2
@@ -46,6 +49,8 @@ static struct {
     bool fail_clear;
     bool fail_present;
     bool fail_watch;
+    bool allow_icons;
+    bool fail_icon_texture;
     bool focused;
     bool captured;
     bool reenter_watcher;
@@ -58,6 +63,10 @@ static struct {
     unsigned size_changes;
     unsigned watch_additions;
     unsigned watch_removals;
+    unsigned icon_allocations;
+    unsigned icon_releases;
+    unsigned icon_uploads;
+    SDL_Surface *icons[TEST_ICON_CAPACITY];
     SDL_WindowFlags flags;
     struct sc_size size;
     struct sc_point position;
@@ -74,10 +83,147 @@ static unsigned allocation_attempts;
 static unsigned fail_frame_attempt;
 static SDL_Event latest_wakeup;
 
+struct helper_observation {
+    struct sc_disconnect *disconnect;
+    const struct sc_disconnect_callbacks *callbacks;
+    void *userdata;
+    SDL_Surface *publish_during_join;
+    unsigned joins;
+    unsigned destroys;
+    unsigned interrupts;
+};
+
+static struct {
+    bool enabled;
+    bool fail_start;
+    bool timeout_during_wait;
+    unsigned starts;
+    unsigned waits;
+    struct helper_observation helpers[TEST_HELPER_CAPACITY];
+} helper_effects;
+
 AVFrame *__real_av_frame_alloc(void);
 void __real_av_frame_free(AVFrame **frame);
 AVFrame *__wrap_av_frame_alloc(void);
 void __wrap_av_frame_free(AVFrame **frame);
+bool __real_sc_disconnect_start(struct sc_disconnect *disconnect,
+    sc_tick deadline, const struct sc_disconnect_callbacks *callbacks,
+    void *userdata);
+void __real_sc_disconnect_interrupt(struct sc_disconnect *disconnect);
+void __real_sc_disconnect_join(struct sc_disconnect *disconnect);
+void __real_sc_disconnect_destroy(struct sc_disconnect *disconnect);
+bool SDLCALL __real_SDL_WaitEventTimeout(SDL_Event *event, Sint32 timeout);
+bool __wrap_sc_disconnect_start(struct sc_disconnect *disconnect,
+    sc_tick deadline, const struct sc_disconnect_callbacks *callbacks,
+    void *userdata);
+void __wrap_sc_disconnect_interrupt(struct sc_disconnect *disconnect);
+void __wrap_sc_disconnect_join(struct sc_disconnect *disconnect);
+void __wrap_sc_disconnect_destroy(struct sc_disconnect *disconnect);
+bool SDLCALL __wrap_SDL_WaitEventTimeout(SDL_Event *event, Sint32 timeout);
+
+/** Resolve only the exact helper acquired through the production start call. */
+static struct helper_observation *
+find_helper(struct sc_disconnect *disconnect) {
+
+    for (unsigned index = 0; index < helper_effects.starts; ++index) {
+
+        if (helper_effects.helpers[index].disconnect == disconnect) {
+            return &helper_effects.helpers[index];
+        }
+    }
+
+    assert(!"Unknown application helper");
+    return NULL;
+}
+
+/** Retain actual callback adapters while controlling only external helper work. */
+bool
+__wrap_sc_disconnect_start(struct sc_disconnect *disconnect, sc_tick deadline,
+    const struct sc_disconnect_callbacks *callbacks, void *userdata) {
+
+    if (!helper_effects.enabled) {
+        return __real_sc_disconnect_start(disconnect, deadline, callbacks,
+                                           userdata);
+    }
+
+    assert(deadline > sc_tick_now());
+    assert(callbacks && userdata);
+
+    if (helper_effects.fail_start) {
+        return false;
+    }
+
+    assert(helper_effects.starts < TEST_HELPER_CAPACITY);
+    struct helper_observation *helper =
+        &helper_effects.helpers[helper_effects.starts++];
+    helper->disconnect = disconnect;
+    helper->callbacks = callbacks;
+    helper->userdata = userdata;
+    return true;
+}
+
+/** Keep application quit cancellation attributed to the acquired exact helper. */
+void
+__wrap_sc_disconnect_interrupt(struct sc_disconnect *disconnect) {
+
+    if (!helper_effects.enabled) {
+        __real_sc_disconnect_interrupt(disconnect);
+        return;
+    }
+
+    ++find_helper(disconnect)->interrupts;
+}
+
+/** Permit a final publication until the owning join actually returns. */
+void
+__wrap_sc_disconnect_join(struct sc_disconnect *disconnect) {
+
+    if (!helper_effects.enabled) {
+        __real_sc_disconnect_join(disconnect);
+        return;
+    }
+
+    struct helper_observation *helper = find_helper(disconnect);
+    assert(!helper->joins && !helper->destroys);
+
+    if (helper->publish_during_join) {
+        helper->callbacks->on_icon_loaded(disconnect,
+            helper->publish_during_join, helper->userdata);
+        helper->publish_during_join = NULL;
+    }
+
+    ++helper->joins;
+}
+
+/** Reject helper-context release before the exact publisher join. */
+void
+__wrap_sc_disconnect_destroy(struct sc_disconnect *disconnect) {
+
+    if (!helper_effects.enabled) {
+        __real_sc_disconnect_destroy(disconnect);
+        return;
+    }
+
+    struct helper_observation *helper = find_helper(disconnect);
+    assert(helper->joins == 1 && !helper->destroys);
+    ++helper->destroys;
+}
+
+/** Deliver timeout between poll checks without admitting any SDL wake event. */
+bool SDLCALL
+__wrap_SDL_WaitEventTimeout(SDL_Event *event, Sint32 timeout) {
+
+    if (!helper_effects.enabled) {
+        return __real_SDL_WaitEventTimeout(event, timeout);
+    }
+
+    assert(timeout == TEST_DISCONNECT_POLL_MS);
+    assert(!helper_effects.waits++);
+    assert(helper_effects.timeout_during_wait);
+    struct helper_observation *helper = &helper_effects.helpers[0];
+    helper->callbacks->on_timeout(helper->disconnect, helper->userdata);
+    return false;
+}
 
 /** Fail an exact production frame-container allocation and retain real refs. */
 AVFrame *
@@ -114,6 +260,7 @@ reset_effects(void) {
     assert(frame_allocations == frame_releases);
     assert(!effects.windows && !effects.renderers && !effects.textures);
     assert(!effects.watcher);
+    assert(effects.icon_allocations == effects.icon_releases);
     memset(&effects, 0, sizeof(effects));
     effects.focused = true;
     allocation_attempts = fail_frame_attempt = 0;
@@ -430,12 +577,19 @@ sc_texture_set_from_frame(struct sc_texture *texture, const AVFrame *frame) {
     return true;
 }
 
-/** Avoid icon pixel conversion in this presentation test lane. */
+/** Control only icon upload while exercising actual screen payload ownership. */
 bool
 sc_texture_set_from_surface(struct sc_texture *texture, SDL_Surface *surface) {
-    (void) texture; (void) surface;
-    assert(!"Unexpected icon texture effect");
-    return false;
+    assert(effects.allow_icons && surface);
+    ++effects.icon_uploads;
+
+    if (effects.fail_icon_texture) {
+        return false;
+    }
+
+    texture->texture = owned_texture;
+    texture->texture_size = (struct sc_size) {surface->w, surface->h};
+    return true;
 }
 
 /** Reset only the modeled graphics effect. */
@@ -451,10 +605,25 @@ sc_icon_load(const char *filename) {
     return NULL;
 }
 
-/** Forbid an unowned icon release. */
+/** Release only explicitly owned synthetic surfaces, never external image data. */
 void
 sc_icon_destroy(SDL_Surface *icon) {
-    assert(!icon);
+
+    if (!icon) {
+        return;
+    }
+
+    for (unsigned index = 0; index < TEST_ICON_CAPACITY; ++index) {
+
+        if (effects.icons[index] == icon) {
+            effects.icons[index] = NULL;
+            ++effects.icon_releases;
+            SDL_DestroySurface(icon);
+            return;
+        }
+    }
+
+    assert(!"Unowned icon release");
 }
 
 /** Initialize only persistent local capture state. */
@@ -638,7 +807,7 @@ present_frame(struct screen_context *context, const AVFrame *frame) {
 
 /** Revoke borrowing, settle owned notifications and destroy in owner order. */
 static void
-destroy_context(struct screen_context *context) {
+release_context(struct screen_context *context) {
 
     if (context->bridge.open) {
         context->bridge.frame_sink.ops->close(&context->bridge.frame_sink);
@@ -652,6 +821,12 @@ destroy_context(struct screen_context *context) {
     sc_screen_join(&context->screen);
     sc_screen_destroy(&context->screen);
     assert(sc_dispatcher_destroy(&context->dispatcher));
+}
+
+/** Require every presentation frame to settle after a single-context test. */
+static void
+destroy_context(struct screen_context *context) {
+    release_context(context);
     assert(frame_allocations == frame_releases);
 }
 
@@ -1236,6 +1411,183 @@ test_continuous_resize_watcher(void) {
 #endif
 }
 
+/** Allocate a bounded real surface without loading external image files. */
+static SDL_Surface *
+create_helper_icon(void) {
+    assert(effects.icon_allocations < TEST_ICON_CAPACITY);
+    SDL_Surface *icon = SDL_CreateSurface(TEST_FRAME_WIDTH, TEST_FRAME_HEIGHT,
+                                         SDL_PIXELFORMAT_RGBA8888);
+    assert(icon);
+    effects.icons[effects.icon_allocations++] = icon;
+    return icon;
+}
+
+/** Start the real disconnection presentation path after one actual frame. */
+static void
+start_helper(struct screen_context *context) {
+    open_bridge(&context->bridge, TEST_FRAME_WIDTH, TEST_FRAME_HEIGHT, false);
+    AVFrame *frame = create_frame(TEST_FRAME_WIDTH, TEST_FRAME_HEIGHT, 1);
+    present_frame(context, frame);
+    av_frame_free(&frame);
+    SDL_Event disconnected = {.type = SC_EVENT_DEVICE_DISCONNECTED};
+    sc_screen_handle_event(&context->screen, &disconnected);
+    assert(context->screen.disconnected);
+}
+
+/** Initialize helper effects only after the previous exact owners settled. */
+static void
+reset_helper_effects(void) {
+
+    for (unsigned index = 0; index < helper_effects.starts; ++index) {
+        assert(helper_effects.helpers[index].joins == 1);
+        assert(helper_effects.helpers[index].destroys == 1);
+    }
+
+    memset(&helper_effects, 0, sizeof(helper_effects));
+    helper_effects.enabled = true;
+    effects.allow_icons = true;
+}
+
+/** Publish through the actual app-scoped callbacks from an independent thread. */
+static int
+publish_helper_outcomes(void *userdata) {
+    struct helper_observation *helper = userdata;
+    helper->callbacks->on_icon_loaded(helper->disconnect,
+        create_helper_icon(), helper->userdata);
+    helper->callbacks->on_icon_loaded(helper->disconnect, NULL,
+                                      helper->userdata);
+    helper->callbacks->on_icon_loaded(helper->disconnect,
+        create_helper_icon(), helper->userdata);
+    helper->callbacks->on_timeout(helper->disconnect, helper->userdata);
+    return 0;
+}
+
+/** Retain one owned icon and timeout without depending on legacy SDL admission. */
+static void
+test_disconnect_bounded_publication(void) {
+    reset_effects();
+    reset_helper_effects();
+    struct screen_context context;
+    init_context(&context, true, false);
+    start_helper(&context);
+    assert(context.screen.disconnect_started);
+    struct helper_observation *helper = &helper_effects.helpers[0];
+    assert(helper->userdata == &context.screen);
+    SDL_SetEventEnabled(SC_EVENT_DISCONNECTED_ICON_LOADED, false);
+    SDL_SetEventEnabled(SC_EVENT_DISCONNECTED_TIMEOUT, false);
+    sc_thread producer;
+    assert(sc_thread_create(&producer, publish_helper_outcomes, "screen-helper",
+                             helper));
+    sc_thread_join(&producer, NULL);
+    assert(effects.icon_allocations == 2 && effects.icon_releases == 1);
+    sc_screen_handle_disconnection(&context.screen);
+    assert(effects.icon_uploads == 1 && effects.icon_releases == 2);
+    assert(!helper_effects.waits);
+    assert(!SDL_GetAtomicPointer(&context.screen.disconnect_icon));
+    destroy_context(&context);
+    SDL_SetEventEnabled(SC_EVENT_DISCONNECTED_ICON_LOADED, true);
+    SDL_SetEventEnabled(SC_EVENT_DISCONNECTED_TIMEOUT, true);
+    puts("screen: exact app helper, bounded replacement/null icon and no-wakeup timeout");
+}
+
+/** Poll a retained timeout arriving after the last check without an SDL event. */
+static void
+test_disconnect_timeout_during_poll(void) {
+    reset_effects();
+    reset_helper_effects();
+    struct screen_context context;
+    init_context(&context, true, false);
+    start_helper(&context);
+    helper_effects.timeout_during_wait = true;
+    sc_screen_handle_disconnection(&context.screen);
+    assert(helper_effects.waits == 1);
+    assert(SDL_GetAtomicInt(&context.screen.disconnect_timed_out));
+    destroy_context(&context);
+    puts("screen: helper timeout published across the final check/poll boundary");
+}
+
+/** Release final join-time publications without dequeuing another owner's data. */
+static void
+test_disconnect_join_release(void) {
+    reset_effects();
+    reset_helper_effects();
+    struct screen_context context;
+    init_context(&context, true, false);
+    start_helper(&context);
+    struct helper_observation *helper = &helper_effects.helpers[0];
+    helper->callbacks->on_icon_loaded(helper->disconnect,
+        create_helper_icon(), helper->userdata);
+    helper->publish_during_join = create_helper_icon();
+    SDL_Surface *unrelated_icon = create_helper_icon();
+    SDL_Event unrelated = {
+        .user = {
+            .type = SC_EVENT_DISCONNECTED_ICON_LOADED,
+            .data1 = unrelated_icon,
+        },
+    };
+    assert(SDL_PushEvent(&unrelated));
+    destroy_context(&context);
+    assert(effects.icon_releases == 2);
+    SDL_Event retained;
+    assert(sc_dequeue_event(SC_EVENT_DISCONNECTED_ICON_LOADED, &retained));
+    assert(retained.user.data1 == unrelated_icon);
+    sc_icon_destroy(unrelated_icon);
+    assert(effects.icon_releases == effects.icon_allocations);
+    puts("screen: join-time icon retirement preserves unrelated queued ownership");
+}
+
+/** Keep independent screen latches isolated through upload rejection and teardown. */
+static void
+test_disconnect_exact_screen_isolation(void) {
+    reset_effects();
+    reset_helper_effects();
+    effects.fail_watch = true;
+    struct screen_context first;
+    struct screen_context second;
+    init_context(&first, true, false);
+    start_helper(&first);
+    init_context(&second, true, false);
+    start_helper(&second);
+    struct helper_observation *first_helper = &helper_effects.helpers[0];
+    struct helper_observation *second_helper = &helper_effects.helpers[1];
+    first_helper->callbacks->on_icon_loaded(first_helper->disconnect,
+        create_helper_icon(), first_helper->userdata);
+    second_helper->callbacks->on_icon_loaded(second_helper->disconnect,
+        create_helper_icon(), second_helper->userdata);
+    first_helper->callbacks->on_timeout(first_helper->disconnect,
+                                        first_helper->userdata);
+    sc_screen_handle_disconnection(&first.screen);
+    assert(effects.icon_releases == 1);
+    assert(SDL_GetAtomicPointer(&second.screen.disconnect_icon));
+    assert(!SDL_GetAtomicInt(&second.screen.disconnect_timed_out));
+    effects.fail_icon_texture = true;
+    second_helper->callbacks->on_timeout(second_helper->disconnect,
+                                         second_helper->userdata);
+    sc_screen_handle_disconnection(&second.screen);
+    assert(effects.icon_releases == 2);
+    release_context(&first);
+    release_context(&second);
+    assert(frame_allocations == frame_releases);
+    assert(effects.icon_allocations == effects.icon_releases);
+    puts("screen: distinct app-screen helpers and rejected icon upload settle exactly");
+}
+
+/** Do not join or destroy helper state whose start failed to acquire a worker. */
+static void
+test_disconnect_start_failure(void) {
+    reset_effects();
+    reset_helper_effects();
+    helper_effects.fail_start = true;
+    struct screen_context context;
+    init_context(&context, true, false);
+    start_helper(&context);
+    assert(!context.screen.disconnect_started);
+    sc_screen_handle_disconnection(&context.screen);
+    assert(!helper_effects.starts && !helper_effects.waits);
+    destroy_context(&context);
+    puts("screen: failed helper start has no join, destruction or blocking wait");
+}
+
 /** Run deterministic production-linked presentation cases with real FFmpeg refs. */
 int
 main(void) {
@@ -1255,6 +1607,11 @@ main(void) {
     test_frame_metadata();
     test_partial_initialization();
     test_continuous_resize_watcher();
+    test_disconnect_bounded_publication();
+    test_disconnect_timeout_during_poll();
+    test_disconnect_join_release();
+    test_disconnect_exact_screen_isolation();
+    test_disconnect_start_failure();
     SDL_Quit();
     return 0;
 }

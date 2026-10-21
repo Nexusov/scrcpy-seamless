@@ -47,6 +47,7 @@ struct sc_screen {
     struct sc_fps_counter fps_counter;
 
     struct sc_video_ingress ingress;
+    struct sc_dispatcher *dispatcher; // application-owned, outlives this screen
     sc_dispatcher_generation generation; // SDL main thread
     bool event_watch_installed;
     bool resize_in_progress; // reject reentrant resize effects
@@ -96,6 +97,9 @@ struct sc_screen {
     bool disconnected;
     bool disconnect_started;
     struct sc_disconnect disconnect;
+    // Application-scoped helper borrows this stable screen until its join.
+    void *disconnect_icon; // SDL atomic pointer; at most one owned surface
+    SDL_AtomicInt disconnect_timed_out;
 
     // Track resize requests caused by frame-size changes
     struct sc_resize_tracker {

@@ -33,6 +33,8 @@ src = [
     'src/receiver.c',
     'src/recorder.c',
     'src/scrcpy.c',
+    'src/session.c',
+    'src/session_notifications.c',
     'src/screen.c',
     'src/sdl_hints.c',
     'src/server.c',
@@ -232,7 +234,87 @@ endif
 
 # do not build tests in release (assertions would not be executed at all)
 if get_option('buildtype') == 'debug'
+    # Link shipping ownership and orchestration; only external effects are wrapped.
+    # These Windows cases also cover the existing machine Stop intent boundary.
+    if host_machine.system() == 'windows'
+        session_sources = []
+        foreach index : range(1, src.length())
+            session_sources += src[index]
+        endforeach
+        session_wraps = [
+            'sc_server_init', 'sc_server_start', 'sc_server_stop',
+            'sc_server_join', 'sc_server_destroy', 'sc_machine_is_active',
+            'sc_machine_stop_requested', 'sc_machine_emit_lifecycle',
+            'sc_controller_init', 'sc_controller_start', 'sc_controller_join',
+            'sc_controller_destroy', 'sc_file_pusher_init',
+            'sc_file_pusher_destroy', 'sc_screen_init', 'sc_recorder_init',
+            'sc_recorder_start', 'sc_recorder_destroy', 'sc_demuxer_start',
+            'sc_demuxer_join', 'sc_timeout_init', 'sc_timeout_start',
+            'sc_timeout_destroy', 'sc_acksync_init', 'sc_acksync_destroy',
+            'sc_usb_init', 'sc_usb_select_device', 'sc_usb_connect',
+            'sc_usb_device_destroy', 'sc_usb_stop', 'sc_usb_join',
+            'sc_usb_disconnect', 'sc_usb_destroy', 'sc_aoa_init',
+            'sc_aoa_start', 'sc_aoa_join', 'sc_aoa_destroy',
+            'sc_keyboard_aoa_init', 'sc_keyboard_aoa_destroy',
+            'sc_mouse_aoa_init', 'sc_mouse_aoa_destroy',
+            'SDL_GetJoysticks', 'SDL_IsGamepad', 'SDL_free',
+            'calloc', 'free', 'sc_mutex_init',
+        ]
+        session_link_args = []
+        foreach symbol : session_wraps
+            session_link_args += '-Wl,--wrap=' + symbol
+        endforeach
+        session_test = executable('test_session',
+            ['tests/test_session.c'] + session_sources,
+            include_directories: src_dir, dependencies: dependencies,
+            link_args: session_link_args)
+        test('test_session', session_test)
+
+        if usb_support
+            ack_wraps = [
+                'sc_server_init', 'sc_server_start', 'sc_server_stop',
+                'sc_server_join', 'sc_server_destroy', 'sc_usb_init',
+                'sc_usb_select_device', 'sc_usb_connect', 'sc_usb_stop',
+                'sc_usb_join', 'sc_usb_disconnect', 'sc_usb_destroy',
+                'libusb_control_transfer', 'sc_aoa_start', 'sc_aoa_join',
+                'sc_acksync_wait', 'net_recv', 'net_send_all',
+                'sc_controller_join', 'sc_acksync_destroy',
+            ]
+            ack_link_args = []
+            foreach symbol : ack_wraps
+                ack_link_args += '-Wl,--wrap=' + symbol
+            endforeach
+            ack_test = executable('test_session_ack',
+                ['tests/test_session_ack.c'] + session_sources,
+                include_directories: src_dir, dependencies: dependencies,
+                link_args: ack_link_args)
+            test('test_session_ack', ack_test)
+            otg_test = executable('test_otg_lifetime', [
+                'tests/test_otg_lifetime.c', 'src/usb/scrcpy_otg.c',
+                'src/session_notifications.c', 'src/dispatcher.c', 'src/events.c',
+                'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+                'src/compat.c',
+            ], include_directories: src_dir, dependencies: dependencies)
+            test('test_otg_lifetime', otg_test)
+        endif
+    endif
+
     tests = [
+        ['test_session_sink_graph', [
+            'tests/test_session_sink_graph.c', 'src/decoder.c',
+            'src/trait/packet_source.c', 'src/trait/frame_source.c',
+            'src/util/log.c',
+        ]],
+        ['test_file_pusher_lifetime', [
+            'tests/test_file_pusher_lifetime.c', 'src/util/intr.c',
+            'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
+        ]],
+        ['test_session_notifications', [
+            'tests/test_session_notifications.c',
+            'src/session_notifications.c', 'src/dispatcher.c', 'src/events.c',
+            'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+        ]],
         ['test_input_binding', [
             'tests/test_input_binding.c',
             'src/input_manager.c',
@@ -340,6 +422,37 @@ if get_option('buildtype') == 'debug'
         test(t[0], exe)
     endforeach
 
+    # Exercise actual SDL dummy callback exclusion and production open unwind.
+    timeout_lifetime_test = executable('test_timeout_lifetime', [
+        'tests/test_timeout_lifetime.c', 'src/util/thread.c',
+        'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'])
+    test('test_timeout_lifetime', timeout_lifetime_test)
+    test('test_timeout_partial_init', timeout_lifetime_test, args: ['--init-failure'])
+    test('test_timeout_stopped_context', timeout_lifetime_test, args: ['--already-stopped'])
+
+    # Exercise actual SDL dummy callback exclusion and production open unwind.
+    audio_lifetime_test = executable('test_audio_lifetime', [
+        'tests/test_audio_lifetime.c', 'src/audio_player.c',
+        'src/audio_regulator.c', 'src/util/audiobuf.c', 'src/util/average.c',
+        'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+        'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=swr_alloc', '-Wl,--wrap=swr_init',
+                   '-Wl,--wrap=swr_free', '-Wl,--wrap=sc_mutex_init',
+                   '-Wl,--wrap=sc_mutex_destroy', '-Wl,--wrap=sc_allocarray',
+                   '-Wl,--wrap=malloc', '-Wl,--wrap=free',
+                   '-Wl,--wrap=sc_audiobuf_destroy',
+                   '-Wl,--wrap=sc_audio_regulator_destroy',
+                   '-Wl,--wrap=sc_audio_regulator_pull',
+                   '-Wl,--wrap=SDL_SetHint', '-Wl,--wrap=SDL_OpenAudioDeviceStream',
+                   '-Wl,--wrap=SDL_ResumeAudioDevice',
+                   '-Wl,--wrap=SDL_PauseAudioDevice',
+                   '-Wl,--wrap=SDL_DestroyAudioStream'])
+    test('test_audio_lifetime', audio_lifetime_test)
+
     # Exercise real FFmpeg reference ownership and allocation failures.
     framebuffer_test = executable('test_frame_buffer', [
         'tests/test_frame_buffer.c', 'src/frame_buffer.c', 'src/compat.c',
@@ -385,7 +498,12 @@ if get_option('buildtype') == 'debug'
         'src/util/strbuf.c', 'src/compat.c',
     ], include_directories: src_dir, dependencies: dependencies,
        c_args: ['-DSC_TEST', '-DSC_SCREEN_TEST'],
-       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free'])
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free',
+                   '-Wl,--wrap=sc_disconnect_start',
+                   '-Wl,--wrap=sc_disconnect_interrupt',
+                   '-Wl,--wrap=sc_disconnect_join',
+                   '-Wl,--wrap=sc_disconnect_destroy',
+                   '-Wl,--wrap=SDL_WaitEventTimeout'])
     test('test_screen_presentation', presentation_test)
 
     # Link actual receiver/deserializer ownership with external-effect doubles.

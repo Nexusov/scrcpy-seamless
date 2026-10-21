@@ -1,12 +1,14 @@
 # Phase 7 native application and connection lifetime plan
 
-Status: migration direction approved; P7.1 accepted and integrated through
-PR #15. P7.2 is authorized on its separate work branch. P7.3–P7.6 remain
-proposals and require separate authorization.
-Source inspection date: 2026-10-02. All current-source statements below refer to
-integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
-later checkpoints are proposals. The P7.1 and P7.2 sections separately record
-implemented contracts and their evidence; the original source map remains historical.
+Status: migration direction approved; P7.1 and P7.2 accepted for engineering
+integration through PR #15 and PR #16. P7.3 is authorized on its own branch;
+its implementation and fresh validation are recorded below. P7.4–P7.6 and
+Phase 8 remain unstarted and require separate authorization.
+Original planning inspection date: 2026-10-02, at integration
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`. Its source map and conceptual
+contracts remain historical planning evidence. The P7.1, P7.2 and P7.3 sections
+separately record implemented contracts and their own evidence; later
+checkpoints remain proposals.
 
 ## Authority, integration and evidence boundary
 
@@ -45,6 +47,52 @@ its preflight bytes do not acquire issue #13's correction. No artifact is rebuil
 or relabelled by this plan. R05/R06/R12/R15 remain open.
 
 ## Current source ownership map
+
+### P7.2 integration and artifact-specific carry-forward
+
+[PR #16](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6322014379)
+was accepted for engineering integration, then merged as
+`799c5a31a5322815401c5b2a6cb93ac0f688ff24`, ordered parents
+`7dff15837c4c39dd63f8488500d5f5c5c423027e` and
+`e8dc1259103f713904bc826c0a22a8cad455c6bf`, tree
+`ef69d301e2aef0107e90b6eb07c9776e7da752d2`. All five work commits remain.
+The separate push [run 39642247608](https://github.com/Nexusov/scrcpy-seamless/actions/runs/39642247608),
+attempt 1, completed test, native, android-server and desktop successfully.
+Complete retained job logs independently identify actual checkout `799c5a31…`;
+native ran 25/25 targets, desktop 556/556, and two separate process invocations
+each ran 8/8. These are baseline observations, not fresh P7.3 executions.
+
+The frozen `scrcpy-seamless-desktop-p07-2-ge8dc1259` source remains
+`e8dc1259103f713904bc826c0a22a8cad455c6bf`, ZIP SHA-256
+`64ca72f9468f7aab82b2b5069498a69ddd2b040af65600a39dc4582d2e16defb`,
+native SHA-256 `144df701052452fef570068aeaac042e94b2dd86e881362be3aac6a1efb38639`.
+The [original buffered smoke](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6318270203)
+supports observed USB media/control, functional display pause/resume, recovery,
+Focus and explicit Stop. Recovery geometry used its normal-sized pre-loss
+baseline; Focus transition timing and the intermediate retained-frame interval
+remain unmeasured. The [historical geometry review](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6320688760)
+does not establish why a maximized window became normal-sized.
+
+The separate [single USB geometry check](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6321578808)
+has one acquired session and one owner-performed pause/unpause pair: two earlier
+Mirror clicks were preflight blocks, followed by an authorized endpoint-only
+update. Of 1919 samples, 1804 followed Maximize tool return; maximum start gap
+was 321.2994 ms. Sampled maximized state, outer/client bounds, owner, monitor and
+DPI stayed unchanged. Discrete non-atomic reads establish neither short
+transients, actual SDL input nor decoded-frame dimensions. Functional freezing,
+phone playback continuation and audible output are owner reports. Explicit Stop
+retained UserStop/ExplicitStop, successful managed cleanup and separately
+observed exact-child exit/no replacement. The temporary buffer override was
+removed; the approved endpoint remained. No equality with the original profile
+or automatic endpoint-resolution claim follows.
+
+Historical geometry and P7.1 activation CI cause remain separate unresolved,
+non-blocking watch items. Neither is explained or fixed by a later green run.
+Unknown wire/exit/escalation/permission fields stay unknown. Engineering
+integration is not universal lifetime, hardware/platform or public release
+acceptance; old packages do not acquire later source changes.
+
+### Historical source map at the planning base
 
 Paths in this map are relative to `src/scrcpy/app/src/`. Linked modules and exact
 symbols locate implementation evidence; initialization flags in `scrcpy()` also
@@ -782,6 +830,261 @@ total video-memory bound. No audio/ACK lifetime, asynchronous retirement,
 generation graph or transport policy is changed. P7.2 remains pending independent
 corrective source review; P7.3–P7.6 and Phase 8 are unstarted. No Desktop DEV
 package or hardware run is authorized by this correction.
+
+## P7.3 implementation contract recorded before production changes
+
+P7.3 is authorized on `2.0/p07-3-generation-graph`, starting at actual P7.2
+merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`. This section records the
+concrete implementation decisions before production edits; validation results
+are recorded separately after execution. P7.4–P7.6 and Phase 8 remain outside
+this checkpoint.
+
+### Owner and stage APIs
+
+`sc_session_create` allocates one stable concrete owner, initializes its bounded
+notification latch and begins the existing dispatcher generation with the typed
+target bundle. `sc_session_start_server` acquires and starts the server;
+`sc_session_start` builds/starts its connected media and control graph.
+`sc_session_request_stop` and `sc_session_join` are separate idempotent stages;
+`sc_session_destroy` consumes the joined owner exactly once. Shipping restart
+orchestration calls these same APIs; tests replace only external resource/module
+boundaries.
+
+The application retains screen/presentation/input-router storage, immutable
+invocation options, dispatcher and its current-owner pointer. The owner retains
+server/channels, controller/receiver, processors and optional ACK/AOA/USB,
+file-pusher, decoders/demuxers, bridges/delay buffers, audio player, recorder,
+deadline and optional V4L2 sink. It borrows the persistent screen only until
+detach and all producer joins. No live aggregate is copied or relocated.
+
+The ledger records successful initialization and successful worker start
+separately; it additionally records stop requested and joins completed. Server,
+controller, file-pusher, recorder, deadline, ACK, USB, AOA and V4L2 releases are
+conditional on actual acquisition. Lazy workers remain module-owned. Decoder
+and delay/audio/V4L2 open/close belong to the existing sink cascades, not a
+second owner-level close. Demux join includes downstream close/rollback; owner
+destruction never repeats it. Failed init retains each module's partial unwind.
+
+### Borrowers, release dependencies and callback scope
+
+| Resource | Borrowers / settlement before release |
+| --- | --- |
+| Server channels | Both demuxers and controller sender/receiver; request server interruption before joining them, destroy server after their joins |
+| Controller / processors / file-pusher | Persistent input binding; detach before stop; receiver publications quiesce before screen ingress destruction |
+| ACK sync | AOA waiter and direct receiver ACK; stop/unblock AOA, stop controller and interrupt channels, join both before ACK destruction |
+| Video bridge / delay / decoder | Synchronous producer graph; demux join settles worker, FIFO metadata/frame calls and downstream close before owner storage release |
+| Audio player / regulator / callback buffer | Decoder push and SDL pull; demux join settles sink close; pinned SDL stream destruction must exclude/complete callback before regulator/buffer free |
+| Recorder | Video/audio packet sink callbacks and its worker; stop, join demux producers, join recorder, then destroy |
+| Deadline / server / controller callback context | Stable owner borrowed by worker until its successful-start join; no queued raw owner pointer |
+| Screen disconnect helper | Application-owned screen/helper, exact-instance notifications and payload cleanup; helper join before screen destruction, independent of generation replacement |
+
+Server connect/failure, demux/controller/recorder/deadline and conditional AOA/
+USB outcomes use `sc_session_notifications`: a fixed-size latch retaining first
+connection notification and first terminal outcome in publication order.
+Duplicate terminal callbacks do not cause another retirement. The first
+composition experiment demonstrated that polling a newly retained outcome ahead
+of the SDL queue could overtake an earlier Quit. The corrected handoff stores
+the outcome under its own mutex, unlocks, then uses the existing dispatcher's
+wake adapter to post one value-scoped `SC_EVENT_SESSION_NOTIFICATION` into the
+ordinary SDL FIFO. Normal delivery requires receipt of that wake; only a settled
+failed wake is eligible for fallback polling. Queued values carry the full
+64-bit generation, application dispatcher identity and outcome kind, never an
+owner pointer or allocated payload. Authority/generation validation precedes
+typed-target resolution. Reordered connected/terminal wakes retain publication
+order without dropping a predecessor. Fixed two-slot storage remains independent
+of dispatcher item/payload capacity; no second dispatcher or growable queue is
+introduced. Failed SDL wake cannot erase the critical result. Main checks
+eligible facts before blocking and after drain, with a named 50 ms maximum SDL
+event wait to service failed wakes. This is a wake-loss fallback, not changed
+retry/backoff or a promise of responsive synchronous joins.
+Failed SDL admission has no successful FIFO position: fallback retention is
+tested, but no historical cross-source queue ordering is claimed for that failure.
+Revoke closes latch publication before dispatcher revocation; owner storage
+survives all publisher joins and failed-wakeup destructors. After those joins,
+notification destruction filters only its exact application/generation wake
+values. There is no broad generation event flush or queued payload to release.
+
+Worker callbacks only record outcomes. The outer application loop evaluates
+transitions after the non-reentrant dispatcher lease ends, including the turn
+that handled its wakeup. It never revokes, begins or destroys a generation inside
+a callback. Protocol SessionId/ConnectionAttemptId, native generation, stream
+metadata and server scid remain distinct. Server-disconnected remains log-only;
+audio EOS/error/disabled/require-audio precedence and retry selection remain.
+SDL window/quit, launcher Stop and machine Stop/Focus remain application-scoped.
+
+### Lock order and test boundary
+
+No nested notification/dispatcher lock: store or take the latch under its mutex,
+unlock before posting/draining/logging. No SDL, external module call, destructor
+or wait under a ledger/notification/registry lock. Existing ingress and regulator
+locks keep their module contracts. Retirement first detaches input/revokes work,
+then requests stop/unblock, then joins borrowers, then destroys destinations.
+Audio source inspection and an isolated dummy-backend callback gate distinguish
+the actual SDL exclusion guarantee from mocked release-order assertions.
+
+Production-linked owner tests inject failures at module acquisition/start
+boundaries and count exact stop/join/destroy calls, including partial startup,
+sticky stop and no replacement after stop. Notification tests use the real
+dispatcher for stale/revoked/duplicate, full queue and wake failure. ACK tests
+retain the real direct receiver borrow and exercise the shipping retirement
+dependency, retaining a red result before correcting release order. Existing
+frame/delay/receiver/dispatcher tests remain independent regressions. Conditional
+AOA/OTG/V4L2 builds are separately audited; a Windows `usb=false` result cannot
+certify those implementations. No real clipboard, audio device, phone or ADB is
+used in these tests.
+
+### Implemented release proof and source-review boundary
+
+The former attempt fields now reside in stable `sc_session` storage. Successful
+init/start flags and the owner stop/join ledger drive real shipping cleanup.
+Opened decoder/delay/audio/V4L2 resources remain owned by the successful-open
+stack in `sc_packet_source_sinks_open` / `sc_frame_source_sinks_open` and the
+demuxer's close cascade: producer join settles this open ledger. The owner does
+not infer open success from initialization or close those sinks twice. The
+application destroys ingress/presentation only after these joins and receiver
+failure-thread publication/destruction have settled.
+
+| Production-linked test | Observed scope at the source checkpoint |
+| --- | --- |
+| [test_session.c](../../src/scrcpy/app/tests/test_session.c) | Actual create/server-start/graph-start/request-stop/join/destroy and shipping `scrcpy()` orchestration; 26 default Windows cases, 33 with USB. Acquisitions equal releases and started workers equal joins; init/start failures, refused second owner, allocation/latch failure, duplicate completion, late callback after revoke, Stop during startup, no owner after sticky Stop, and genuine failure with later Stop remain separate. |
+| [test_session_ack.c](../../src/scrcpy/app/tests/test_session_ack.c) | Actual controller/receiver and AOA threads, real ACK decoder/sync, controlled socket/USB effects. Old release order failed before mutex destruction; corrected cleanup joins both borrowers before one destruction. This is not a reproduced hardware UAF. |
+| [test_session_notifications.c](../../src/scrcpy/app/tests/test_session_notifications.c) | 15 groups: real dispatcher authority, FIFO against app Quit, stale/full-width generations, duplicate/revoked/late outcomes, full dispatcher pressure, failed/in-flight/reversed wakes, early main consumption, exact filtering and rejection during active drain. Two fixed outcome slots are independent of video refs. |
+| [test_session_sink_graph.c](../../src/scrcpy/app/tests/test_session_sink_graph.c) | Four actual packet-source → decoder → frame-source success/partial-open cascades, with real FFmpeg refs and exact final buffer releases. Existing nine delay-composition groups remain separate. |
+| [test_audio_lifetime.c](../../src/scrcpy/app/tests/test_audio_lifetime.c) | 11 groups: nine partial-open failures, actual dummy-backend callback held inside real regulator pull while real stream destruction waits, and ordinary pause/destroy close. No production audio synchronization change was justified. |
+| [test_screen_presentation.c](../../src/scrcpy/app/tests/test_screen_presentation.c) | 15 retained P7.2 groups plus five exact-screen helper ownership/timeout/settlement groups; actual surfaces, controlled producer and real callback adapters. |
+| [test_timeout_lifetime.c](../../src/scrcpy/app/tests/test_timeout_lifetime.c), [test_file_pusher_lifetime.c](../../src/scrcpy/app/tests/test_file_pusher_lifetime.c) | Three deadline cases and two lazy-file-worker cases use real production code/threads and controlled effects. Separate executed reds demonstrated callback context published after worker creation, missing cond-init mutex unwind and retained queue backing. Their same constraints pass after correction. Callback-on-stop behavior is retained. |
+| [test_otg_lifetime.c](../../src/scrcpy/app/tests/test_otg_lifetime.c) | Actual conditional OTG entry, external-effect doubles: successful init plus failed AOA start must not join an unstarted worker. Red/green retained. No shared ADB operation occurs. |
+
+The new composition initially reproduced two Quit-order regressions through
+shipping `scrcpy()`: Quit before connected incorrectly started the graph; Quit
+before terminal could incorrectly return failure. The corrected value wake
+preserves both orders, including terminal before Quit. A separate executed red
+proved the moved joystick enumeration helper failed to free SDL's returned
+array; its one caller-owned array is now freed. ACK and joystick reds exercised
+the newly extracted shipping code retaining the old order/body, not pristine
+historical full builds. Scaffold/compiler/fixture-poll failures are retained
+separately; none establishes historical runtime causality.
+
+Pinned SDL `release-3.4.8` resolves to source commit
+`d9d5536704d585616d4db3c8ba3c4ff6fc2757e1`. Inspected `SDL_audio.c` and
+`SDL_audiocvt.c` show physical-device → stream → application callback → regulator
+locking. Regulator pull releases its lock before SDL Put; decoder push takes no
+stream/device lock while holding regulator. Destroying the simplified stream
+closes/unbinds its owned device under device/stream locks, excludes/completes
+in-flight callbacks and joins the physical worker when applicable. Existing app
+close destroys the stream before regulator/buffer, including resume failure.
+Pause alone is not this guarantee. The tested imported SDL DLL SHA-256 is
+`f8bb1698f618949498ac517a0766eaa91972ecc818d80deb00634e197ee923cf`, reporting
+3004008 / `SDL-3.4.8-HEAD-HASH-NOTFOUND`; its bytes are not the development
+archive DLL and are not attested as rebuilt from that source commit. Source
+proof, actual imported-runtime dummy execution and real backend/audible output
+remain distinct. No real audio device or microphone was used.
+
+Fresh default debug validation executed 33/33 Meson checks; the existing pinned
+libusb 1.0.29 source/header and imported DLL also built Windows `usb=true` and
+executed 35/35. Timer registers three checks over one executable; case/group
+counts above are not extra Meson targets. AOA/OTG tests replace only external
+effects. Forced V4L2-guard syntax compilation with existing FFmpeg headers passed,
+but no supported Linux Meson/libavdevice link or V4L2 backend ran. That material
+platform boundary remains explicitly unvalidated; no feature was dropped.
+
+The source checkpoint awaits independent review. Synchronous joins still limit
+responsiveness; full delayed-video/process memory bounds, physical audio/HID,
+untested platforms, later retirement/coordinator work and Phase 8 policies stay
+open. Allowlisted owner-generation create/stop/join/destroy logs run outside
+locks; machine mode's existing stdio isolation keeps them off framed stdout.
+They establish no audible readiness or new wire/exit/escalation fields. P7.4–P7.6
+and Phase 8 remain unstarted. All frozen packages and historical watch items
+retain their existing evidence boundaries.
+
+### Fresh final validation and proposed runtime gate
+
+The original committed implementation source is
+`b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`; subsequent status documentation
+does not change native inputs. Canonical native source fingerprint is
+`75976d89b7550e2e24d6a877c481e4c4d475e4ce0a137cf5cb77e99b1697bf27`.
+The production build used a clean local checkout of that commit, unchanged
+pinned compiler/dependency inputs and canonical `build.ps1` debugoptimized
+`usb=false` settings. Its actual executable SHA-256 is
+`536b3eeb26943fd2e425b1bb8bdb6b9884d08b568eea0fad442d7304ad702c8c`.
+Manifest, actual bytes and independently computed working/clean-source
+fingerprints match. This is a native validation output, not a Desktop DEV bundle.
+
+| Original implementation validation lane | Result and boundary |
+| --- | --- |
+| Canonical debug native checks | 33/33 executed; 26 owner cases, 15 notification groups, 20 screen groups, 11 audio groups and four sink-cascade cases are internal counts, not extra targets. P7.1 dispatcher/receiver and P7.2 frame/input/delay regressions all execute. |
+| Additional Windows `usb=true` | 35/35 executed, including 33 owner cases, real ACK/AOA/receiver retirement and OTG unwind. Existing libusb pin/import used; no hardware. |
+| Managed solution | Fresh locked restore, SpecGen verify (113 entries/six outputs), Release build with zero warnings/errors and 556/556 normal-concurrency tests, zero skipped. Managed production/test source did not change. |
+| Bidirectional contract | Nine canonical vectors and 24 conformance frames C→C# and C#→C; its separate filtered managed lane ran 8/8. This is not another process-test count. |
+| Owned processes/bootstrap/parent death | Separate 8/8 using the newly built production native and production-linked machine fixture. Production entry checks stay pre-device; no healthy Android handshake or ADB operation. |
+| Source/native-backed legacy | Separate 29/29 source suites and 29/29 archive suites. Canonical test-only archive was created inside the isolated clean checkout from the new native and 11 hash-verified reviewed runtime inputs, including the imported server; no existing root/frozen archive was overwritten. |
+| Metadata/docs/semantic/privacy | Build metadata and DocsCheck passed; diff checks and all intermediate changed blob versions reviewed. No changes to managed source, specs/generated outputs, server source, dependencies, workflows or build scripts. Scoped native AGENTS/ownership docs updated. |
+
+All primary reds, acquisition counters and original fixture/scaffold failures
+remain in ignored local evidence. The intermediate build rejected by the
+source-fingerprint guard while fixture inputs were still changing is not a
+passing build. A controlled test reader's SDL poll-boundary failure was fixed
+at its sole synthetic consumer with exact-type dequeue; shipping consumers and
+the actual `scrcpy()` FIFO assertions were not weakened. Final source validation
+was executed after the owning source changes settled. Peer agents reviewed
+source without finding another blocking ownership issue; this is not independent
+maintainer acceptance, an independently rerun Windows suite or hardware proof.
+
+### Fixture dispatcher teardown correction
+
+Independent static review subsequently found six unchecked dispatcher destroys
+without application shutdown in `test_session` (failure-stage, application
+outcome-order, create-failure and startup-Stop exits), `test_session_ack` and
+`test_otg_lifetime`. Generation revocation does not close dispatcher admission.
+The earlier successful runs above retain their executed behavioral assertions,
+but these fixture exits did not assert dispatcher teardown. They are not
+retroactively failed runs or proof of complete fixture resource release.
+
+Before correction, all three affected production-linked targets executed in a
+separate Windows `usb=true` build and failed on captured `destroy=false`.
+Their actual queued, retained-item, payload-byte and publisher counts were all
+zero. This isolates missing application shutdown from outstanding joined work;
+it is not a shipping application leak. Production `main.c` already performs
+shutdown and checked destruction and remains unchanged.
+
+All six exits now use a file-local fixture helper after owner/producer/caller
+settlement: read and require all four counts to be zero, call shutdown and
+require success, then call destroy and require success. Both fallible calls
+execute outside assertion expressions. No destroyed mutex state is inspected.
+Existing synthetic app-event cleanup remains separate; Quit ordering, resource
+counts, ACK borrower joins and failed-AOA-start assertions are preserved. Audit
+of the other new/modified P7.3 fixtures found no additional ignored-destroy/
+missing-shutdown instance. No production source or Meson linkage changed.
+
+Fresh corrective validation executed 33/33 canonical Windows debug checks
+(26 owner cases) and 35/35 Windows USB-enabled checks (33 owner cases, one real
+ACK-retirement case and one OTG-unwind case). These totals include the existing
+dispatcher, notification, receiver, frame/input/delay/presentation, audio and
+sink-graph regressions; internal cases are not additional Meson checks. Every
+affected exit required zero pre-shutdown counts and successful shutdown/destroy.
+Raw red/green, source/binary hashes and commands are retained in the ignored
+`work/phase7/p73/dispatcher-fixture-cleanup` companion, without replacing the
+original handoff. A command-wrapper exit syntax error occurred after canonical
+build/test success; it is recorded separately and did not require a suite retry.
+
+Test inputs participate in the canonical native fingerprint. Consequently the
+old `b038f1d` validation executable remains source-specific historical evidence;
+the corrective committed source requires a separate clean-source production
+validation output and applicable process/conformance checks, recorded in that
+companion. No Desktop DEV bundle is requested. Managed-solution, Android and
+legacy results above remain earlier runs, not fresh corrective executions.
+AGENTS already specifies the applicable quiescence/shutdown contract; this
+fixture-only correction needs no new ownership rule or AGENTS edit. P7.3
+independent acceptance and all previously listed lifetime/platform limits remain
+open; the correction does not explain historical geometry or activation events.
+
+No P7.3 Desktop DEV package or phone test was performed. The minimum later
+proposal, after independent source review and separate authorization, is a
+traceable changed-native DEV bundle and one buffered USB session with media/
+harmless input/audible-PC checks, one USB→Wi-Fi recovery with exact identities,
+then explicit Stop/settlement. It does not repeat the P7.2 geometry/Focus campaign
+or certify physical AOA/V4L2/other platforms. That proposal is not authorization
+to execute it or to start P7.4.
 
 ## Historical planning recommendations and later review decisions
 
