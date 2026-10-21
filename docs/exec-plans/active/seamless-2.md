@@ -19,6 +19,15 @@ do not transfer to changed native bytes. Historical geometry and P7.1 activation
 CI cause remain unresolved, non-blocking engineering-integration watch items.
 This is not completion of Phase 7 or public release acceptance.
 
+P7.3's committed implementation is `b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`.
+Fresh source validation passed 33/33 canonical native checks, 35/35 additional
+USB-enabled checks, 556/556 managed tests, bidirectional conformance, eight
+owned-process/bootstrap/parent-death tests and separate 29/29 source/archive
+legacy lanes. The clean-source native build and exact evidence boundaries are
+in the [final validation record](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fresh-final-validation-and-proposed-runtime-gate).
+Independent P7.3 review remains pending; no Desktop DEV package/hardware gate,
+PR, integration or later checkpoint follows automatically from these results.
+
 ## Prior integration decisions and development checkpoints
 
 The following dated entries retain their original evidence boundaries. Their
@@ -903,15 +912,15 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the historical source map, implemented P7.1/P7.2 contracts, proposed later
+owns the historical source map, implemented P7.1/P7.2/P7.3 contracts, proposed later
 contracts, tests and exit criteria. This index summarizes their scoped status
 and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
 | P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
-| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Implemented with bounded delayed-first-frame correction; pending independent acceptance. Fresh correction checks: 25 native targets including nine delay-composition groups, 556 managed tests, bidirectional IPC, eight process tests and separate 29/29 source/archive legacy lanes. No new Desktop package or hardware pass. |
-| P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
+| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Accepted for engineering integration through PR #16 merge `799c5a31…`; artifact-specific buffered smoke and single geometry check remain bounded as recorded above. Historical geometry causality is unresolved. |
+| P7.3 | Accepted P7.2 and bounded implementation authorization | Explicit generation graph and complete scoped producer migration | Implemented source checkpoint pending independent review. Stable owner/stage cleanup, scoped value notifications, direct ACK release proof and actual SDL dummy callback settlement; synchronous joins and platform/backend limits remain. No new Desktop DEV package or hardware pass. |
 | P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
 | P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |
 | P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Proposed; not started |

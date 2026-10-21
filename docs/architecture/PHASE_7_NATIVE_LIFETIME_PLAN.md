@@ -4,10 +4,11 @@ Status: migration direction approved; P7.1 and P7.2 accepted for engineering
 integration through PR #15 and PR #16. P7.3 is authorized on its own branch;
 its implementation and fresh validation are recorded below. P7.4–P7.6 and
 Phase 8 remain unstarted and require separate authorization.
-Source inspection date: 2026-10-02. All current-source statements below refer to
-integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
-later checkpoints are proposals. The P7.1 and P7.2 sections separately record
-implemented contracts and their evidence; the original source map remains historical.
+Original planning inspection date: 2026-10-02, at integration
+`eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`. Its source map and conceptual
+contracts remain historical planning evidence. The P7.1, P7.2 and P7.3 sections
+separately record implemented contracts and their own evidence; later
+checkpoints remain proposals.
 
 ## Authority, integration and evidence boundary
 
@@ -995,6 +996,47 @@ locks; machine mode's existing stdio isolation keeps them off framed stdout.
 They establish no audible readiness or new wire/exit/escalation fields. P7.4–P7.6
 and Phase 8 remain unstarted. All frozen packages and historical watch items
 retain their existing evidence boundaries.
+
+### Fresh final validation and proposed runtime gate
+
+The committed implementation source is
+`b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`; subsequent status documentation
+does not change native inputs. Canonical native source fingerprint is
+`75976d89b7550e2e24d6a877c481e4c4d475e4ce0a137cf5cb77e99b1697bf27`.
+The production build used a clean local checkout of that commit, unchanged
+pinned compiler/dependency inputs and canonical `build.ps1` debugoptimized
+`usb=false` settings. Its actual executable SHA-256 is
+`536b3eeb26943fd2e425b1bb8bdb6b9884d08b568eea0fad442d7304ad702c8c`.
+Manifest, actual bytes and independently computed working/clean-source
+fingerprints match. This is a native validation output, not a Desktop DEV bundle.
+
+| Fresh lane | Result and boundary |
+| --- | --- |
+| Canonical debug native checks | 33/33 executed; 26 owner cases, 15 notification groups, 20 screen groups, 11 audio groups and four sink-cascade cases are internal counts, not extra targets. P7.1 dispatcher/receiver and P7.2 frame/input/delay regressions all execute. |
+| Additional Windows `usb=true` | 35/35 executed, including 33 owner cases, real ACK/AOA/receiver retirement and OTG unwind. Existing libusb pin/import used; no hardware. |
+| Managed solution | Fresh locked restore, SpecGen verify (113 entries/six outputs), Release build with zero warnings/errors and 556/556 normal-concurrency tests, zero skipped. Managed production/test source did not change. |
+| Bidirectional contract | Nine canonical vectors and 24 conformance frames C→C# and C#→C; its separate filtered managed lane ran 8/8. This is not another process-test count. |
+| Owned processes/bootstrap/parent death | Separate 8/8 using the newly built production native and production-linked machine fixture. Production entry checks stay pre-device; no healthy Android handshake or ADB operation. |
+| Source/native-backed legacy | Separate 29/29 source suites and 29/29 archive suites. Canonical test-only archive was created inside the isolated clean checkout from the new native and 11 hash-verified reviewed runtime inputs, including the imported server; no existing root/frozen archive was overwritten. |
+| Metadata/docs/semantic/privacy | Build metadata and DocsCheck passed; diff checks and all intermediate changed blob versions reviewed. No changes to managed source, specs/generated outputs, server source, dependencies, workflows or build scripts. Scoped native AGENTS/ownership docs updated. |
+
+All primary reds, acquisition counters and original fixture/scaffold failures
+remain in ignored local evidence. The intermediate build rejected by the
+source-fingerprint guard while fixture inputs were still changing is not a
+passing build. A controlled test reader's SDL poll-boundary failure was fixed
+at its sole synthetic consumer with exact-type dequeue; shipping consumers and
+the actual `scrcpy()` FIFO assertions were not weakened. Final source validation
+was executed after the owning source changes settled. Peer agents reviewed
+source without finding another blocking ownership issue; this is not independent
+maintainer acceptance, an independently rerun Windows suite or hardware proof.
+
+No P7.3 Desktop DEV package or phone test was performed. The minimum later
+proposal, after independent source review and separate authorization, is a
+traceable changed-native DEV bundle and one buffered USB session with media/
+harmless input/audible-PC checks, one USB→Wi-Fi recovery with exact identities,
+then explicit Stop/settlement. It does not repeat the P7.2 geometry/Focus campaign
+or certify physical AOA/V4L2/other platforms. That proposal is not authorization
+to execute it or to start P7.4.
 
 ## Historical planning recommendations and later review decisions
 
