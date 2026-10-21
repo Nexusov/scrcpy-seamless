@@ -999,7 +999,7 @@ retain their existing evidence boundaries.
 
 ### Fresh final validation and proposed runtime gate
 
-The committed implementation source is
+The original committed implementation source is
 `b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`; subsequent status documentation
 does not change native inputs. Canonical native source fingerprint is
 `75976d89b7550e2e24d6a877c481e4c4d475e4ce0a137cf5cb77e99b1697bf27`.
@@ -1010,7 +1010,7 @@ pinned compiler/dependency inputs and canonical `build.ps1` debugoptimized
 Manifest, actual bytes and independently computed working/clean-source
 fingerprints match. This is a native validation output, not a Desktop DEV bundle.
 
-| Fresh lane | Result and boundary |
+| Original implementation validation lane | Result and boundary |
 | --- | --- |
 | Canonical debug native checks | 33/33 executed; 26 owner cases, 15 notification groups, 20 screen groups, 11 audio groups and four sink-cascade cases are internal counts, not extra targets. P7.1 dispatcher/receiver and P7.2 frame/input/delay regressions all execute. |
 | Additional Windows `usb=true` | 35/35 executed, including 33 owner cases, real ACK/AOA/receiver retirement and OTG unwind. Existing libusb pin/import used; no hardware. |
@@ -1029,6 +1029,54 @@ the actual `scrcpy()` FIFO assertions were not weakened. Final source validation
 was executed after the owning source changes settled. Peer agents reviewed
 source without finding another blocking ownership issue; this is not independent
 maintainer acceptance, an independently rerun Windows suite or hardware proof.
+
+### Fixture dispatcher teardown correction
+
+Independent static review subsequently found six unchecked dispatcher destroys
+without application shutdown in `test_session` (failure-stage, application
+outcome-order, create-failure and startup-Stop exits), `test_session_ack` and
+`test_otg_lifetime`. Generation revocation does not close dispatcher admission.
+The earlier successful runs above retain their executed behavioral assertions,
+but these fixture exits did not assert dispatcher teardown. They are not
+retroactively failed runs or proof of complete fixture resource release.
+
+Before correction, all three affected production-linked targets executed in a
+separate Windows `usb=true` build and failed on captured `destroy=false`.
+Their actual queued, retained-item, payload-byte and publisher counts were all
+zero. This isolates missing application shutdown from outstanding joined work;
+it is not a shipping application leak. Production `main.c` already performs
+shutdown and checked destruction and remains unchanged.
+
+All six exits now use a file-local fixture helper after owner/producer/caller
+settlement: read and require all four counts to be zero, call shutdown and
+require success, then call destroy and require success. Both fallible calls
+execute outside assertion expressions. No destroyed mutex state is inspected.
+Existing synthetic app-event cleanup remains separate; Quit ordering, resource
+counts, ACK borrower joins and failed-AOA-start assertions are preserved. Audit
+of the other new/modified P7.3 fixtures found no additional ignored-destroy/
+missing-shutdown instance. No production source or Meson linkage changed.
+
+Fresh corrective validation executed 33/33 canonical Windows debug checks
+(26 owner cases) and 35/35 Windows USB-enabled checks (33 owner cases, one real
+ACK-retirement case and one OTG-unwind case). These totals include the existing
+dispatcher, notification, receiver, frame/input/delay/presentation, audio and
+sink-graph regressions; internal cases are not additional Meson checks. Every
+affected exit required zero pre-shutdown counts and successful shutdown/destroy.
+Raw red/green, source/binary hashes and commands are retained in the ignored
+`work/phase7/p73/dispatcher-fixture-cleanup` companion, without replacing the
+original handoff. A command-wrapper exit syntax error occurred after canonical
+build/test success; it is recorded separately and did not require a suite retry.
+
+Test inputs participate in the canonical native fingerprint. Consequently the
+old `b038f1d` validation executable remains source-specific historical evidence;
+the corrective committed source requires a separate clean-source production
+validation output and applicable process/conformance checks, recorded in that
+companion. No Desktop DEV bundle is requested. Managed-solution, Android and
+legacy results above remain earlier runs, not fresh corrective executions.
+AGENTS already specifies the applicable quiescence/shutdown contract; this
+fixture-only correction needs no new ownership rule or AGENTS edit. P7.3
+independent acceptance and all previously listed lifetime/platform limits remain
+open; the correction does not explain historical geometry or activation events.
 
 No P7.3 Desktop DEV package or phone test was performed. The minimum later
 proposal, after independent source review and separate authorization, is a

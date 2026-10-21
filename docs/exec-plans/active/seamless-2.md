@@ -20,11 +20,19 @@ CI cause remain unresolved, non-blocking engineering-integration watch items.
 This is not completion of Phase 7 or public release acceptance.
 
 P7.3's committed implementation is `b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`.
-Fresh source validation passed 33/33 canonical native checks, 35/35 additional
+Implementation-source validation passed 33/33 canonical native checks, 35/35 additional
 USB-enabled checks, 556/556 managed tests, bidirectional conformance, eight
 owned-process/bootstrap/parent-death tests and separate 29/29 source/archive
 legacy lanes. The clean-source native build and exact evidence boundaries are
 in the [final validation record](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fresh-final-validation-and-proposed-runtime-gate).
+Subsequent [fixture teardown review](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fixture-dispatcher-teardown-correction)
+demonstrated unchecked false destruction in three targets/six exits before
+adding application shutdown. The correction changes only those fixtures and
+their documentation; fresh canonical/USB debug checks passed 33/33 and 35/35
+with zero pre-shutdown ownership counts and required shutdown/destroy results.
+The original runs retain their actual assertions but did not check these
+dispatcher releases. The original native artifact remains unchanged; corrective
+source-specific build/process evidence is kept separately, with no DEV bundle.
 Independent P7.3 review remains pending; no Desktop DEV package/hardware gate,
 PR, integration or later checkpoint follows automatically from these results.
 

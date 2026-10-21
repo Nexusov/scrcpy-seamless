@@ -266,6 +266,24 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
     assert(!"No screen ownership was acquired");
 }
 
+/** Require settled fixture ownership before releasing the real dispatcher. */
+static void
+test_destroy_dispatcher(struct sc_dispatcher *dispatcher) {
+    struct sc_dispatcher_stats stats = sc_dispatcher_get_stats(dispatcher);
+    assert(!stats.queued_count);
+    assert(!stats.retained_count);
+    assert(!stats.retained_payload_bytes);
+    assert(!stats.publishers);
+    bool shutdown = sc_dispatcher_shutdown(dispatcher);
+    assert(shutdown);
+    bool destroyed = sc_dispatcher_destroy(dispatcher);
+    fprintf(stderr, "Fixture dispatcher: queued=%zu retained=%zu bytes=%zu "
+            "publishers=%zu shutdown=%s destroy=%s\n", stats.queued_count,
+            stats.retained_count, stats.retained_payload_bytes, stats.publishers,
+            shutdown ? "true" : "false", destroyed ? "true" : "false");
+    assert(destroyed);
+}
+
 /** Exercise actual OTG unwind with successful init and failed thread creation. */
 int
 main(void) {
@@ -284,7 +302,7 @@ main(void) {
     assert(!aoa_joins);
     assert(aoa_destructions == 1);
     assert(usb_destructions == 1);
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
     SDL_Quit();
     puts("OTG lifetime: 1 production-linked startup-failure case passed");
     return 0;

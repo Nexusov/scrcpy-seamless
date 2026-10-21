@@ -832,6 +832,24 @@ take_connected(struct sc_session *session, struct sc_dispatcher *dispatcher,
     return sc_session_take_event(session, outcome);
 }
 
+/** Require settled fixture ownership before releasing the real dispatcher. */
+static void
+test_destroy_dispatcher(struct sc_dispatcher *dispatcher) {
+    struct sc_dispatcher_stats stats = sc_dispatcher_get_stats(dispatcher);
+    assert(!stats.queued_count);
+    assert(!stats.retained_count);
+    assert(!stats.retained_payload_bytes);
+    assert(!stats.publishers);
+    bool shutdown = sc_dispatcher_shutdown(dispatcher);
+    assert(shutdown);
+    bool destroyed = sc_dispatcher_destroy(dispatcher);
+    fprintf(stderr, "Fixture dispatcher: queued=%zu retained=%zu bytes=%zu "
+            "publishers=%zu shutdown=%s destroy=%s\n", stats.queued_count,
+            stats.retained_count, stats.retained_payload_bytes, stats.publishers,
+            shutdown ? "true" : "false", destroyed ? "true" : "false");
+    assert(destroyed);
+}
+
 /** Verify real owner rollback without copying its lifecycle decisions. */
 static void
 test_failure_stage(enum failure_stage failure) {
@@ -908,7 +926,7 @@ test_failure_stage(enum failure_stage failure) {
         assert(resources[resource].started == resources[resource].joined);
     }
     assert(!screen_initialized);
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
 }
 
 /** Preserve actual application FIFO semantics across the new scoped handoff. */
@@ -935,7 +953,7 @@ test_application_outcome_order(enum failure_stage order) {
         assert(resources[resource].acquired == resources[resource].destroyed);
         assert(resources[resource].started == resources[resource].joined);
     }
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
     SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
 }
 
@@ -970,7 +988,7 @@ test_create_failures(void) {
     sc_session_request_stop(first);
     sc_session_join(first);
     sc_session_destroy(first);
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
 }
 
 /** Stop before creation acquires nothing; a later Stop cannot hide start failure. */
@@ -997,7 +1015,7 @@ test_application_startup_stop(enum failure_stage failure) {
         assert(resources[resource].acquired == resources[resource].destroyed);
         assert(resources[resource].started == resources[resource].joined);
     }
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
     SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
 }
 

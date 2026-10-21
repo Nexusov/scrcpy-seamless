@@ -283,6 +283,24 @@ __wrap_sc_acksync_destroy(struct sc_acksync *acksync) {
     __real_sc_acksync_destroy(acksync);
 }
 
+/** Require settled fixture ownership before releasing the real dispatcher. */
+static void
+test_destroy_dispatcher(struct sc_dispatcher *dispatcher) {
+    struct sc_dispatcher_stats stats = sc_dispatcher_get_stats(dispatcher);
+    assert(!stats.queued_count);
+    assert(!stats.retained_count);
+    assert(!stats.retained_payload_bytes);
+    assert(!stats.publishers);
+    bool shutdown = sc_dispatcher_shutdown(dispatcher);
+    assert(shutdown);
+    bool destroyed = sc_dispatcher_destroy(dispatcher);
+    fprintf(stderr, "Fixture dispatcher: queued=%zu retained=%zu bytes=%zu "
+            "publishers=%zu shutdown=%s destroy=%s\n", stats.queued_count,
+            stats.retained_count, stats.retained_payload_bytes, stats.publishers,
+            shutdown ? "true" : "false", destroyed ? "true" : "false");
+    assert(destroyed);
+}
+
 /** Drive the actual shipping owner through ACK-borrowing stop and retirement. */
 int
 main(void) {
@@ -339,7 +357,7 @@ main(void) {
     assert(ack_destructions == 1);
     assert(server_stops == 1 && server_joins == 1 && server_destructions == 1);
     assert(usb_destructions == 1);
-    sc_dispatcher_destroy(&dispatcher);
+    test_destroy_dispatcher(&dispatcher);
     SDL_DestroySemaphore(receiver_entered);
     SDL_DestroySemaphore(receiver_release);
     SDL_DestroySemaphore(aoa_wait_entered);
