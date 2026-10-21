@@ -46,6 +46,22 @@ join producers, release completion callers, then remove exact-instance wakeups
 and destroy. Quiesce all threads using a completion handle before releasing its
 sole caller reference; cancellation does not release executing payload storage.
 Machine Stop/Focus remains on its application-scoped SDL path.
+P7.3 shipping orchestration uses the stable `app/src/session.h` owner. Detach
+input and close notification admission, revoke, request stop/unblock, join all
+borrowers/publishers, then destroy. In particular join receiver and AOA before
+ACK destruction; decoder/delay sink-close cascades keep their single owner.
+Application presentation/dispatcher/options outlive each owner. Joins remain
+synchronous at this checkpoint. Do not relocate live synchronization storage.
+`session_notifications.h` retains at most connected plus first terminal without
+allocation. Its exact application/generation SDL wakes preserve ordinary FIFO
+against Quit; only observed wakes or settled failed wakes may be consumed.
+Evaluate outcomes outside the dispatcher drain lease and before another wait;
+retain the bounded failed-wake poll and sticky Stop gate before replacement.
+After publisher joins remove only exact-instance wake values, never broad-flush
+user events. Screen disconnection helper latches are application-owned and are
+joined before their icon/context release. Audio stream destruction, not pause
+alone, supplies callback exclusion; preserve the pinned SDL source/runtime
+provenance distinction and isolated dummy-backend tests.
 P7.2 presentation uses `app/src/video_ingress.h` and a generation-owned sink
 bridge. The single dispatcher binding is `sc_generation_targets` for both
 presentation and receiver UHID resolution. Input borrowing lives only in

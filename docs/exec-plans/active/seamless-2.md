@@ -1,6 +1,30 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-03: Phase 6C is accepted for engineering integration
+Current status on 2026-10-21: P7.2 is accepted for engineering integration through
+[PR #16](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6322014379),
+actual merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`, ordered parents
+`7dff15837c4c39dd63f8488500d5f5c5c423027e` and
+`e8dc1259103f713904bc826c0a22a8cad455c6bf`, tree
+`ef69d301e2aef0107e90b6eb07c9776e7da752d2`. Five granular work commits are
+preserved. Separate push run [39642247608](https://github.com/Nexusov/scrcpy-seamless/actions/runs/39642247608),
+attempt 1, completed all four jobs successfully; complete job logs identify
+the actual merge checkout. This baseline does not validate P7.3.
+
+P7.3 is authorized on `2.0/p07-3-generation-graph` from that merge. Its bounded
+[owner/release contract](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p73-implementation-contract-recorded-before-production-changes)
+retains sequential retirement and synchronous joins. P7.4–P7.6 and Phase 8 are
+unstarted. Frozen `ge8dc1259` and all earlier artifacts/evidence remain unchanged;
+the [artifact-specific results and watch items](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-integration-and-artifact-specific-carry-forward)
+do not transfer to changed native bytes. Historical geometry and P7.1 activation
+CI cause remain unresolved, non-blocking engineering-integration watch items.
+This is not completion of Phase 7 or public release acceptance.
+
+## Prior integration decisions and development checkpoints
+
+The following dated entries retain their original evidence boundaries. Their
+then-pending checkpoint statements do not override the current status above.
+
+Status on 2026-10-03: Phase 6C is accepted for engineering integration
 and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
 `85197957352c1606ce4d96970bf7a20d3ee1f531` and

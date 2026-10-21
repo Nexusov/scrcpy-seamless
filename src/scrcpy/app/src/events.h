@@ -23,6 +23,8 @@ enum {
     SC_EVENT_DISCONNECTED_TIMEOUT,
     // Application-owned wakeups must survive the legacy session event flush.
     SC_EVENT_DISPATCHER_WAKEUP,
+    // Fixed owner latches use value-scoped FIFO wakeups, never owner pointers.
+    SC_EVENT_SESSION_NOTIFICATION,
 };
 
 bool

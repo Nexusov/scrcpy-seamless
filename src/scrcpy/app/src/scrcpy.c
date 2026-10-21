@@ -14,90 +14,23 @@
 # include <windows.h>
 #endif
 
-#include "audio_player.h"
-#include "controller.h"
-#include "decoder.h"
-#include "delay_buffer.h"
-#include "demuxer.h"
 #include "dispatcher.h"
 #include "events.h"
-#include "file_pusher.h"
-#include "generation_targets.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
 # include "ipc/machine_exit.h"
 #endif
-#include "keyboard_sdk.h"
-#include "mouse_sdk.h"
-#include "recorder.h"
 #include "screen.h"
 #include "sdl_hints.h"
 #include "server.h"
-#include "uhid/gamepad_uhid.h"
-#include "uhid/keyboard_uhid.h"
-#include "uhid/mouse_uhid.h"
-#ifdef HAVE_USB
-# include "usb/aoa_hid.h"
-# include "usb/gamepad_aoa.h"
-# include "usb/keyboard_aoa.h"
-# include "usb/mouse_aoa.h"
-# include "usb/usb.h"
-#endif
-#include "util/acksync.h"
 #include "util/log.h"
 #include "util/rand.h"
-#include "util/timeout.h"
-#include "util/tick.h"
-#ifdef HAVE_V4L2
-# include "v4l2_sink.h"
-#endif
+#include "session.h"
 
+/* Persistent presentation and one stable, sequentially retired generation. */
 struct scrcpy {
-    struct sc_server server;
     struct sc_screen screen;
-    struct sc_video_bridge video_bridge;
-    struct sc_generation_targets generation_targets;
-    struct sc_audio_player audio_player;
-    struct sc_demuxer video_demuxer;
-    struct sc_demuxer audio_demuxer;
-    struct sc_decoder video_decoder;
-    struct sc_decoder audio_decoder;
-    struct sc_recorder recorder;
-    struct sc_delay_buffer video_buffer;
-#ifdef HAVE_V4L2
-    struct sc_v4l2_sink v4l2_sink;
-    struct sc_delay_buffer v4l2_buffer;
-#endif
-    struct sc_controller controller;
-    struct sc_file_pusher file_pusher;
-#ifdef HAVE_USB
-    struct sc_usb usb;
-    struct sc_aoa aoa;
-    // sequence/ack helper to synchronize clipboard and Ctrl+v via HID
-    struct sc_acksync acksync;
-#endif
-    struct sc_uhid_devices uhid_devices;
-    union {
-        struct sc_keyboard_sdk keyboard_sdk;
-        struct sc_keyboard_uhid keyboard_uhid;
-#ifdef HAVE_USB
-        struct sc_keyboard_aoa keyboard_aoa;
-#endif
-    };
-    union {
-        struct sc_mouse_sdk mouse_sdk;
-        struct sc_mouse_uhid mouse_uhid;
-#ifdef HAVE_USB
-        struct sc_mouse_aoa mouse_aoa;
-#endif
-    };
-    union {
-        struct sc_gamepad_uhid gamepad_uhid;
-#ifdef HAVE_USB
-        struct sc_gamepad_aoa gamepad_aoa;
-#endif
-    };
-    struct sc_timeout timeout;
+    struct sc_session *current;
 };
 
 #ifdef _WIN32
@@ -133,10 +66,29 @@ static enum scrcpy_exit_code
 event_loop(struct scrcpy *s, bool has_screen, bool reconnect,
            struct sc_dispatcher *dispatcher) {
     SDL_Event event;
-    while (SDL_WaitEvent(&event)) {
+    for (;;) {
+        uint32_t outcome;
 
-        if (sc_dispatcher_handle_event(dispatcher, &event)) {
-            continue;
+        if (sc_session_take_event(s->current, &outcome)) {
+            event = (SDL_Event) {.type = outcome};
+        } else {
+
+            if (!SDL_WaitEventTimeout(&event, SC_SESSION_EVENT_WAIT_MS)) {
+                continue;
+            }
+
+            if (event.type == SC_EVENT_SESSION_NOTIFICATION) {
+
+                if (!sc_session_handle_event(s->current, &event, &outcome)) {
+                    continue;
+                }
+                event.type = outcome;
+            }
+
+            if (sc_dispatcher_handle_event(dispatcher, &event)) {
+                // Re-evaluate only after the non-reentrant drain lease ends.
+                continue;
+            }
         }
 
         switch (event.type) {
@@ -179,13 +131,32 @@ event_loop(struct scrcpy *s, bool has_screen, bool reconnect,
 
 /** Wait for the server while servicing app-scoped work and existing events. */
 static bool
-await_for_server(bool *connected, struct sc_screen *screen,
+await_for_server(struct sc_session *session, bool *connected, struct sc_screen *screen,
                  struct sc_dispatcher *dispatcher) {
     SDL_Event event;
-    while (SDL_WaitEvent(&event)) {
+    for (;;) {
+        uint32_t outcome;
 
-        if (sc_dispatcher_handle_event(dispatcher, &event)) {
-            continue;
+        if (sc_session_take_event(session, &outcome)) {
+            event = (SDL_Event) {.type = outcome};
+        } else {
+
+            if (!SDL_WaitEventTimeout(&event, SC_SESSION_EVENT_WAIT_MS)) {
+                continue;
+            }
+
+            if (event.type == SC_EVENT_SESSION_NOTIFICATION) {
+
+                if (!sc_session_handle_event(session, &event, &outcome)) {
+                    continue;
+                }
+                event.type = outcome;
+            }
+
+            if (sc_dispatcher_handle_event(dispatcher, &event)) {
+                // Re-evaluate only after the non-reentrant drain lease ends.
+                continue;
+            }
         }
 
         switch (event.type) {
@@ -249,100 +220,6 @@ sc_wait_reconnect(struct sc_screen *screen, struct sc_dispatcher *dispatcher) {
     return true;
 }
 
-static void
-sc_recorder_on_ended(struct sc_recorder *recorder, bool success,
-                     void *userdata) {
-    (void) recorder;
-    (void) userdata;
-
-    if (!success) {
-        sc_push_event(SC_EVENT_RECORDER_ERROR);
-    }
-}
-
-static void
-sc_video_demuxer_on_ended(struct sc_demuxer *demuxer,
-                          enum sc_demuxer_status status, void *userdata) {
-    (void) demuxer;
-    (void) userdata;
-
-    // The device may not decide to disable the video
-    assert(status != SC_DEMUXER_STATUS_DISABLED);
-
-    if (status == SC_DEMUXER_STATUS_EOS) {
-        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
-    } else {
-        sc_push_event(SC_EVENT_DEMUXER_ERROR);
-    }
-}
-
-static void
-sc_audio_demuxer_on_ended(struct sc_demuxer *demuxer,
-                          enum sc_demuxer_status status, void *userdata) {
-    (void) demuxer;
-
-    const struct scrcpy_options *options = userdata;
-
-    // Contrary to the video demuxer, keep mirroring if only the audio fails
-    // (unless --require-audio is set).
-    if (status == SC_DEMUXER_STATUS_EOS) {
-        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
-    } else if (status == SC_DEMUXER_STATUS_ERROR
-            || (status == SC_DEMUXER_STATUS_DISABLED
-                && options->require_audio)) {
-        sc_push_event(SC_EVENT_DEMUXER_ERROR);
-    }
-}
-
-static void
-sc_controller_on_ended(struct sc_controller *controller, bool error,
-                       void *userdata) {
-    // Note: this function may be called twice, once from the controller thread
-    // and once from the receiver thread
-    (void) controller;
-    (void) userdata;
-
-    if (error) {
-        sc_push_event(SC_EVENT_CONTROLLER_ERROR);
-    } else {
-        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
-    }
-}
-
-static void
-sc_server_on_connection_failed(struct sc_server *server, void *userdata) {
-    (void) server;
-    (void) userdata;
-
-    sc_push_event(SC_EVENT_SERVER_CONNECTION_FAILED);
-}
-
-static void
-sc_server_on_connected(struct sc_server *server, void *userdata) {
-    (void) server;
-    (void) userdata;
-
-    sc_push_event(SC_EVENT_SERVER_CONNECTED);
-}
-
-static void
-sc_server_on_disconnected(struct sc_server *server, void *userdata) {
-    (void) server;
-    (void) userdata;
-
-    LOGD("Server disconnected");
-    // Do nothing, the disconnection will be handled by the "stream stopped"
-    // event
-}
-
-static void
-sc_timeout_on_timeout(struct sc_timeout *timeout, void *userdata) {
-    (void) timeout;
-    (void) userdata;
-
-    sc_push_event(SC_EVENT_TIME_LIMIT_REACHED);
-}
-
 // Generate a scrcpy id to differentiate multiple running scrcpy instances
 static uint32_t
 scrcpy_generate_scid(void) {
@@ -350,28 +227,6 @@ scrcpy_generate_scid(void) {
     sc_rand_init(&rand);
     // Only use 31 bits to avoid issues with signed values on the Java-side
     return sc_rand_u32(&rand) & 0x7FFFFFFF;
-}
-
-static void
-init_sdl_gamepads(void) {
-    // Trigger a SDL_EVENT_GAMEPAD_ADDED event for all gamepads already
-    // connected
-    int count;
-    SDL_JoystickID *joysticks = SDL_GetJoysticks(&count);
-    if (!joysticks) {
-        LOGE("Could not list joysticks: %s", SDL_GetError());
-        return;
-    }
-
-    for (int i = 0; i < count; ++i) {
-        SDL_JoystickID joystick = joysticks[i];
-        if (SDL_IsGamepad(joystick)) {
-            SDL_Event event;
-            event.gdevice.type = SDL_EVENT_GAMEPAD_ADDED;
-            event.gdevice.which = i;
-            SDL_PushEvent(&event);
-        }
-    }
 }
 
 /** Retain sequential legacy attempts with explicitly scoped receiver work. */
@@ -403,55 +258,24 @@ scrcpy(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
 #endif
 
 restart_session:;
-    // Allocate by value before any generation producer may start.
-    sc_dispatcher_generation generation;
-
-    s->generation_targets = (struct sc_generation_targets) {0};
-    if (!sc_dispatcher_generation_begin(dispatcher, &s->generation_targets,
-                                         &generation)) {
-        LOGE("Could not begin receiver dispatch generation");
-
-        if (screen_initialized) {
-            sc_screen_interrupt(&s->screen);
-            sc_screen_join(&s->screen);
-#ifdef _WIN32
-            sc_machine_set_window(NULL);
-#endif
-            sc_screen_destroy(&s->screen);
-        }
-
-        return SCRCPY_EXIT_FAILURE;
-    }
-    LOGD("Receiver dispatch generation=%" PRIu64_ " begin", generation);
     enum scrcpy_exit_code ret = SCRCPY_EXIT_FAILURE;
     bool retry_session = false;
-
-    bool server_started = false;
-    bool file_pusher_initialized = false;
-    bool recorder_initialized = false;
-    bool recorder_started = false;
-#ifdef HAVE_V4L2
-    bool v4l2_sink_initialized = false;
-#endif
-    bool video_demuxer_started = false;
-    bool audio_demuxer_started = false;
-#ifdef HAVE_USB
-    bool aoa_hid_initialized = false;
-    bool keyboard_aoa_initialized = false;
-    bool mouse_aoa_initialized = false;
-    bool gamepad_aoa_initialized = false;
-#endif
-    bool controller_initialized = false;
-    bool controller_started = false;
-    bool timeout_initialized = false;
-    bool timeout_started = false;
     bool disconnected = false;
+    bool screen_interrupted = false;
 #ifdef _WIN32
     bool reconnect_scheduled = false;
+
+    if (sc_machine_is_active() && sc_machine_stop_requested()) {
+        ret = SCRCPY_EXIT_SUCCESS;
+        goto finish_screen;
+    }
 #endif
+    s->current = sc_session_create(options, dispatcher, &s->screen,
+                                    &screen_initialized);
 
-    struct sc_acksync *acksync = NULL;
-
+    if (!s->current) {
+        goto finish_screen;
+    }
     uint32_t scid = scrcpy_generate_scid();
 
     struct sc_server_params params = {
@@ -514,28 +338,6 @@ restart_session:;
         .list = options->list,
     };
 
-    static const struct sc_server_callbacks cbs = {
-        .on_connection_failed = sc_server_on_connection_failed,
-        .on_connected = sc_server_on_connected,
-        .on_disconnected = sc_server_on_disconnected,
-    };
-    if (!sc_server_init(&s->server, &params, &cbs, NULL)) {
-        // Partial initialization started no producers, but owns a generation.
-        bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
-        assert(revoked);
-        (void) revoked;
-
-        if (screen_initialized) {
-            sc_screen_interrupt(&s->screen);
-            sc_screen_join(&s->screen);
-#ifdef _WIN32
-            sc_machine_set_window(NULL);
-#endif
-            sc_screen_destroy(&s->screen);
-        }
-        return SCRCPY_EXIT_FAILURE;
-    }
-
 #ifdef _WIN32
     sdl_configure_ctrl_c_windows();
 #endif
@@ -556,11 +358,12 @@ restart_session:;
         }
     }
 #endif
-    if (!sc_server_start(&s->server)) {
+    if (!sc_session_start_server(s->current, &params)) {
+        ret = sc_session_startup_interrupted(s->current)
+            ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
         goto end;
     }
 
-    server_started = true;
 #ifdef _WIN32
     if (sc_machine_is_active() &&
             !sc_machine_emit_lifecycle(retrying ? "Reconnecting" :
@@ -571,7 +374,7 @@ restart_session:;
 #endif
 
     if (options->list) {
-        bool ok = await_for_server(NULL, NULL, dispatcher);
+        bool ok = await_for_server(s->current, NULL, NULL, dispatcher);
         ret = ok ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
         goto end;
     }
@@ -613,7 +416,7 @@ restart_session:;
 
     // Await for server without blocking Ctrl+C handling
     bool connected;
-    if (!await_for_server(&connected, screen_initialized ? &s->screen : NULL,
+    if (!await_for_server(s->current, &connected, screen_initialized ? &s->screen : NULL,
                            dispatcher)) {
         LOGE("Server connection failed");
         retry_session = reconnect;
@@ -629,418 +432,10 @@ restart_session:;
 
     LOGD("Server connected");
 
-    // It is necessarily initialized here, since the device is connected
-    struct sc_server_info *info = &s->server.info;
-
-    const char *serial = s->server.serial;
-    assert(serial);
-
-    struct sc_file_pusher *fp = NULL;
-
-    if (options->window && options->control) {
-        if (!sc_file_pusher_init(&s->file_pusher, serial,
-                                 options->push_target)) {
-            goto end;
-        }
-        fp = &s->file_pusher;
-        file_pusher_initialized = true;
-    }
-
-    if (options->video) {
-        static const struct sc_demuxer_callbacks video_demuxer_cbs = {
-            .on_ended = sc_video_demuxer_on_ended,
-        };
-        sc_demuxer_init(&s->video_demuxer, "video", s->server.video_socket,
-                        &video_demuxer_cbs, NULL);
-    }
-
-    if (options->audio) {
-        static const struct sc_demuxer_callbacks audio_demuxer_cbs = {
-            .on_ended = sc_audio_demuxer_on_ended,
-        };
-        sc_demuxer_init(&s->audio_demuxer, "audio", s->server.audio_socket,
-                        &audio_demuxer_cbs, options);
-    }
-
-    bool needs_video_decoder = options->video_playback;
-    bool needs_audio_decoder = options->audio_playback;
-#ifdef HAVE_V4L2
-    needs_video_decoder |= !!options->v4l2_device;
-#endif
-    if (needs_video_decoder) {
-        sc_decoder_init(&s->video_decoder, "video");
-        sc_packet_source_add_sink(&s->video_demuxer.packet_source,
-                                  &s->video_decoder.packet_sink);
-    }
-    if (needs_audio_decoder) {
-        sc_decoder_init(&s->audio_decoder, "audio");
-        sc_packet_source_add_sink(&s->audio_demuxer.packet_source,
-                                  &s->audio_decoder.packet_sink);
-    }
-
-    if (options->record_filename) {
-        static const struct sc_recorder_callbacks recorder_cbs = {
-            .on_ended = sc_recorder_on_ended,
-        };
-        if (!sc_recorder_init(&s->recorder, options->record_filename,
-                              options->record_format, options->video,
-                              options->audio, options->record_orientation,
-                              &recorder_cbs, NULL)) {
-            goto end;
-        }
-        recorder_initialized = true;
-
-        if (!sc_recorder_start(&s->recorder)) {
-            goto end;
-        }
-        recorder_started = true;
-
-        if (options->video) {
-            sc_packet_source_add_sink(&s->video_demuxer.packet_source,
-                                      &s->recorder.video_packet_sink);
-        }
-        if (options->audio) {
-            sc_packet_source_add_sink(&s->audio_demuxer.packet_source,
-                                      &s->recorder.audio_packet_sink);
-        }
-    }
-
-    struct sc_controller *controller = NULL;
-    struct sc_key_processor *kp = NULL;
-    struct sc_mouse_processor *mp = NULL;
-    struct sc_gamepad_processor *gp = NULL;
-
-    if (options->control) {
-        static const struct sc_controller_callbacks controller_cbs = {
-            .on_ended = sc_controller_on_ended,
-        };
-
-        if (!sc_controller_init(&s->controller, s->server.control_socket,
-            &controller_cbs, NULL)) {
-            goto end;
-        }
-        controller_initialized = true;
-
-        controller = &s->controller;
-
-#ifdef HAVE_USB
-        bool use_keyboard_aoa =
-            options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA;
-        bool use_mouse_aoa =
-            options->mouse_input_mode == SC_MOUSE_INPUT_MODE_AOA;
-        bool use_gamepad_aoa =
-            options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_AOA;
-        if (use_keyboard_aoa || use_mouse_aoa || use_gamepad_aoa) {
-            bool ok = sc_acksync_init(&s->acksync);
-            if (!ok) {
-                goto end;
-            }
-
-            ok = sc_usb_init(&s->usb);
-            if (!ok) {
-                LOGE("Failed to initialize USB");
-                sc_acksync_destroy(&s->acksync);
-                goto end;
-            }
-
-            assert(serial);
-            struct sc_usb_device usb_device;
-            ok = sc_usb_select_device(&s->usb, serial, &usb_device);
-            if (!ok) {
-                sc_usb_destroy(&s->usb);
-                goto end;
-            }
-
-            LOGI("USB device: %s (%04" PRIx16 ":%04" PRIx16 ") %s %s",
-                 usb_device.serial, usb_device.vid, usb_device.pid,
-                 usb_device.manufacturer, usb_device.product);
-
-            ok = sc_usb_connect(&s->usb, usb_device.device, NULL, NULL);
-            sc_usb_device_destroy(&usb_device);
-            if (!ok) {
-                LOGE("Failed to connect to USB device %s", serial);
-                sc_usb_destroy(&s->usb);
-                sc_acksync_destroy(&s->acksync);
-                goto end;
-            }
-
-            ok = sc_aoa_init(&s->aoa, &s->usb, &s->acksync);
-            if (!ok) {
-                LOGE("Failed to enable HID over AOA");
-                sc_usb_disconnect(&s->usb);
-                sc_usb_destroy(&s->usb);
-                sc_acksync_destroy(&s->acksync);
-                goto end;
-            }
-
-            bool aoa_fail = false;
-            if (use_keyboard_aoa) {
-                if (sc_keyboard_aoa_init(&s->keyboard_aoa, &s->aoa)) {
-                    keyboard_aoa_initialized = true;
-                    kp = &s->keyboard_aoa.key_processor;
-                } else {
-                    LOGE("Could not initialize HID keyboard");
-                    aoa_fail = true;
-                    goto aoa_complete;
-                }
-            }
-
-            if (use_mouse_aoa) {
-                if (sc_mouse_aoa_init(&s->mouse_aoa, &s->aoa)) {
-                    mouse_aoa_initialized = true;
-                    mp = &s->mouse_aoa.mouse_processor;
-                } else {
-                    LOGE("Could not initialized HID mouse");
-                    aoa_fail = true;
-                    goto aoa_complete;
-                }
-            }
-
-            if (use_gamepad_aoa) {
-                sc_gamepad_aoa_init(&s->gamepad_aoa, &s->aoa);
-                gp = &s->gamepad_aoa.gamepad_processor;
-                gamepad_aoa_initialized = true;
-            }
-
-aoa_complete:
-            if (aoa_fail || !sc_aoa_start(&s->aoa)) {
-                sc_acksync_destroy(&s->acksync);
-                sc_usb_disconnect(&s->usb);
-                sc_usb_destroy(&s->usb);
-                sc_aoa_destroy(&s->aoa);
-                goto end;
-            }
-
-            acksync = &s->acksync;
-
-            aoa_hid_initialized = true;
-        }
-#else
-        assert(options->keyboard_input_mode != SC_KEYBOARD_INPUT_MODE_AOA);
-        assert(options->mouse_input_mode != SC_MOUSE_INPUT_MODE_AOA);
-#endif
-
-        struct sc_keyboard_uhid *uhid_keyboard = NULL;
-
-        if (options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_SDK) {
-            sc_keyboard_sdk_init(&s->keyboard_sdk, &s->controller,
-                                 options->key_inject_mode,
-                                 options->forward_key_repeat);
-            kp = &s->keyboard_sdk.key_processor;
-        } else if (options->keyboard_input_mode
-                == SC_KEYBOARD_INPUT_MODE_UHID) {
-            bool ok = sc_keyboard_uhid_init(&s->keyboard_uhid, &s->controller);
-            if (!ok) {
-                goto end;
-            }
-            kp = &s->keyboard_uhid.key_processor;
-            uhid_keyboard = &s->keyboard_uhid;
-        }
-
-        if (options->mouse_input_mode == SC_MOUSE_INPUT_MODE_SDK) {
-            sc_mouse_sdk_init(&s->mouse_sdk, &s->controller,
-                              options->mouse_hover);
-            mp = &s->mouse_sdk.mouse_processor;
-        } else if (options->mouse_input_mode == SC_MOUSE_INPUT_MODE_UHID) {
-            bool ok = sc_mouse_uhid_init(&s->mouse_uhid, &s->controller);
-            if (!ok) {
-                goto end;
-            }
-            mp = &s->mouse_uhid.mouse_processor;
-        }
-
-        if (options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_UHID) {
-            sc_gamepad_uhid_init(&s->gamepad_uhid, &s->controller);
-            gp = &s->gamepad_uhid.gamepad_processor;
-        }
-
-        struct sc_uhid_devices *uhid_devices = NULL;
-        if (uhid_keyboard) {
-            sc_uhid_devices_init(&s->uhid_devices, uhid_keyboard);
-            uhid_devices = &s->uhid_devices;
-        }
-
-        // Bind only the initialized target; queued work carries no target ptr.
-        s->generation_targets.uhid_devices = uhid_devices;
-        if (!sc_dispatcher_generation_bind(dispatcher, generation,
-                                            &s->generation_targets)) {
-            goto end;
-        }
-
-        sc_controller_configure(&s->controller, acksync, uhid_devices,
-                                 dispatcher, generation);
-
-        if (!sc_controller_start(&s->controller)) {
-            goto end;
-        }
-        controller_started = true;
-    }
-
-    // There is a controller if and only if control is enabled
-    assert(options->control == !!controller);
-
-    if (options->window) {
-        const char *window_title =
-            options->window_title ? options->window_title : info->device_name;
-
-        struct sc_screen_params screen_params = {
-            .dispatcher = dispatcher,
-            .generation = generation,
-            .video = options->video_playback,
-            .camera = options->video_source == SC_VIDEO_SOURCE_CAMERA,
-            .flex_display = options->flex_display,
-            .controller = controller,
-            .fp = fp,
-            .kp = kp,
-            .mp = mp,
-            .gp = gp,
-            .mouse_bindings = options->mouse_bindings,
-            .legacy_paste = options->legacy_paste,
-            .clipboard_autosync = options->clipboard_autosync,
-            .shortcut_mods = options->shortcut_mods,
-            .window_title = window_title,
-            .always_on_top = options->always_on_top,
-            .window_x = options->window_x,
-            .window_y = options->window_y,
-            .window_width = options->window_width,
-            .window_height = options->window_height,
-            .background_color = options->background_color,
-            .window_aspect_ratio_lock = options->window_aspect_ratio_lock,
-            .window_borderless = options->window_borderless,
-            .render_fit = options->render_fit,
-            .orientation = options->display_orientation,
-            .mipmaps = options->mipmaps,
-            .fullscreen = options->fullscreen,
-            .start_fps_counter = options->start_fps_counter,
-        };
-
-        if (screen_initialized) {
-            sc_screen_rebind(&s->screen, &screen_params);
-        } else {
-            if (!sc_screen_init(&s->screen, &screen_params)) {
-                goto end;
-            }
-            screen_initialized = true;
-        }
-        s->generation_targets.screen = &s->screen;
-        sc_video_bridge_init(&s->video_bridge, &s->screen.ingress, generation);
-#ifdef _WIN32
-        if (sc_machine_is_active()) {
-            sc_machine_set_window(s->screen.window);
-        }
-#endif
-
-        if (options->video_playback) {
-            struct sc_frame_source *src = &s->video_decoder.frame_source;
-            if (options->video_buffer) {
-                sc_delay_buffer_init(&s->video_buffer,
-                                     options->video_buffer, true);
-                sc_frame_source_add_sink(src, &s->video_buffer.frame_sink);
-                src = &s->video_buffer.frame_source;
-            }
-
-            sc_frame_source_add_sink(src, &s->video_bridge.frame_sink);
-        }
-    }
-
-    if (options->audio_playback) {
-        sc_audio_player_init(&s->audio_player, options->audio_buffer,
-                             options->audio_output_buffer);
-        sc_frame_source_add_sink(&s->audio_decoder.frame_source,
-                                 &s->audio_player.frame_sink);
-    }
-
-#ifdef HAVE_V4L2
-    if (options->v4l2_device) {
-        if (!sc_v4l2_sink_init(&s->v4l2_sink, options->v4l2_device)) {
-            goto end;
-        }
-
-        struct sc_frame_source *src = &s->video_decoder.frame_source;
-        if (options->v4l2_buffer) {
-            sc_delay_buffer_init(&s->v4l2_buffer, options->v4l2_buffer, true);
-            sc_frame_source_add_sink(src, &s->v4l2_buffer.frame_sink);
-            src = &s->v4l2_buffer.frame_source;
-        }
-
-        sc_frame_source_add_sink(src, &s->v4l2_sink.frame_sink);
-
-        v4l2_sink_initialized = true;
-    }
-#endif
-
-    // Now that the header values have been consumed, the socket(s) will
-    // receive the stream(s). Start the demuxer(s).
-
-    if (options->video) {
-        if (!sc_demuxer_start(&s->video_demuxer)) {
-            goto end;
-        }
-        video_demuxer_started = true;
-    }
-
-    if (options->audio) {
-        if (!sc_demuxer_start(&s->audio_demuxer)) {
-            goto end;
-        }
-        audio_demuxer_started = true;
-    }
-
-    // If the device screen is to be turned off, send the control message after
-    // everything is set up
-    if (options->control && options->turn_screen_off) {
-        struct sc_control_msg msg;
-        msg.type = SC_CONTROL_MSG_TYPE_SET_DISPLAY_POWER;
-        msg.set_display_power.on = false;
-
-        if (!sc_controller_push_msg(&s->controller, &msg)) {
-            LOGW("Could not request 'set display power'");
-        }
-    }
-
-    if (options->time_limit) {
-        bool ok = sc_timeout_init(&s->timeout);
-        if (!ok) {
-            goto end;
-        }
-
-        timeout_initialized = true;
-
-        sc_tick deadline = sc_tick_now() + options->time_limit;
-        static const struct sc_timeout_callbacks cbs = {
-            .on_timeout = sc_timeout_on_timeout,
-        };
-
-        ok = sc_timeout_start(&s->timeout, deadline, &cbs, NULL);
-        if (!ok) {
-            goto end;
-        }
-
-        timeout_started = true;
-    }
-
-    if (options->control
-            && options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
-        init_sdl_gamepads();
-    }
-
-    if (options->control && options->start_app) {
-        assert(controller);
-
-        char *name = strdup(options->start_app);
-        if (!name) {
-            LOG_OOM();
-            goto end;
-        }
-
-        struct sc_control_msg msg;
-        msg.type = SC_CONTROL_MSG_TYPE_START_APP;
-        msg.start_app.name = name;
-
-        if (!sc_controller_push_msg(controller, &msg)) {
-            LOGW("Could not request start app '%s'", name);
-            free(name);
-        }
+    if (!sc_session_start(s->current)) {
+        ret = sc_session_startup_interrupted(s->current)
+            ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
+        goto end;
     }
 
     ret = event_loop(s, options->window, reconnect, dispatcher);
@@ -1069,115 +464,27 @@ end:
     if (retry_session && screen_initialized) {
         sc_screen_prepare_reconnect(&s->screen);
     }
-    if (screen_initialized) {
-        sc_screen_detach(&s->screen);
-    }
+    sc_session_request_stop(s->current);
 
-    // Revoke before any destination release. Machine callbacks stay app-scoped.
-    bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
-    assert(revoked);
-    (void) revoked;
-    LOGD("Receiver dispatch generation=%" PRIu64_ " revoked", generation);
-    // Retain the legacy SDL callback containment for unmigrated producers.
-    SDL_PumpEvents();
-
-    if (timeout_started) {
-        sc_timeout_stop(&s->timeout);
-    }
-
-    // The demuxer is not stopped explicitly, because it will stop by itself on
-    // end-of-stream
-#ifdef HAVE_USB
-    if (aoa_hid_initialized) {
-        sc_aoa_stop(&s->aoa);
-        sc_usb_stop(&s->usb);
-    }
-#endif
-    if (controller_started) {
-        sc_controller_stop(&s->controller);
-    }
-    if (file_pusher_initialized) {
-        sc_file_pusher_stop(&s->file_pusher);
-    }
-    if (recorder_initialized) {
-        sc_recorder_stop(&s->recorder);
-    }
     if (screen_initialized && !retry_session) {
         sc_screen_interrupt(&s->screen);
-    }
+        screen_interrupted = true;
 
-    if (server_started) {
-        // shutdown the sockets and kill the server
-        sc_server_stop(&s->server);
-    }
-
-    if (screen_initialized && !retry_session) {
         if (disconnected) {
             sc_screen_handle_disconnection(&s->screen);
         }
-        LOGD("Quit...");
-
-        // Close the window immediately, because sc_screen_destroy() may only be
-        // called once the video demuxer thread is joined (it may take time)
         sc_screen_hide_window(&s->screen);
     }
+    sc_session_join(s->current);
+    sc_session_destroy(s->current);
+    s->current = NULL;
 
-    if (timeout_started) {
-        sc_timeout_join(&s->timeout);
-    }
-    if (timeout_initialized) {
-        sc_timeout_destroy(&s->timeout);
-    }
-
-    // now that the sockets are shutdown, the demuxer and controller are
-    // interrupted, we can join them
-    if (video_demuxer_started) {
-        sc_demuxer_join(&s->video_demuxer);
-    }
-
-    if (audio_demuxer_started) {
-        sc_demuxer_join(&s->audio_demuxer);
-    }
-
-#ifdef HAVE_V4L2
-    if (v4l2_sink_initialized) {
-        sc_v4l2_sink_destroy(&s->v4l2_sink);
-    }
-#endif
-
-#ifdef HAVE_USB
-    if (aoa_hid_initialized) {
-        sc_aoa_join(&s->aoa);
-        sc_aoa_destroy(&s->aoa);
-        sc_usb_join(&s->usb);
-        sc_usb_disconnect(&s->usb);
-        sc_usb_destroy(&s->usb);
-
-        if (keyboard_aoa_initialized) {
-            sc_keyboard_aoa_destroy(&s->keyboard_aoa);
-        }
-        if (mouse_aoa_initialized) {
-            sc_mouse_aoa_destroy(&s->mouse_aoa);
-        }
-        if (gamepad_aoa_initialized) {
-            sc_gamepad_aoa_destroy(&s->gamepad_aoa);
-        }
-    }
-    if (acksync) {
-        sc_acksync_destroy(acksync);
-    }
-#endif
-
-    // Receiver posters can retire video notifications on a wake-failure path.
-    // Join them as well before releasing the app-owned ingress context.
-    if (controller_started) {
-        sc_controller_join(&s->controller);
-    }
-
-    // Destroy the screen only after the video demuxer is guaranteed to be
-    // finished, because otherwise the screen could receive new frames after
-    // destruction
+finish_screen:
     if (screen_initialized && !retry_session) {
+
+        if (!screen_interrupted) {
+            sc_screen_interrupt(&s->screen);
+        }
         sc_screen_join(&s->screen);
 #ifdef _WIN32
         sc_machine_set_window(NULL);
@@ -1185,32 +492,7 @@ end:
         sc_screen_destroy(&s->screen);
     }
 
-    if (controller_initialized) {
-        sc_controller_destroy(&s->controller);
-    }
-
-    if (recorder_started) {
-        sc_recorder_join(&s->recorder);
-    }
-    if (recorder_initialized) {
-        sc_recorder_destroy(&s->recorder);
-    }
-
-    if (file_pusher_initialized) {
-        sc_file_pusher_join(&s->file_pusher);
-        sc_file_pusher_destroy(&s->file_pusher);
-    }
-
-    if (server_started) {
-        sc_server_join(&s->server);
-    }
-
-    sc_server_destroy(&s->server);
-
     if (retry_session) {
-        // All event producers have joined; no stale session event can follow.
-        SDL_FlushEvents(SC_EVENT_NEW_FRAME, SC_EVENT_AOA_OPEN_ERROR);
-
         if (screen_initialized) {
             sc_screen_clear_pending_frames(&s->screen);
         }

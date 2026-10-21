@@ -1,5 +1,28 @@
 # Changes from scrcpy 4.0
 
+## Phase 7 P7.3 connection-generation graph
+
+The native application retains presentation/input routing and one current
+`sc_session` pointer. Stable generation storage owns the actual server, control,
+media, recorder/deadline and conditional USB/V4L2 graph. Shipping orchestration
+uses create/start/request-stop/join/destroy with successful-acquisition flags;
+sink-open rollback and downstream close remain module-owned. Retirement remains
+sequential with synchronous joins, not the later asynchronous coordinator.
+
+Remaining server/media/control/deadline/AOA/OTG outcomes now carry generation
+values through a fixed two-slot handoff and exact SDL FIFO wakes. Late values
+are rejected before target resolution; critical results survive wake failure
+without a growable queue. Screen disconnection helpers belong to the persistent
+screen and retain their icon/timeout without queued owner pointers or broad
+event flushing. Application Stop/Focus/quit and the existing transport policy
+remain separate. ACK release now follows both direct receiver and AOA joins.
+Deadline callback publication, file-pusher queue release and the locally owned
+SDL joystick-list release have deterministic regressions. Existing SDL stream
+destruction already settles audio callbacks; production audio close is retained.
+See the [P7.3 contract](architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p73-implementation-contract-recorded-before-production-changes)
+for the source/runtime proof, test boundaries and remaining platform limits.
+No frozen DEV package is rebuilt or gains these source changes.
+
 ## Phase 7 P7.2 presentation and input ownership
 
 The persistent screen now owns presentation and an application video ingress;

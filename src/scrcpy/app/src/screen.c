@@ -16,6 +16,7 @@
 #include "util/sdl.h"
 
 #define DISPLAY_MARGINS 96
+#define SC_SCREEN_DISCONNECT_POLL_MS 50
 
 #include "generation_targets.h"
 #ifdef SC_SCREEN_TEST
@@ -436,6 +437,9 @@ sc_screen_init(struct sc_screen *screen,
     screen->orientation = SC_ORIENTATION_0;
     screen->disconnected = false;
     screen->disconnect_started = false;
+    screen->disconnect_icon = NULL;
+    screen->disconnect_timed_out = (SDL_AtomicInt) {0};
+    screen->dispatcher = params->dispatcher;
 
     screen->video = params->video;
     screen->camera = params->camera;
@@ -802,16 +806,13 @@ sc_screen_destroy(struct sc_screen *screen) {
     SDL_DestroyWindow(screen->window);
     sc_fps_counter_destroy(&screen->fps_counter);
     sc_video_ingress_destroy(&screen->ingress);
+    // The helper has joined: no publication can race this final owner release.
+    SDL_Surface *dangling_icon =
+        SDL_SetAtomicPointer(&screen->disconnect_icon, NULL);
 
-
-    SDL_Event event;
-    if (sc_dequeue_event(SC_EVENT_DISCONNECTED_ICON_LOADED, &event)) {
-        assert(event.type == SC_EVENT_DISCONNECTED_ICON_LOADED);
-        // The event was posted, but not handled, the icon must be freed
-        SDL_Surface *dangling_icon = event.user.data1;
+    if (dangling_icon) {
         sc_icon_destroy(dangling_icon);
     }
-
 }
 
 // An unhandled event still owns its size after producers have stopped.
@@ -1207,25 +1208,54 @@ sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
                                             content_size.height);
 }
 
+/** Transfer one bounded icon to the exact application-owned screen. */
 static void
 sc_disconnect_on_icon_loaded(struct sc_disconnect *d, SDL_Surface *icon,
                              void *userdata) {
     (void) d;
-    (void) userdata;
+    struct sc_screen *screen = userdata;
 
-    bool ok = sc_push_event_with_data(SC_EVENT_DISCONNECTED_ICON_LOADED, icon);
-    if (!ok) {
-        sc_icon_destroy(icon);
+    if (!icon) {
+        return;
+    }
+
+    SDL_Surface *replaced = SDL_SetAtomicPointer(&screen->disconnect_icon, icon);
+
+    if (replaced) {
+        sc_icon_destroy(replaced);
     }
 }
 
+/** Retain timeout independently of SDL event admission and wakeup success. */
 static void
 sc_disconnect_on_timeout(struct sc_disconnect *d, void *userdata) {
     (void) d;
-    (void) userdata;
+    struct sc_screen *screen = userdata;
+    SDL_SetAtomicInt(&screen->disconnect_timed_out, 1);
+}
 
-    bool ok = sc_push_event(SC_EVENT_DISCONNECTED_TIMEOUT);
-    (void) ok; // ignore failure
+/** Consume only this screen's retained icon outside publication synchronization. */
+static void
+sc_screen_consume_disconnect_icon(struct sc_screen *screen) {
+    SDL_Surface *icon = SDL_SetAtomicPointer(&screen->disconnect_icon, NULL);
+
+    if (!icon) {
+        return;
+    }
+
+    bool ok = sc_texture_set_from_surface(&screen->tex, icon);
+
+    if (ok) {
+        screen->content_size.width = icon->w;
+        screen->content_size.height = icon->h;
+        sc_screen_render(screen, true);
+    }
+
+    if (!ok) {
+        LOGE("Could not set disconnected icon");
+    }
+
+    sc_icon_destroy(icon);
 }
 
 void
@@ -1279,7 +1309,7 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
                 .on_timeout = sc_disconnect_on_timeout,
             };
             bool ok =
-                sc_disconnect_start(&screen->disconnect, deadline, &cbs, NULL);
+                sc_disconnect_start(&screen->disconnect, deadline, &cbs, screen);
             if (ok) {
                 screen->disconnect_started = true;
             }
@@ -1309,33 +1339,30 @@ sc_screen_handle_disconnection(struct sc_screen *screen) {
         return;
     }
 
-    SDL_Event event;
-    while (SDL_WaitEvent(&event)) {
+    while (true) {
+        // The helper is app-scoped; ordinary generation work still settles.
+        sc_dispatcher_drain(screen->dispatcher);
+        sc_screen_consume_disconnect_icon(screen);
+
+        if (SDL_GetAtomicInt(&screen->disconnect_timed_out)) {
+            LOGD("Closing after device disconnection");
+            return;
+        }
+
+        SDL_Event event;
+
+        if (!SDL_WaitEventTimeout(&event, SC_SCREEN_DISCONNECT_POLL_MS)) {
+            continue;
+        }
+
+        if (sc_dispatcher_handle_event(screen->dispatcher, &event)) {
+            continue;
+        }
+
         switch (event.type) {
             case SDL_EVENT_WINDOW_EXPOSED:
                 sc_screen_render(screen, true);
                 break;
-            case SC_EVENT_DISCONNECTED_ICON_LOADED: {
-                SDL_Surface *icon_disconnected = event.user.data1;
-                assert(icon_disconnected);
-
-                bool ok = sc_texture_set_from_surface(&screen->tex,
-                                                      icon_disconnected);
-                if (ok) {
-                    screen->content_size.width = icon_disconnected->w;
-                    screen->content_size.height = icon_disconnected->h;
-                    sc_screen_render(screen, true);
-                } else {
-                    // not fatal
-                    LOGE("Could not set disconnected icon");
-                }
-
-                sc_icon_destroy(icon_disconnected);
-                break;
-            }
-            case SC_EVENT_DISCONNECTED_TIMEOUT:
-                LOGD("Closing after device disconnection");
-                return;
             case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
                 sc_screen_interrupt_disconnect(screen);

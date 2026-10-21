@@ -10,7 +10,9 @@
 #endif
 #include "events.h"
 #include "dispatcher.h"
+#include "generation_targets.h"
 #include "screen.h"
+#include "session_notifications.h"
 #include "sdl_hints.h"
 #include "usb/aoa_hid.h"
 #include "usb/gamepad_aoa.h"
@@ -26,24 +28,56 @@ struct scrcpy_otg {
     struct sc_gamepad_aoa gamepad;
 
     struct sc_screen screen;
+    struct sc_session_notifications notifications;
+    struct sc_generation_targets generation_targets;
 };
 
+/** Publish USB completion while the retained OTG owner still exists. */
 static void
 sc_usb_on_disconnected(struct sc_usb *usb, void *userdata) {
     (void) usb;
-    (void) userdata;
-
-    sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
+    struct scrcpy_otg *owner = userdata;
+    sc_session_notifications_publish(&owner->notifications,
+                                      SC_EVENT_DEVICE_DISCONNECTED);
 }
 
-/** Service the app dispatcher alongside the existing conditional OTG events. */
+/** Publish AOA failure through the same bounded generation handoff. */
+static void
+sc_otg_on_aoa_error(void *userdata) {
+    struct scrcpy_otg *owner = userdata;
+    sc_session_notifications_publish(&owner->notifications,
+                                      SC_EVENT_AOA_OPEN_ERROR);
+}
+
+/** Consume scoped outcomes after draining, including failed wakeup admission. */
 static enum scrcpy_exit_code
 event_loop(struct scrcpy_otg *s, struct sc_dispatcher *dispatcher) {
+    const int outcome_poll_ms = 50;
     SDL_Event event;
-    while (SDL_WaitEvent(&event)) {
+    for (;;) {
+        uint32_t outcome;
 
-        if (sc_dispatcher_handle_event(dispatcher, &event)) {
-            continue;
+        if (sc_session_notifications_take(&s->notifications, &outcome)) {
+            event = (SDL_Event) {.type = outcome};
+        } else {
+
+            if (!SDL_WaitEventTimeout(&event, outcome_poll_ms)) {
+                continue;
+            }
+
+            if (event.type == SC_EVENT_SESSION_NOTIFICATION) {
+
+                if (!sc_session_notifications_handle_event(&s->notifications,
+                                                            &event, &outcome)) {
+                    continue;
+                }
+                event.type = outcome;
+            }
+
+            if (sc_dispatcher_handle_event(dispatcher, &event)) {
+                // The next iteration evaluates facts before blocking again.
+                continue;
+            }
         }
 
         switch (event.type) {
@@ -62,7 +96,6 @@ event_loop(struct scrcpy_otg *s, struct sc_dispatcher *dispatcher) {
                 break;
         }
     }
-    return SCRCPY_EXIT_FAILURE;
 }
 
 /** Preserve the OTG path while borrowing the application-owned dispatcher. */
@@ -116,13 +149,27 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
         return SCRCPY_EXIT_FAILURE;
     }
 
-    // P7.2: reuse the application allocator for non-video input binding.
-    sc_dispatcher_generation generation;
-
-    if (!sc_dispatcher_generation_begin(dispatcher, NULL, &generation)) {
+    // P7.3: keep the notification latch until both external producers settle.
+    if (!sc_session_notifications_init(&s->notifications, dispatcher)) {
         sc_usb_destroy(&s->usb);
         return SCRCPY_EXIT_FAILURE;
     }
+    s->generation_targets = (struct sc_generation_targets) {
+        .screen = &s->screen,
+        .notifications = &s->notifications,
+    };
+    sc_dispatcher_generation generation;
+
+    if (!sc_dispatcher_generation_begin(dispatcher, &s->generation_targets,
+                                        &generation)) {
+        sc_session_notifications_revoke(&s->notifications);
+        sc_session_notifications_destroy(&s->notifications);
+        sc_usb_destroy(&s->usb);
+        return SCRCPY_EXIT_FAILURE;
+    }
+    bool bound = sc_session_notifications_bind(&s->notifications, generation);
+    assert(bound);
+    (void) bound;
 
     struct sc_usb_device usb_device;
     ok = sc_usb_select_device(&s->usb, serial, &usb_device);
@@ -132,7 +179,7 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
 
     usb_device_initialized = true;
 
-    ok = sc_usb_connect(&s->usb, usb_device.device, &cbs, NULL);
+    ok = sc_usb_connect(&s->usb, usb_device.device, &cbs, s);
     if (!ok) {
         goto end;
     }
@@ -143,6 +190,7 @@ scrcpy_otg(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
         goto end;
     }
     aoa_initialized = true;
+    sc_aoa_set_error_callback(&s->aoa, sc_otg_on_aoa_error, s);
 
     assert(options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA
         || options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_DISABLED);
@@ -236,6 +284,7 @@ end:
         sc_screen_detach(&s->screen);
     }
 
+    sc_session_notifications_revoke(&s->notifications);
     bool revoked = sc_dispatcher_generation_revoke(dispatcher, generation);
     assert(revoked);
     (void) revoked;
@@ -243,7 +292,9 @@ end:
     if (aoa_started) {
         sc_aoa_stop(&s->aoa);
     }
-    sc_usb_stop(&s->usb);
+    if (usb_connected) {
+        sc_usb_stop(&s->usb);
+    }
 
     if (screen_initialized) {
         sc_screen_interrupt(&s->screen);
@@ -267,14 +318,16 @@ end:
         sc_gamepad_aoa_destroy(&s->gamepad);
     }
 
-    if (aoa_initialized) {
+    // Initialization does not acquire a worker when thread creation fails.
+    if (aoa_started) {
         sc_aoa_join(&s->aoa);
+    }
+    if (aoa_initialized) {
         sc_aoa_destroy(&s->aoa);
     }
 
-    sc_usb_join(&s->usb);
-
     if (usb_connected) {
+        sc_usb_join(&s->usb);
         sc_usb_disconnect(&s->usb);
     }
 
@@ -283,6 +336,7 @@ end:
     }
 
     sc_usb_destroy(&s->usb);
+    sc_session_notifications_destroy(&s->notifications);
 
     if (screen_initialized) {
         sc_screen_join(&s->screen);
