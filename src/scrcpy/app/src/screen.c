@@ -17,7 +17,14 @@
 
 #define DISPLAY_MARGINS 96
 
-#define DOWNCAST(SINK) container_of(SINK, struct sc_screen, frame_sink)
+#include "generation_targets.h"
+#ifdef SC_SCREEN_TEST
+# include "../tests/screen_test_effects.h"
+#endif
+
+static void
+sc_screen_present(void *binding, struct sc_video_ingress *ingress,
+                   sc_dispatcher_generation generation);
 
 static void
 set_aspect_ratio(struct sc_screen *screen, struct sc_size content_size) {
@@ -164,8 +171,8 @@ sc_screen_track_resize(struct sc_screen *screen, struct sc_size size) {
 
 static inline bool
 sc_screen_is_relative_mode(struct sc_screen *screen) {
-    // screen->im.mp may be NULL if --no-control
-    return screen->im.mp && screen->im.mp->relative_mode;
+    // A no-control binding has no relative mouse processor.
+    return sc_input_manager_is_relative(&screen->im);
 }
 
 static void
@@ -250,8 +257,13 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
 
     SDL_Renderer *renderer = screen->renderer;
     struct sc_screen_bg_color bg = screen->bg;
-    SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 0);
-    sc_sdl_render_clear(renderer);
+    bool prepared = SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 0)
+                 && sc_sdl_render_clear(renderer);
+
+    if (!prepared) {
+        LOGE("Could not prepare renderer: %s", SDL_GetError());
+        return false;
+    }
 
     SDL_Texture *texture = screen->tex.texture;
     if (!texture) {
@@ -309,8 +321,9 @@ sc_screen_render(struct sc_screen *screen, bool update_content_rect) {
 
     if (!ok) {
         LOGE("Could not render texture: %s", SDL_GetError());
+        return false;
     }
-    return sc_sdl_render_present(renderer) && ok;
+    return sc_sdl_render_present(renderer);
 }
 
 static void
@@ -325,11 +338,15 @@ sc_screen_request_resize_display(struct sc_screen *screen, uint16_t width,
     }
 
     LOGV("resize_display(%" PRIu16 ", %" PRIu16 ")", width, height);
-    sc_controller_resize_display(screen->controller, width, height);
+    sc_input_manager_request_resize(&screen->im, width, height);
 }
 
 static void
 sc_screen_on_resize(struct sc_screen *screen, const SDL_WindowEvent *event) {
+    assert(sc_thread_is_main());
+    if (event->windowID != SDL_GetWindowID(screen->window)) {
+        return;
+    }
     // This event can be triggered before the window is shown
     if (!screen->window_shown) {
         return;
@@ -339,7 +356,7 @@ sc_screen_on_resize(struct sc_screen *screen, const SDL_WindowEvent *event) {
         sc_screen_render(screen, true);
     } else {
         assert(event->type == SDL_EVENT_WINDOW_RESIZED);
-        if (screen->flex_display && !screen->reconnecting) {
+        if (screen->flex_display && sc_input_manager_is_ready(&screen->im)) {
             assert(!(event->data1 & ~0xFFFF));
             assert(!(event->data2 & ~0xFFFF));
             uint16_t width = event->data1;
@@ -377,121 +394,36 @@ sc_screen_on_resize(struct sc_screen *screen, const SDL_WindowEvent *event) {
 // <https://stackoverflow.com/a/40693139/1987178>
 static bool
 event_watcher(void *data, SDL_Event *event) {
+    // SDL watches may run on producers. Resolve no context outside main.
+    if (!sc_thread_is_main()) {
+        return true;
+    }
+
     struct sc_screen *screen = data;
     assert(screen->video);
 
     if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED
             || event->type == SDL_EVENT_WINDOW_RESIZED) {
-        // In practice, it seems to always be called from the same thread in
-        // that specific case. Anyway, it's just a workaround.
-        sc_screen_on_resize(screen, &event->window);
+        // Watch only local rendering; remote resize runs once in the event loop.
+        bool owned_window = event->window.windowID == SDL_GetWindowID(screen->window);
+        bool renderable = owned_window && screen->window_shown &&
+                          !screen->resize_in_progress;
+
+        if (renderable) {
+            screen->resize_in_progress = true;
+            sc_screen_render(screen, true);
+            screen->resize_in_progress = false;
+        }
     }
 
     return true;
 }
 #endif
-
-static bool
-sc_screen_frame_sink_open(struct sc_frame_sink *sink,
-                          const AVCodecContext *ctx,
-                          const struct sc_stream_session *session) {
-    assert(ctx->pix_fmt == AV_PIX_FMT_YUV420P);
-
-    struct sc_screen *screen = DOWNCAST(sink);
-
-    if (ctx->width <= 0 || ctx->width > 0xFFFF
-            || ctx->height <= 0 || ctx->height > 0xFFFF) {
-        LOGE("Invalid video size: %dx%d", ctx->width, ctx->height);
-        return false;
-    }
-
-    // Reconnected dimensions are applied by the main thread on the first frame.
-    if (!screen->reopening) {
-        if (!session->video.width || !session->video.height
-                || session->video.width > UINT16_MAX
-                || session->video.height > UINT16_MAX) {
-            LOGE("Invalid initial video size: %" PRIu32 "x%" PRIu32,
-                 session->video.width, session->video.height);
-            return false;
-        }
-
-        struct sc_size *size = malloc(sizeof(*size));
-        if (!size) {
-            LOG_OOM();
-            return false;
-        }
-        size->width = session->video.width;
-        size->height = session->video.height;
-
-        // Transfer initial dimensions to the main thread in the SDL event.
-        if (!sc_push_event_with_data(SC_EVENT_OPEN_WINDOW, size)) {
-            free(size);
-            return false;
-        }
-    }
-
-    screen->current_session = *session;
-
-#ifndef NDEBUG
-    screen->open = true;
-#endif
-
-    // nothing to do, the screen is already open on the main thread
-    return true;
-}
-
-static void
-sc_screen_frame_sink_close(struct sc_frame_sink *sink) {
-    struct sc_screen *screen = DOWNCAST(sink);
-    (void) screen;
-#ifndef NDEBUG
-    screen->open = false;
-#endif
-
-    // nothing to do, the screen lifecycle is not managed by the frame producer
-}
-
-static bool
-sc_screen_frame_sink_push(struct sc_frame_sink *sink, const AVFrame *frame) {
-    struct sc_screen *screen = DOWNCAST(sink);
-    assert(screen->video);
-
-    sc_mutex_lock(&screen->mutex);
-    bool previous_skipped = sc_frame_buffer_has_frame(&screen->fb);
-    bool ok = sc_frame_buffer_push(&screen->fb, frame);
-    screen->prevent_auto_resize = screen->current_session.video.client_resized;
-    sc_mutex_unlock(&screen->mutex);
-    if (!ok) {
-        return false;
-    }
-
-    if (previous_skipped) {
-        sc_fps_counter_add_skipped_frame(&screen->fps_counter);
-        // The SC_EVENT_NEW_FRAME triggered for the previous frame will consume
-        // this new frame instead
-    } else {
-        // Post the event on the UI thread
-        bool ok = sc_push_event(SC_EVENT_NEW_FRAME);
-        if (!ok) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static bool
-sc_screen_frame_sink_push_session(struct sc_frame_sink *sink,
-                                  const struct sc_stream_session *session) {
-    struct sc_screen *screen = DOWNCAST(sink);
-    screen->current_session = *session;
-    return true;
-}
 
 bool
 sc_screen_init(struct sc_screen *screen,
                const struct sc_screen_params *params) {
-    screen->controller = params->controller;
+
     screen->reconnecting = false;
     screen->restore_mouse_capture = false;
     screen->reopening = false;
@@ -522,24 +454,21 @@ sc_screen_init(struct sc_screen *screen,
     screen->req.fullscreen = params->fullscreen;
     screen->req.start_fps_counter = params->start_fps_counter;
 
-    screen->prevent_auto_resize = false;
+    screen->event_watch_installed = false;
+    screen->resize_in_progress = false;
 
     screen->resize_tracker.time = 0;
     screen->resize_tracker.size.width = 0;
     screen->resize_tracker.size.height = 0;
 
-    bool ok = sc_mutex_init(&screen->mutex);
+    bool ok = sc_video_ingress_init(&screen->ingress, params->dispatcher,
+                                     sc_screen_present);
     if (!ok) {
         return false;
     }
 
-    ok = sc_frame_buffer_init(&screen->fb);
-    if (!ok) {
-        goto error_destroy_mutex;
-    }
-
     if (!sc_fps_counter_init(&screen->fps_counter)) {
-        goto error_destroy_frame_buffer;
+        goto error_destroy_ingress;
     }
 
     if (screen->video) {
@@ -666,31 +595,34 @@ sc_screen_init(struct sc_screen *screen,
         goto error_destroy_texture;
     }
 
+    screen->candidate_frame = av_frame_alloc();
+
+    if (!screen->candidate_frame) {
+        av_frame_free(&screen->frame);
+        goto error_destroy_texture;
+    }
+
+    struct sc_input_manager_params input_params = {
+        .screen = screen,
+        .camera = params->camera,
+        .mouse_bindings = params->mouse_bindings,
+        .legacy_paste = params->legacy_paste,
+        .clipboard_autosync = params->clipboard_autosync,
+        .shortcut_mods = params->shortcut_mods,
+    };
+    sc_input_manager_init(&screen->im, &input_params);
+    sc_mouse_capture_init(&screen->mc, screen->window, params->shortcut_mods);
     sc_screen_rebind(screen, params);
 
 #ifdef CONTINUOUS_RESIZING_WORKAROUND
     if (screen->video) {
         ok = SDL_AddEventWatch(event_watcher, screen);
+        screen->event_watch_installed = ok;
         if (!ok) {
             LOGW("Could not add event watcher for continuous resizing: %s",
                  SDL_GetError());
         }
     }
-#endif
-
-    memset(&screen->current_session, 0, sizeof(screen->current_session));
-
-    static const struct sc_frame_sink_ops ops = {
-        .open = sc_screen_frame_sink_open,
-        .close = sc_screen_frame_sink_close,
-        .push = sc_screen_frame_sink_push,
-        .push_session = sc_screen_frame_sink_push_session,
-    };
-
-    screen->frame_sink.ops = &ops;
-
-#ifndef NDEBUG
-    screen->open = false;
 #endif
 
     if (!screen->video) {
@@ -719,10 +651,8 @@ error_destroy_window:
     SDL_DestroyWindow(screen->window);
 error_destroy_fps_counter:
     sc_fps_counter_destroy(&screen->fps_counter);
-error_destroy_frame_buffer:
-    sc_frame_buffer_destroy(&screen->fb);
-error_destroy_mutex:
-    sc_mutex_destroy(&screen->mutex);
+error_destroy_ingress:
+    sc_video_ingress_destroy(&screen->ingress);
 
     return false;
 }
@@ -772,28 +702,21 @@ sc_screen_show_initial_window(struct sc_screen *screen) {
 void
 sc_screen_rebind(struct sc_screen *screen,
                  const struct sc_screen_params *params) {
-    screen->controller = params->controller;
+
     free(screen->connected_title);
     screen->connected_title = strdup(params->window_title);
     screen->reopening = screen->window_shown;
-    struct sc_input_manager_params im_params = {
+    screen->generation = params->generation;
+    sc_video_ingress_bind(&screen->ingress, screen->generation);
+    struct sc_input_binding binding = {
+        .generation = screen->generation,
         .controller = params->controller,
         .fp = params->fp,
-        .screen = screen,
         .kp = params->kp,
         .mp = params->mp,
         .gp = params->gp,
-        .camera = params->camera,
-        .mouse_bindings = params->mouse_bindings,
-        .legacy_paste = params->legacy_paste,
-        .clipboard_autosync = params->clipboard_autosync,
-        .shortcut_mods = params->shortcut_mods,
     };
-
-    sc_input_manager_init(&screen->im, &im_params);
-
-    // Initialize even if not used for simplicity
-    sc_mouse_capture_init(&screen->mc, screen->window, params->shortcut_mods);
+    sc_input_manager_bind(&screen->im, &binding, screen->video);
 
 }
 
@@ -805,18 +728,25 @@ sc_screen_prepare_reconnect(struct sc_screen *screen) {
     }
 
     screen->reconnecting = true;
-    screen->controller = NULL;
-    screen->im.disconnected = true;
+    sc_screen_detach(screen);
+
     sc_mouse_capture_set_active(&screen->mc, false);
     SDL_SetWindowTitle(screen->window, "scrcpy - Reconnecting...");
 }
 
-/** Drop queued frames only after the previous decoder has stopped. */
+/** Detach input and revoke ingress before any borrowed destination is stopped. */
+void
+sc_screen_detach(struct sc_screen *screen) {
+    assert(sc_thread_is_main());
+    sc_input_manager_detach(&screen->im);
+    sc_video_ingress_revoke(&screen->ingress, screen->generation);
+    sc_mouse_capture_set_active(&screen->mc, false);
+}
+
+/** Reset paused state after producer join, retaining the last displayed frame. */
 void
 sc_screen_clear_pending_frames(struct sc_screen *screen) {
-    av_frame_unref(screen->fb.pending_frame);
-    av_frame_unref(screen->fb.tmp_frame);
-    screen->fb.pending_frame_consumed = true;
+    sc_video_ingress_revoke(&screen->ingress, screen->generation);
     av_frame_free(&screen->resume_frame);
     screen->paused = false;
 }
@@ -849,17 +779,18 @@ sc_screen_join(struct sc_screen *screen) {
 
 void
 sc_screen_destroy(struct sc_screen *screen) {
-#ifndef NDEBUG
-    assert(!screen->open);
+#ifdef CONTINUOUS_RESIZING_WORKAROUND
+    if (screen->event_watch_installed) {
+        SDL_RemoveEventWatch(event_watcher, screen);
+        screen->event_watch_installed = false;
+    }
 #endif
+    sc_screen_detach(screen);
+    sc_input_manager_destroy(&screen->im);
+    av_frame_free(&screen->candidate_frame);
     if (screen->disconnect_started) {
         sc_disconnect_destroy(&screen->disconnect);
     }
-#ifdef CONTINUOUS_RESIZING_WORKAROUND
-    if (screen->video) {
-        SDL_RemoveEventWatch(event_watcher, screen);
-    }
-#endif
     free(screen->connected_title);
     av_frame_free(&screen->resume_frame);
     sc_texture_destroy(&screen->tex);
@@ -870,8 +801,8 @@ sc_screen_destroy(struct sc_screen *screen) {
     SDL_DestroyRenderer(screen->renderer);
     SDL_DestroyWindow(screen->window);
     sc_fps_counter_destroy(&screen->fps_counter);
-    sc_frame_buffer_destroy(&screen->fb);
-    sc_mutex_destroy(&screen->mutex);
+    sc_video_ingress_destroy(&screen->ingress);
+
 
     SDL_Event event;
     if (sc_dequeue_event(SC_EVENT_DISCONNECTED_ICON_LOADED, &event)) {
@@ -881,19 +812,9 @@ sc_screen_destroy(struct sc_screen *screen) {
         sc_icon_destroy(dangling_icon);
     }
 
-    sc_screen_discard_pending_open_window_events();
 }
 
 // An unhandled event still owns its size after producers have stopped.
-void
-sc_screen_discard_pending_open_window_events(void) {
-    SDL_Event event;
-
-    while (sc_dequeue_event(SC_EVENT_OPEN_WINDOW, &event)) {
-        free(event.user.data1);
-    }
-}
-
 static void
 resize_for_content(struct sc_screen *screen, struct sc_size old_content_size,
                    struct sc_size new_content_size) {
@@ -970,18 +891,31 @@ sc_screen_set_orientation(struct sc_screen *screen,
 }
 
 static bool
-sc_screen_apply_frame(struct sc_screen *screen, bool can_resize) {
+sc_screen_apply_frame(struct sc_screen *screen) {
     assert(screen->video);
     assert(screen->window_shown);
 
     sc_fps_counter_add_rendered_frame(&screen->fps_counter);
 
     AVFrame *frame = screen->frame;
+    bool valid_size = frame->width > 0 && frame->width <= UINT16_MAX &&
+                      frame->height > 0 && frame->height <= UINT16_MAX;
+
+    if (!valid_size) {
+        LOGE("Invalid frame dimensions");
+        return false;
+    }
+
     struct sc_size new_frame_size = {frame->width, frame->height};
 
     if (!new_frame_size.width || !new_frame_size.height) {
         LOGE("Invalid frame size: %" PRIu16 "x%" PRIu16,
              new_frame_size.width, new_frame_size.height);
+        return false;
+    }
+
+    bool ok = sc_texture_set_from_frame(&screen->tex, frame);
+    if (!ok) {
         return false;
     }
 
@@ -994,76 +928,153 @@ sc_screen_apply_frame(struct sc_screen *screen, bool can_resize) {
         struct sc_size new_content_size =
             get_oriented_size(new_frame_size, screen->orientation);
 
-        if (screen->flex_display) {
-            sc_screen_track_resize(screen, new_content_size);
-        }
-
-        set_content_size(screen, new_content_size, can_resize);
+        // Stage geometry without queuing window or remote resize effects.
+        set_content_size(screen, new_content_size, false);
         sc_screen_update_content_rect(screen);
-    }
-
-    bool ok = sc_texture_set_from_frame(&screen->tex, frame);
-    if (!ok) {
-        return false;
     }
 
     return sc_screen_render(screen, false);
 }
 
+/** Retain the last successful frame and geometry if any presentation stage fails. */
 static bool
-sc_screen_update_frame(struct sc_screen *screen) {
-    assert(screen->video);
+sc_screen_present_candidate(struct sc_screen *screen, AVFrame *candidate,
+                             bool can_resize) {
+    AVFrame *previous = screen->frame;
+    struct sc_size frame_size = screen->frame_size;
+    struct sc_size content_size = screen->content_size;
+    struct sc_size windowed_content_size = screen->windowed_content_size;
+    struct sc_resize_tracker resize_tracker = screen->resize_tracker;
+    SDL_FRect rect = screen->rect;
+    bool resize_pending = screen->resize_pending;
+    screen->frame = candidate;
+    screen->resize_in_progress = true;
+    bool presented = sc_screen_apply_frame(screen);
+
+    if (!presented) {
+        screen->frame = previous;
+        screen->frame_size = frame_size;
+        screen->content_size = content_size;
+        screen->windowed_content_size = windowed_content_size;
+        screen->resize_tracker = resize_tracker;
+        screen->rect = rect;
+        screen->resize_pending = resize_pending;
+
+        if (previous->buf[0]) {
+            bool restored = sc_texture_set_from_frame(&screen->tex, previous);
+            if (!restored) {
+                LOGE("Could not restore retained frame texture");
+            }
+        }
+
+    } else if (can_resize &&
+            (frame_size.width != screen->frame_size.width ||
+             frame_size.height != screen->frame_size.height)) {
+        // Commit resize effects only after this frame was actually presented.
+        struct sc_size new_content_size = screen->content_size;
+        screen->content_size = content_size;
+
+        if (screen->flex_display) {
+            sc_screen_track_resize(screen, new_content_size);
+        }
+
+        set_content_size(screen, new_content_size, true);
+        sc_screen_update_content_rect(screen);
+    }
+
+    screen->resize_in_progress = false;
+    return presented;
+}
+
+/** Present one current frame under the dispatcher's non-reentrant lease. */
+static void
+sc_screen_present(void *binding, struct sc_video_ingress *ingress,
+                   sc_dispatcher_generation generation) {
+    struct sc_generation_targets *targets = binding;
+    struct sc_screen *screen = targets->screen;
+    assert(screen && &screen->ingress == ingress);
+    struct sc_stream_session metadata;
+    unsigned skipped;
+    AVFrame *candidate = screen->candidate_frame;
+    av_frame_unref(candidate);
+
+    if (!sc_video_ingress_consume(ingress, generation, candidate, &metadata,
+                                  &skipped)) {
+        return;
+    }
+
+    sc_fps_counter_add_skipped_frames(&screen->fps_counter, skipped);
 
     if (screen->paused) {
         if (!screen->resume_frame) {
             screen->resume_frame = av_frame_alloc();
-            if (!screen->resume_frame) {
-                LOG_OOM();
-                return false;
-            }
-        } else {
-            av_frame_unref(screen->resume_frame);
         }
-        sc_mutex_lock(&screen->mutex);
-        sc_frame_buffer_consume(&screen->fb, screen->resume_frame);
-        sc_mutex_unlock(&screen->mutex);
-        return true;
+
+        if (!screen->resume_frame) {
+            av_frame_unref(candidate);
+            return;
+        }
+
+        av_frame_unref(screen->resume_frame);
+        av_frame_move_ref(screen->resume_frame, candidate);
+        return;
     }
 
-    av_frame_unref(screen->frame);
-    sc_mutex_lock(&screen->mutex);
-    sc_frame_buffer_consume(&screen->fb, screen->frame);
-    // read with lock held
-    bool can_resize = !screen->prevent_auto_resize;
-    sc_mutex_unlock(&screen->mutex);
-    bool reconnecting = screen->reconnecting;
-    bool ok = sc_screen_apply_frame(screen, can_resize && !reconnecting);
-#ifdef _WIN32
-    if (ok) {
-        // Only a newly consumed decoder frame, never a retained pause frame.
-        sc_machine_on_frame_presented();
+    if (!screen->window_shown) {
+        struct sc_size size = {metadata.video.width, metadata.video.height};
+
+        if (!size.width || !size.height ||
+                metadata.video.width > UINT16_MAX ||
+                metadata.video.height > UINT16_MAX) {
+            av_frame_unref(candidate);
+            return;
+        }
+
+        screen->frame_size = size;
+        screen->content_size = get_oriented_size(size, screen->orientation);
+        sc_screen_show_initial_window(screen);
     }
+
+    AVFrame *previous = screen->frame;
+    bool reconnecting = screen->reconnecting;
+    bool can_resize = !metadata.video.client_resized && !reconnecting;
+    bool presented = sc_screen_present_candidate(screen, candidate, can_resize);
+
+    if (!presented) {
+        screen->frame = previous;
+        av_frame_unref(candidate);
+        return;
+    }
+
+    screen->candidate_frame = previous;
+    av_frame_unref(previous);
+    bool first = sc_input_manager_mark_presented(&screen->im, generation);
+#ifdef _WIN32
+    sc_machine_on_frame_presented();
 #endif
 
-    if (ok && reconnecting) {
-        screen->reconnecting = false;
-        screen->im.disconnected = false;
-        set_aspect_ratio(screen, screen->content_size);
-        bool restore_capture = screen->restore_mouse_capture
-                            && sc_screen_is_relative_mode(screen)
-                            && SDL_GetKeyboardFocus() == screen->window;
+    if (first) {
+        LOGD("Visual input ready after presentation generation=%" PRIu64,
+             generation);
+        bool capture_requested = reconnecting ? screen->restore_mouse_capture
+                                              : !screen->reopening;
+        bool restore_capture = capture_requested &&
+                               sc_screen_is_relative_mode(screen) &&
+                               SDL_GetKeyboardFocus() == screen->window;
 
         if (restore_capture) {
             sc_mouse_capture_set_active(&screen->mc, true);
         }
+    }
 
+    if (reconnecting) {
+        screen->reconnecting = false;
+        set_aspect_ratio(screen, screen->content_size);
         screen->restore_mouse_capture = false;
         SDL_SetWindowTitle(screen->window, screen->connected_title
                                          ? screen->connected_title : "scrcpy");
         LOGI("Stream resumed in the existing window");
     }
-
-    return ok;
 }
 
 void
@@ -1078,12 +1089,15 @@ sc_screen_set_paused(struct sc_screen *screen, bool paused) {
     if (screen->paused && screen->resume_frame) {
         // If display screen was paused, refresh the frame immediately, even if
         // the new state is also paused.
-        av_frame_free(&screen->frame);
-        screen->frame = screen->resume_frame;
+        AVFrame *previous = screen->frame;
+        AVFrame *resume = screen->resume_frame;
         screen->resume_frame = NULL;
-        bool ok = sc_screen_apply_frame(screen, true);
+        bool ok = sc_screen_present_candidate(screen, resume, true);
         if (!ok) {
             LOGE("Resume frame update failed");
+            av_frame_free(&resume);
+        } else {
+            av_frame_free(&previous);
         }
     }
 
@@ -1217,33 +1231,6 @@ sc_disconnect_on_timeout(struct sc_disconnect *d, void *userdata) {
 void
 sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
     switch (event->type) {
-        case SC_EVENT_OPEN_WINDOW: {
-            struct sc_size *size = event->user.data1;
-            if (!size) {
-                LOGE("Missing initial video size");
-                return;
-            }
-            screen->frame_size = *size;
-            free(size);
-            screen->content_size = get_oriented_size(screen->frame_size,
-                                                     screen->orientation);
-            sc_screen_show_initial_window(screen);
-
-            if (sc_screen_is_relative_mode(screen)) {
-                // Capture mouse on start
-                sc_mouse_capture_set_active(&screen->mc, true);
-            }
-
-            sc_screen_render(screen, false);
-            return;
-        }
-        case SC_EVENT_NEW_FRAME: {
-            bool ok = sc_screen_update_frame(screen);
-            if (!ok) {
-                LOGE("Frame update failed\n");
-            }
-            return;
-        }
         case SDL_EVENT_WINDOW_EXPOSED:
 
             if (screen->window_shown) {
@@ -1251,12 +1238,10 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             }
             return;
 // If defined, then the actions are already performed by the event watcher
-#ifndef CONTINUOUS_RESIZING_WORKAROUND
         case SDL_EVENT_WINDOW_RESIZED:
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             sc_screen_on_resize(screen, &event->window);
             return;
-#endif
         case SDL_EVENT_WINDOW_RESTORED:
             if (screen->video && is_windowed(screen)) {
                 apply_pending_resize(screen);
@@ -1302,11 +1287,8 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             return;
     }
 
-    if (screen->reconnecting) {
-        return;
-    }
-
-    if (sc_screen_is_relative_mode(screen)
+    if (sc_input_manager_is_ready(&screen->im)
+            && sc_screen_is_relative_mode(screen)
             && sc_mouse_capture_handle_event(&screen->mc, event)) {
         // The mouse capture handler consumed the event
         return;

@@ -25,6 +25,7 @@ enum sc_delayed_packet_type {
 
 struct sc_delayed_packet {
     enum sc_delayed_packet_type type;
+    bool asap; // first video frame bypasses the wait, never its FIFO predecessors
     union {
         AVFrame *frame;
         struct sc_stream_session session;
@@ -62,8 +63,12 @@ struct sc_delay_buffer_callbacks {
  * Initialize a delay buffer.
  *
  * \param delay a (strictly) positive delay
- * \param first_frame_asap if true, do not delay the first frame (useful for
-                           a video stream).
+ * Frame/session publication is serialized by the upstream owner. Successful
+ * push transfers a reference to the queue; downstream delivery belongs to the
+ * single worker. Close joins that worker before releasing sinks and storage.
+ *
+ * \param first_frame_asap if true, skip the first frame's timing wait after
+ *                         preceding metadata is delivered (useful for video).
  */
 void
 sc_delay_buffer_init(struct sc_delay_buffer *db, sc_tick delay,

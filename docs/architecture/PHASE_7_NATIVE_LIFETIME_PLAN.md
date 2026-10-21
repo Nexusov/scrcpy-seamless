@@ -1,11 +1,12 @@
 # Phase 7 native application and connection lifetime plan
 
-Status: migration direction approved; P7.1 implemented locally pending source
-review. P7.2–P7.6 remain proposals and require separate authorization.
+Status: migration direction approved; P7.1 accepted and integrated through
+PR #15. P7.2 is authorized on its separate work branch. P7.3–P7.6 remain
+proposals and require separate authorization.
 Source inspection date: 2026-10-02. All current-source statements below refer to
 integration `eaccb407cdf823af3ab6d1ab3de1f796cbd4d775`; conceptual APIs and
-later checkpoints are proposals. The P7.1 section separately records the new
-implemented dispatcher/receiver boundary; the baseline map remains historical.
+later checkpoints are proposals. The P7.1 and P7.2 sections separately record
+implemented contracts and their evidence; the original source map remains historical.
 
 ## Authority, integration and evidence boundary
 
@@ -367,8 +368,9 @@ JSONL schema/export, rotation/privacy policy and full aggregate metrics.
 
 The maintainer approved the published direction at `dbb0a9b` and authorized only
 P7.1. The following concrete contract is recorded before production edits.
-The scoped implementation passed the fresh local checks below and is pending
-independent P7.1 acceptance. P7.2–P7.6 are unstarted.
+The checks below retain the pre-integration evidence. P7.1 was subsequently
+accepted and integrated through PR #15; P7.2 is the authorized current slice.
+P7.3–P7.6 remain unstarted.
 
 `main` owns one `sc_dispatcher`, initialized after SDL event initialization and
 destroyed after all producers and completion users have quiesced. Independent
@@ -512,6 +514,274 @@ production is unchanged and was not rebuilt. All frozen packages and incident
 evidence remain untouched. Windows `usb=false` does not validate AOA/OTG/V4L2;
 direct ACK order, other untagged work, full graph safety and responsive joins stay
 open for their later checkpoints. No new hardware or hosted CI pass is claimed.
+
+## P7.2 implementation contract recorded before production changes
+
+P7.1 is accepted for engineering integration through PR #15 merge
+`7dff15837c4c39dd63f8488500d5f5c5c423027e`. Its separate push run
+`37078698690`, attempt 1, completed successfully in all four jobs. The original
+activation incident remains an unresolved non-blocking watch item; the fixture
+context correction does not establish its historical cause.
+
+P7.2 keeps `sc_screen` as the persistent presentation owner (window, renderer,
+texture, displayed/resume frame and local UI state). `sc_video_ingress` owns a
+mutex-protected latest-frame mailbox, current scalar generation, per-frame
+metadata and one coalesced notification ticket. A separately initialized
+`sc_video_bridge` implements the frame sink and retains producer-local stream
+metadata/open state and a captured generation. The orchestrator owns each bridge
+until decoder/delay producers have joined and sink close has completed.
+
+Begin/revoke/bind use the existing dispatcher. Its single binding becomes a
+small `sc_generation_targets` bundle containing presentation and UHID targets;
+both receiver and video resolvers use it after dispatcher validation. It is not
+a service registry. Queued notifications retain the app-owned ingress and value
+generation/ticket, never a bridge or session pointer.
+
+Ingress bind/revoke, publication and consume validate the generation under the
+same ingress mutex, including frame reference and associated metadata updates.
+No dispatcher call, SDL effect, final AVBuffer release callback or blocking wait
+occurs under that mutex. Publication/take move replaced references into empty
+owner-allocated AVFrame headers; final unref runs after unlocking. Queue
+publication follows unlocking; dispatcher callbacks/destructors acquire ingress
+only after dispatcher admission locks have been released. A ticket clears only
+its own pending notification; obsolete destruction cannot clear a new ticket.
+Admission failure or wake failure rearms current progress for a later publication.
+Revocation discards only the matching generation, before producer stop, while
+producer storage remains alive through join. Old close/metadata never reset a
+replacement mailbox. Mailbox reset/discard/consume use explicit frame-buffer APIs.
+
+Frame retention is independent of `SC_DISPATCHER_MAX_PAYLOAD_BYTES` (one MiB).
+The serialized producer accepts only refcounted YUV420P frames of validated
+dimensions: one pending frame, one transient reference acquisition, one displayed
+frame, one paused/resume frame and one main presentation candidate. There is one
+producer retirement header and one main-thread revoke retirement header. Each
+notification additionally owns an empty retirement header; its record **and**
+`sizeof(AVFrame)` are charged to dispatcher bytes. A failed-wakeup destructor can
+temporarily retain a moved pixel reference. Their independent upper bound is
+`SC_DISPATCHER_MAX_ITEMS` (64 retained notification operations), not the video
+resolution or the byte budget. Header/reference counts are checked independently;
+this is not a total decoded-video or process-memory bound. No per-frame FIFO or
+deep-copy fallback is introduced. Push reference failure preserves the previous
+pending ref and producer ownership. Metadata is captured with the admitted frame,
+not read from a later producer update. Latest publication overwrites the pending
+ref without multiplying queued notifications.
+
+`sc_input_binding` contains generation/controller/file/key/mouse/gamepad
+endpoints. Main-thread bind/detach/presented transitions use explicit DETACHED,
+WAITING_PRESENTATION and READY states. Detach clears all borrowed endpoints and
+transient input/ACK state before destination stop/release. Remote key/text/paste,
+mouse/wheel/touch/gamepad/file/resize paths require READY; local window actions
+and local gamepad handle cleanup remain independent. Non-video endpoints become
+READY at bind; visual endpoints wait for a new current frame successfully
+textured/rendered/presented. Retained pause frames do not emit stream readiness.
+Capture restoration additionally requires a compatible live binding, prior
+capture intent and actual relevant window focus.
+
+Continuous-resize watching renders only on the SDL main thread and for this
+window; it never routes remote resize. The ordinary main event switch routes
+remote resize once through the current READY binding. Foreign-thread watchers
+return before resolving the context. Track successful installation and remove it before
+freeing presentation context. All main-thread callbacks run outside admission
+locks; no nested generation transition is allowed during dispatcher execution.
+Machine Focus/Stop/quit and first-new-frame stream observation stay unchanged.
+The pinned SDL 3.4.8 [event-watch implementation](https://github.com/libsdl-org/SDL/blob/release-3.4.8/src/events/SDL_eventwatch.c)
+serializes watch dispatch/removal with its watch-list mutex. Main-thread removal
+precedes presentation destruction. Receiver posters can retire video records on
+failed wakeup; controller/receiver join therefore also precedes ingress destruction,
+alongside video/delay joins. Revocation alone is not producer quiescence.
+Unbuffered bridge calls use the serialized decoder producer. Buffered frame and
+metadata publication uses the existing delay queue: one worker delivers both in
+FIFO order, including the first ASAP frame and a metadata callback already in
+flight. ASAP bypasses only the configured timing wait, never a predecessor.
+Open completes before worker start; close stops and joins the worker before
+closing downstream sinks. The upstream owner still serializes publication and
+close; worker join does not settle arbitrary concurrent external callers.
+App bind/revoke are non-reentrant.
+Narrow stderr records report generation bind/revoke and first visual input gate;
+they expose no endpoint, payload or new wire fields.
+
+Remaining status events retain legacy join/flush containment. Full graph extraction,
+async joins, ACK retirement and audio quiescence remain later checkpoints.
+
+### P7.2 implemented source checkpoint and review boundary
+
+The current slice implements the contract above through the persistent screen,
+generation sink bridge, explicit mailbox APIs and one input endpoint binding.
+Successful presentation commits the CPU frame/geometry and then local/remote
+resize effects. Failed texture/draw/clear/present stages leave the input gate
+closed and retain the previous CPU frame. Texture restoration is best-effort:
+its own failure is logged and does not prove the previous GPU pixels remain
+visible. Paused/resume ownership uses the same transaction and never emits
+first-new-frame readiness from a retained pause frame.
+
+| Production-linked target | Evidence boundary |
+| --- | --- |
+| `test_frame_buffer` (5 groups) | Actual FFmpeg reference acquisition/move/discard, failed header/ref allocation and deferred final buffer release. |
+| `test_video_ingress` (11 groups) | Latest-frame metadata/coalescing, stale open/frame/metadata/close, count/byte pressure, wake failure, publish/revoke orderings, allocation failures, ticket exhaustion, reentrant final release and held failure-thread retirement through replacement and producer join. |
+| `test_input_binding` | Real router with controlled key/mouse/gamepad/controller/file/clipboard effects: detached and gated routes, explicit endpoint selection, old accepted operations not replayed, current resize, non-video/no-control/camera and local handles. |
+| `test_screen_presentation` (15 groups) | Actual screen/router/ingress with SDL/texture boundary doubles and real FFmpeg refs: successful first-frame gate, failure transactions, last frame/pause/reset, metadata/orientation, capture, watcher and partial acquisition ledgers. No physical window or GPU test. |
+| Existing `test_dispatcher` (15 groups), `test_receiver_dispatch` (10 cases) | P7.1 ownership/wakeup/waiter regressions remain; UHID resolves the same typed target bundle used by presentation. |
+
+The initial P7.2 debug Meson execution passed **24 targets**, including every target above;
+groups are subcases, not additional targets. Locked managed restore, SpecGen
+verification (113 entries/six outputs), Release compilation (zero warnings/errors)
+and the full normal-concurrency solution suite passed **556/556**, zero skipped.
+The separate cross-language check passed nine canonical vectors and 24 complete
+conformance frames in both directions; its focused managed lane passed 8/8.
+Ignored raw logs and all diagnostic failures remain under `work/phase7/p72/`.
+
+The ordinary production native build completed from clean committed corrective
+source `74b17dd4684ac6f546b202a00ed7d474c327e8d9` using the pinned toolchain.
+Its source fingerprint is
+`506fe1ee4b653b5e9cec2314aa2ff002455af05bd3066cdf2c4f99f109f4a494`
+and executable SHA-256 is
+`0349df1a4070021d6a2f1d753df40cd31a46929916d71c77d7c2757ed70d2334`.
+These identify the ignored validation executable, not a Desktop DEV package.
+The separate process lane passed **8/8**, including owned Stop/Focus and exact-child
+parent death plus production entry-point pre-device rejection/help/version.
+It completes no production handshake that could reach ADB. Source legacy suites
+passed **29/29**; independently staged native-backed 1.x validation ZIP suites
+passed **29/29** as a separate lane. This local validation archive is not a
+public distribution or frozen Desktop artifact.
+
+Metadata and DocsCheck passed (625 links/83 tracked Markdown files), together
+with diff/semantic checks. Managed source, native machine/IPC modules, specs,
+generated outputs, dependencies and workflows remain unchanged. Scoped native
+AGENTS and canonical runtime/change/risk/execution-plan documents were updated
+for the owning APIs, producer joins and observation limits. Windows native tests
+use the existing `usb=false` bootstrap: physical AOA/OTG and Linux V4L2 are not
+validated. The existing Meson minimum-version warning is retained; compiler
+errors or failed tests were not hidden or resolved by changing dependencies.
+The baseline push run `37078698690` was rechecked successfully in all four jobs;
+it validates P7.1's integration SHA, not this P7.2 source. No PR or hosted P7.2
+validation is created by the authorized single work-branch publication.
+
+Behavioral red evidence precedes the corresponding green paths: old ordinary
+keyboard delivery while disconnected, lost displayed ref on failed paused resume,
+failed replacement texture/geometry rollback, present after failed draw, readiness
+after failed clear and transient resize before successful presentation. Initial
+scaffold mistakes (including treating a generic dispatcher wake as stale generation
+work), a build-environment failure and a stale-binary invocation are preserved
+separately and are not product regression evidence.
+
+This checkpoint awaits independent source review; P7.3–P7.6 and Phase 8 are
+unstarted. The first separately authorized changed-runtime smoke should use one
+new traceable package: USB video/control/audible audio, local resize and pause,
+one USB-to-Wi-Fi transition retaining window/last frame until the new frame,
+then basic input and Stop/Focus settlement. This is a proposed minimal retest,
+not authorization to build/launch it or transfer previous hardware evidence.
+No Desktop DEV package is built by this task. All frozen artifacts remain separate.
+
+### P7.2 delayed first-frame ordering correction
+
+Static review found a caller-composition gap at reviewed source
+`d1231fd12ee773518379db5986dbdedcf6a8b5f9`. The direct first-frame-ASAP
+producer path could overtake metadata already queued or being forwarded by the
+delay worker. Matching generations did not serialize these within-generation
+operations. The previous direct bridge tests did not link `delay_buffer.c`;
+their passing results remain historical evidence, not proof of that composition.
+
+The controlled `test_delay_buffer_ingress` target links the real delay buffer,
+frame source, bridge, ingress, mailbox and dispatcher. Its observing adapter
+holds metadata delivery before forwarding into the bridge. Before the correction,
+the producer's first frame reached actual ingress with width 64 and
+`client_resized=false`, although width 128 / `client_resized=true` metadata had
+already been published. One executed ordering case failed its assertion with
+exit 3. This demonstrates an admitted ordering defect, not a historical phone
+failure or an attempt to observe undefined concurrent access. The ignored
+ordering-red log is separate from an initial wrong-Ninja-target build failure.
+The retained red test source SHA-256 is
+`8c1ab1851fe23cd3b5260e4be9bdc749ef6000818a9d89f8d167a34fdee3c26a`;
+its executable is
+`7a3d49cc3c46c4df9c25b0000995432211beff515fb8b1af07f29cb89cb058ee`.
+The original invocation used
+`work/phase7/p72/native-tests-final/app/test_delay_buffer_ingress.exe`;
+the immutable copies, exit records and SHA-256 inventory are retained under
+ignored `work/phase7/p72-order/`.
+
+A separate allocation-admission reproduction ran one case and exited 3 with
+one invalid queue slot after injected `av_frame_alloc` failure. It recompiles
+the retained reviewed delay implementation against the compatible extended
+packet layout and links the extended test: this is an isolated old-boundary
+experiment, not a pristine reviewed full build. The primary ordering red above
+predates production changes. Green executes nine composition groups, with no
+early presentation and actual consumed metadata 128 / `client_resized=true`;
+failed admission leaves zero queue slots. Real FFmpeg pixel/header and queue
+backing ledgers settle exactly once through close/revoke/rejection. Reference
+acquisition, queue allocation, downstream open and worker-start failures are
+also injected at the real boundaries.
+
+The final targeted command after the canonical native debug build is:
+
+```powershell
+$env:PATH = (Resolve-Path '.\work\bootstrap\scrcpy-release\scrcpy-win64-v4.0').Path + ';' + $env:PATH
+& '.\work\phase7\p72-delay-order\native-tests\app\test_delay_buffer_ingress.exe'
+```
+
+Fixture scaffold failures are retained separately: wrong Ninja target, test
+thread name beyond the existing 15-character limit and duplicate fixture revoke.
+The first full-build attempt also correctly refused changed source fingerprints
+while targeted tests were still being extended; no full pass is attributed to
+that attempt. The subsequent stable-source debug build passed 25/25 targets.
+Fresh locked restore, SpecGen verify (113 entries/six outputs), zero-warning
+Release build and normal-concurrency managed tests passed 556/556, zero skipped.
+The separate C/C# lane passed nine canonical vectors and 24 conformance frames
+in both directions, plus its eight focused managed cases. The legacy source
+lane passed 29/29. Broader validation logs use `work/phase7/p72-delay-order/`.
+
+The canonical production native build ran from clean committed source
+`b9491f18becfe769570255d090d44f58f9dd5baf`. Its source fingerprint is
+`dd9b43994c139cb9dea46d7e33a3094551a08d4dfa84f2994cab6c5ec2d0b0c3`
+and executable SHA-256 is
+`144df701052452fef570068aeaac042e94b2dd86e881362be3aac6a1efb38639`.
+This identifies only the ignored validation executable. Fresh owned-process,
+production-bootstrap and parent-death checks passed 8/8, without a production
+handshake reaching devices. The separately staged native-backed legacy ZIP
+passed 29/29, independently of the 29/29 source lane; its SHA-256 is
+`17a6f5587268faf629619f0f12811b1ab32545130f73403e407df8b44f9a92ac`.
+No Desktop DEV artifact was built or changed. Previous validation executable,
+manifest and legacy archive bytes were copied into ignored evidence before
+replacement; frozen Desktop packages and incident records are unchanged.
+
+Build metadata, documentation links, diff and semantic/source-scope checks
+passed. Only the delay-buffer boundary, its new composition test/Meson and
+owning documentation/AGENTS changed; managed code, native IPC/Stop/Focus,
+dependencies, specs/generated outputs and workflows are unchanged. Independent
+agent review found no blocking source finding and read the fresh native logs;
+it did not execute another Windows or hardware run. Debug/production builds
+retain the existing toolchain and `usb=false` limitations: no physical HID/OTG,
+V4L2, GPU, audible output or latency pass is claimed.
+
+The baseline push run `37078698690`, attempt 1 at
+`7dff15837c4c39dd63f8488500d5f5c5c423027e`, was rechecked as completed/success
+for test, native, android-server and desktop. It validates the integration
+baseline only. This branch push creates no PR or hosted P7.2 pass; later review,
+hosted validation and changed-runtime smoke remain separate authorization gates.
+
+All frame and metadata deliveries now use the existing single worker FIFO.
+The first frame carries an ASAP flag and skips the playback-delay wait after
+its predecessors settle. Subsequent frames retain the existing clock-based
+deadline and maximum-delay calculation. This preserves the timing policy;
+no measured wall-clock handoff bound is claimed. A later metadata update cannot
+retroactively change an earlier frame's captured metadata. Bridge calls need no
+new mutex when these actual producer/worker ownership preconditions hold.
+
+Successful push means queue admission, including for the first frame; it does
+not promise a later downstream acceptance. Worker rejection stops admission
+and drains owned packets. A frame candidate acquires its FFmpeg reference before
+queue publication; rejection releases it outside the queue mutex. Failed frame
+initialization cannot leave an invalid admitted slot. Close stops the worker;
+join settles its in-flight callback and queue-reference drain before queue
+backing is freed and sinks are closed.
+The initialized empty queue is also released on open/start rollback.
+
+This uses no additional queue or dispatcher. Delay-buffer frame retention is
+separate from the bounded ingress mailbox and dispatcher payload accounting;
+the existing delay FIFO is growable and this correction does not impose a new
+total video-memory bound. No audio/ACK lifetime, asynchronous retirement,
+generation graph or transport policy is changed. P7.2 remains pending independent
+corrective source review; P7.3–P7.6 and Phase 8 are unstarted. No Desktop DEV
+package or hardware run is authorized by this correction.
 
 ## Historical planning recommendations and later review decisions
 

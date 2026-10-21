@@ -8,6 +8,7 @@
 
 #include "device_msg.h"
 #include "events.h"
+#include "generation_targets.h"
 #include "receiver.h"
 #include "util/binary.h"
 #include "util/log.h"
@@ -31,6 +32,7 @@ static unsigned task_attempts;
 static unsigned clipboard_effects;
 static unsigned hid_effects;
 static struct sc_uhid_devices *expected_hid_target;
+static struct sc_generation_targets receiver_targets;
 static const uint8_t uhid_message[] = {
     DEVICE_MSG_TYPE_UHID_OUTPUT, 0, SC_RECEIVER_TEST_UHID_ID, 0, 5, 1, 2, 3, 4, 5,
 };
@@ -174,7 +176,9 @@ initialize_generation(struct sc_dispatcher *dispatcher,
     assert(sc_dispatcher_init(dispatcher, SC_EVENT_DISPATCHER_WAKEUP,
                                test_wakeup, wake_failure ? dispatcher : NULL));
     sc_dispatcher_generation generation;
-    assert(sc_dispatcher_generation_begin(dispatcher, devices, &generation));
+    receiver_targets = (struct sc_generation_targets) {.uhid_devices = devices};
+    assert(sc_dispatcher_generation_begin(dispatcher, &receiver_targets,
+                                           &generation));
     *receiver = (struct sc_receiver) {
         .uhid_devices = devices,
         .dispatcher = dispatcher,
@@ -250,7 +254,8 @@ test_old_receiver_work_rejected_after_replacement(void) {
     __real_free(old_devices);
     struct sc_uhid_devices replacement = {0};
     sc_dispatcher_generation replacement_generation;
-    assert(sc_dispatcher_generation_begin(&dispatcher, &replacement,
+    receiver_targets.uhid_devices = &replacement;
+    assert(sc_dispatcher_generation_begin(&dispatcher, &receiver_targets,
                                             &replacement_generation));
     assert(replacement_generation != old_receiver.generation);
     process_message(&old_receiver, uhid_message, sizeof(uhid_message));

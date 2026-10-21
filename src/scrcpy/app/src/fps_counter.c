@@ -174,6 +174,12 @@ sc_fps_counter_add_rendered_frame(struct sc_fps_counter *counter) {
 
 void
 sc_fps_counter_add_skipped_frame(struct sc_fps_counter *counter) {
+    sc_fps_counter_add_skipped_frames(counter, 1);
+}
+
+/** Add coalesced overwrites in one constant-time counter operation. */
+void
+sc_fps_counter_add_skipped_frames(struct sc_fps_counter *counter, unsigned count) {
     if (!is_started(counter)) {
         return;
     }
@@ -181,6 +187,6 @@ sc_fps_counter_add_skipped_frame(struct sc_fps_counter *counter) {
     sc_mutex_lock(&counter->mutex);
     sc_tick now = sc_tick_now();
     check_interval_expired(counter, now);
-    ++counter->nr_skipped;
+    counter->nr_skipped += count;
     sc_mutex_unlock(&counter->mutex);
 }

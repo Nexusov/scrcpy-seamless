@@ -14,20 +14,61 @@
 #include "util/log.h"
 #include "util/sdl.h"
 
+/** Router-owned SDL handles, never borrowed from a generation processor. */
+struct sc_input_gamepad {
+    SDL_JoystickID id;
+    SDL_Gamepad *handle;
+    struct sc_input_gamepad *next;
+};
+
+static void
+sc_input_manager_open_gamepad(struct sc_input_manager *im, SDL_JoystickID id);
+
+/** Reset transient state without replaying accepted old-generation operations. */
+static void
+sc_input_manager_reset_transient(struct sc_input_manager *im) {
+    im->vfinger_down = false;
+    im->vfinger_invert_x = false;
+    im->vfinger_invert_y = false;
+    im->mouse_buttons_state = 0;
+    im->last_keycode = SDLK_UNKNOWN;
+    im->last_mod = 0;
+    im->key_repeat = 0;
+    im->next_sequence = 1; // zero is SC_SEQUENCE_INVALID
+}
+
+/** Reconcile attached gamepads only after remote input becomes available. */
+static void
+sc_input_manager_enumerate_gamepads(struct sc_input_manager *im) {
+    assert(SDL_IsMainThread());
+
+    if (im->camera || !im->binding.gp) {
+        return;
+    }
+
+    int count;
+    SDL_JoystickID *identifiers = SDL_GetGamepads(&count);
+
+    if (!identifiers) {
+        LOGW("Could not enumerate gamepads: %s", SDL_GetError());
+        return;
+    }
+
+    for (int index = 0; index < count; ++index) {
+        sc_input_manager_open_gamepad(im, identifiers[index]);
+    }
+    SDL_free(identifiers);
+}
+
+/** Configure persistent routing policy; endpoints require an explicit bind. */
 void
 sc_input_manager_init(struct sc_input_manager *im,
                       const struct sc_input_manager_params *params) {
-    // A processor must have ops initialized
-    assert(!params->kp || params->kp->ops);
-    assert(!params->mp || params->mp->ops);
-    assert(!params->gp || params->gp->ops);
-
-    im->controller = params->controller;
-    im->fp = params->fp;
+    assert(SDL_IsMainThread());
+    im->binding = (struct sc_input_binding) {0};
+    im->binding_state = SC_INPUT_DETACHED;
+    im->gamepads = NULL;
     im->screen = params->screen;
-    im->kp = params->kp;
-    im->mp = params->mp;
-    im->gp = params->gp;
     im->camera = params->camera;
 
     im->mouse_bindings = params->mouse_bindings;
@@ -36,25 +77,103 @@ sc_input_manager_init(struct sc_input_manager *im,
 
     im->sdl_shortcut_mods = sc_shortcut_mods_to_sdl(params->shortcut_mods);
 
-    im->vfinger_down = false;
-    im->vfinger_invert_x = false;
-    im->vfinger_invert_y = false;
+    sc_input_manager_reset_transient(im);
+}
 
-    im->mouse_buttons_state = 0;
+/** Revoke borrowing before performing local cleanup that could invoke SDL. */
+void
+sc_input_manager_detach(struct sc_input_manager *im) {
+    assert(SDL_IsMainThread());
+    im->binding_state = SC_INPUT_DETACHED;
+    im->binding = (struct sc_input_binding) {0};
+    sc_input_manager_reset_transient(im);
 
-    im->last_keycode = SDLK_UNKNOWN;
-    im->last_mod = 0;
-    im->key_repeat = 0;
+    while (im->gamepads) {
+        struct sc_input_gamepad *gamepad = im->gamepads;
+        im->gamepads = gamepad->next;
+        SDL_CloseGamepad(gamepad->handle);
+        free(gamepad);
+    }
+}
 
-    im->next_sequence = 1; // 0 is reserved for SC_SEQUENCE_INVALID
+/** Bind one complete generation; non-video paths do not await a video frame. */
+void
+sc_input_manager_bind(struct sc_input_manager *im,
+                      const struct sc_input_binding *binding,
+                      bool require_presentation) {
+    assert(SDL_IsMainThread());
+    assert(binding->generation);
+    assert(!binding->kp || binding->kp->ops);
+    assert(!binding->mp || binding->mp->ops);
+    assert(!binding->gp || binding->gp->ops);
+    // Copy first: callers may pass the current binding when reconciling policy.
+    struct sc_input_binding replacement = *binding;
+    sc_input_manager_detach(im);
+    im->binding = replacement;
+    im->binding_state = require_presentation ? SC_INPUT_WAITING_PRESENTATION
+                                             : SC_INPUT_READY;
 
-    im->disconnected = false;
+    if (!require_presentation) {
+        sc_input_manager_enumerate_gamepads(im);
+    }
+}
+
+/** Release the visual gate once for a valid current-generation presentation. */
+bool
+sc_input_manager_mark_presented(struct sc_input_manager *im,
+                                uint64_t generation) {
+    assert(SDL_IsMainThread());
+    bool matching = im->binding_state == SC_INPUT_WAITING_PRESENTATION
+                 && im->binding.generation == generation;
+
+    if (!matching) {
+        return false;
+    }
+
+    im->binding_state = SC_INPUT_READY;
+    sc_input_manager_enumerate_gamepads(im);
+    return true;
+}
+
+/** Main-thread serialization settles event handlers before detach returns. */
+bool
+sc_input_manager_is_ready(const struct sc_input_manager *im) {
+    assert(SDL_IsMainThread());
+    return im->binding_state == SC_INPUT_READY;
+}
+
+/** Relative capture requires both readiness and a compatible live processor. */
+bool
+sc_input_manager_is_relative(const struct sc_input_manager *im) {
+    bool ready = sc_input_manager_is_ready(im);
+    return ready && im->binding.mp && im->binding.mp->relative_mode;
+}
+
+/** Withhold control resize while detached or awaiting a new visual frame. */
+bool
+sc_input_manager_request_resize(struct sc_input_manager *im, uint16_t width,
+                                uint16_t height) {
+    bool can_resize = sc_input_manager_is_ready(im) && im->binding.controller
+                   && !im->camera;
+
+    if (!can_resize) {
+        return false;
+    }
+
+    sc_controller_resize_display(im->binding.controller, width, height);
+    return true;
+}
+
+/** Destroy local resources without invoking old remote endpoints. */
+void
+sc_input_manager_destroy(struct sc_input_manager *im) {
+    sc_input_manager_detach(im);
 }
 
 static void
 send_keycode(struct sc_input_manager *im, enum android_keycode keycode,
              enum sc_action action, const char *name) {
-    assert(im->controller && im->kp && !im->camera);
+    assert(im->binding.controller && im->binding.kp && !im->camera);
 
     // send DOWN event
     struct sc_control_msg msg;
@@ -66,7 +185,7 @@ send_keycode(struct sc_input_manager *im, enum android_keycode keycode,
     msg.inject_keycode.metastate = 0;
     msg.inject_keycode.repeat = 0;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'inject %s'", name);
     }
 }
@@ -111,7 +230,7 @@ action_menu(struct sc_input_manager *im, enum sc_action action) {
 static void
 press_back_or_turn_screen_on(struct sc_input_manager *im,
                              enum sc_action action) {
-    assert(im->controller && im->kp && !im->camera);
+    assert(im->binding.controller && im->binding.kp && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_BACK_OR_SCREEN_ON;
@@ -119,56 +238,56 @@ press_back_or_turn_screen_on(struct sc_input_manager *im,
                                  ? AKEY_EVENT_ACTION_DOWN
                                  : AKEY_EVENT_ACTION_UP;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'press back or turn screen on'");
     }
 }
 
 static void
 expand_notification_panel(struct sc_input_manager *im) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'expand notification panel'");
     }
 }
 
 static void
 expand_settings_panel(struct sc_input_manager *im) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'expand settings panel'");
     }
 }
 
 static void
 collapse_panels(struct sc_input_manager *im) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_COLLAPSE_PANELS;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'collapse notification panel'");
     }
 }
 
 static bool
 get_device_clipboard(struct sc_input_manager *im, enum sc_copy_key copy_key) {
-    assert(im->controller && im->kp && !im->camera);
+    assert(im->binding.controller && im->binding.kp && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_GET_CLIPBOARD;
     msg.get_clipboard.copy_key = copy_key;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'get device clipboard'");
         return false;
     }
@@ -179,7 +298,7 @@ get_device_clipboard(struct sc_input_manager *im, enum sc_copy_key copy_key) {
 static bool
 set_device_clipboard(struct sc_input_manager *im, bool paste,
                      uint64_t sequence) {
-    assert(im->controller && im->kp && !im->camera);
+    assert(im->binding.controller && im->binding.kp && !im->camera);
 
     char *text = SDL_GetClipboardText();
     if (!text) {
@@ -200,7 +319,7 @@ set_device_clipboard(struct sc_input_manager *im, bool paste,
     msg.set_clipboard.text = text_dup;
     msg.set_clipboard.paste = paste;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         free(text_dup);
         LOGW("Could not request 'set device clipboard'");
         return false;
@@ -211,13 +330,13 @@ set_device_clipboard(struct sc_input_manager *im, bool paste,
 
 static void
 set_display_power(struct sc_input_manager *im, bool on) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_SET_DISPLAY_POWER;
     msg.set_display_power.on = on;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'set screen power mode'");
     }
 }
@@ -238,7 +357,7 @@ switch_fps_counter_state(struct sc_input_manager *im) {
 
 static void
 clipboard_paste(struct sc_input_manager *im) {
-    assert(im->controller && im->kp && !im->camera);
+    assert(im->binding.controller && im->binding.kp && !im->camera);
 
     char *text = SDL_GetClipboardText();
     if (!text) {
@@ -261,7 +380,7 @@ clipboard_paste(struct sc_input_manager *im) {
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_INJECT_TEXT;
     msg.inject_text.text = text_dup;
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         free(text_dup);
         LOGW("Could not request 'paste clipboard'");
     }
@@ -269,73 +388,73 @@ clipboard_paste(struct sc_input_manager *im) {
 
 static void
 rotate_device(struct sc_input_manager *im) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_ROTATE_DEVICE;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request device rotation");
     }
 }
 
 static void
 open_hard_keyboard_settings(struct sc_input_manager *im) {
-    assert(im->controller && !im->camera);
+    assert(im->binding.controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_OPEN_HARD_KEYBOARD_SETTINGS;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request opening hard keyboard settings");
     }
 }
 
 static void
 reset_video(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->binding.controller);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_RESET_VIDEO;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request reset video");
     }
 }
 
 static void
 camera_set_torch(struct sc_input_manager *im, bool on) {
-    assert(im->controller && im->camera);
+    assert(im->binding.controller && im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_CAMERA_SET_TORCH;
     msg.camera_set_torch.on = on;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request setting camera torch");
     }
 }
 
 static void
 camera_zoom_in(struct sc_input_manager *im) {
-    assert(im->controller && im->camera);
+    assert(im->binding.controller && im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_CAMERA_ZOOM_IN;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request camera zoom in");
     }
 }
 
 static void
 camera_zoom_out(struct sc_input_manager *im) {
-    assert(im->controller && im->camera);
+    assert(im->binding.controller && im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_CAMERA_ZOOM_OUT;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request camera zoom out");
     }
 }
@@ -349,14 +468,18 @@ apply_orientation_transform(struct sc_input_manager *im,
     sc_screen_set_orientation(screen, new_orientation);
 }
 
+/** Deliver text only through the ready current generation. */
 static void
 sc_input_manager_process_text_input(struct sc_input_manager *im,
                                     const SDL_TextInputEvent *event) {
-    if (im->camera || !im->kp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.kp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
-    if (!im->kp->ops->process_text) {
+    if (!im->binding.kp->ops->process_text) {
         // The key processor does not support text input
         return;
     }
@@ -371,7 +494,7 @@ sc_input_manager_process_text_input(struct sc_input_manager *im,
         .text = event->text,
     };
 
-    im->kp->ops->process_text(im->kp, &evt);
+    im->binding.kp->ops->process_text(im->binding.kp, &evt);
 }
 
 static bool
@@ -390,7 +513,7 @@ simulate_virtual_finger(struct sc_input_manager *im,
     msg.inject_touch_event.action_button = 0;
     msg.inject_touch_event.buttons = 0;
 
-    if (!sc_controller_push_msg(im->controller, &msg)) {
+    if (!sc_controller_push_msg(im->binding.controller, &msg)) {
         LOGW("Could not request 'inject virtual finger event'");
         return false;
     }
@@ -410,6 +533,7 @@ inverse_point(struct sc_point point, struct sc_size size,
     return point;
 }
 
+/** Keep local shortcuts available while withholding all gated device delivery. */
 static void
 sc_input_manager_process_key(struct sc_input_manager *im,
                              const SDL_KeyboardEvent *event) {
@@ -417,10 +541,10 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     // even if control is disabled
 
     // controller is NULL if --no-control is requested
-    bool control = im->controller;
+    bool control = im->binding.controller;
     bool paused = im->screen->paused;
     bool video = im->screen->video;
-    bool disconnected = im->disconnected;
+    bool disconnected = !sc_input_manager_is_ready(im);
 
     SDL_Keycode sdl_keycode = event->key;
     uint16_t mod = event->mod;
@@ -555,28 +679,28 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         if (control && !im->camera) {
             switch (sdl_keycode) {
                 case SDLK_H:
-                    if (im->kp && !shift && !repeat && !paused) {
+                    if (im->binding.kp && !shift && !repeat && !paused) {
                         action_home(im, action);
                     }
                     return;
                 case SDLK_B: // fall-through
                 case SDLK_BACKSPACE:
-                    if (im->kp && !shift && !repeat && !paused) {
+                    if (im->binding.kp && !shift && !repeat && !paused) {
                         action_back(im, action);
                     }
                     return;
                 case SDLK_S:
-                    if (im->kp && !shift && !repeat && !paused) {
+                    if (im->binding.kp && !shift && !repeat && !paused) {
                         action_app_switch(im, action);
                     }
                     return;
                 case SDLK_M:
-                    if (im->kp && !shift && !repeat && !paused) {
+                    if (im->binding.kp && !shift && !repeat && !paused) {
                         action_menu(im, action);
                     }
                     return;
                 case SDLK_P:
-                    if (im->kp && !shift && !repeat && !paused) {
+                    if (im->binding.kp && !shift && !repeat && !paused) {
                         action_power(im, action);
                     }
                     return;
@@ -587,29 +711,29 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     }
                     return;
                 case SDLK_DOWN:
-                    if (im->kp && !shift && !paused) {
+                    if (im->binding.kp && !shift && !paused) {
                         // forward repeated events
                         action_volume_down(im, action);
                     }
                     return;
                 case SDLK_UP:
-                    if (im->kp && !shift && !paused) {
+                    if (im->binding.kp && !shift && !paused) {
                         // forward repeated events
                         action_volume_up(im, action);
                     }
                     return;
                 case SDLK_C:
-                    if (im->kp && !shift && !repeat && down && !paused) {
+                    if (im->binding.kp && !shift && !repeat && down && !paused) {
                         get_device_clipboard(im, SC_COPY_KEY_COPY);
                     }
                     return;
                 case SDLK_X:
-                    if (im->kp && !shift && !repeat && down && !paused) {
+                    if (im->binding.kp && !shift && !repeat && down && !paused) {
                         get_device_clipboard(im, SC_COPY_KEY_CUT);
                     }
                     return;
                 case SDLK_V:
-                    if (im->kp && !repeat && down && !paused) {
+                    if (im->binding.kp && !repeat && down && !paused) {
                         if (shift || im->legacy_paste) {
                             // inject the text as input events
                             clipboard_paste(im);
@@ -638,7 +762,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     return;
                 case SDLK_K:
                     if (!shift && !repeat && down && !paused
-                            && im->kp && im->kp->hid) {
+                            && im->binding.kp && im->binding.kp->hid) {
                         // Only if the current keyboard is hid
                         open_hard_keyboard_settings(im);
                     }
@@ -671,7 +795,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         return;
     }
 
-    if (!im->kp || paused) {
+    if (disconnected || !im->binding.kp || paused) {
         return;
     }
 
@@ -687,7 +811,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         }
 
         // Request an acknowledgement only if necessary
-        uint64_t sequence = im->kp->async_paste ? im->next_sequence
+        uint64_t sequence = im->binding.kp->async_paste ? im->next_sequence
                                                 : SC_SEQUENCE_INVALID;
 
         // Synchronize the computer clipboard to the device clipboard before
@@ -698,7 +822,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
             return;
         }
 
-        if (im->kp->async_paste) {
+        if (im->binding.kp->async_paste) {
             // The key processor must wait for this ack before injecting Ctrl+v
             ack_to_wait = sequence;
             // Increment only when the request succeeded
@@ -724,14 +848,14 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         .mods_state = sc_mods_state_from_sdl(event->mod),
     };
 
-    assert(im->kp->ops->process_key);
-    im->kp->ops->process_key(im->kp, &evt, ack_to_wait);
+    assert(im->binding.kp->ops->process_key);
+    im->binding.kp->ops->process_key(im->binding.kp, &evt, ack_to_wait);
 }
 
 static struct sc_position
 sc_input_manager_get_position(struct sc_input_manager *im, int32_t x,
                                                            int32_t y) {
-    if (im->mp->relative_mode) {
+    if (im->binding.mp->relative_mode) {
         // No absolute position
         return (struct sc_position) {
             .screen_size = {0, 0},
@@ -745,10 +869,14 @@ sc_input_manager_get_position(struct sc_input_manager *im, int32_t x,
     };
 }
 
+/** Route mouse motion only while the current input binding is ready. */
 static void
 sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
                                       const SDL_MouseMotionEvent *event) {
-    if (im->camera || !im->mp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.mp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
@@ -766,14 +894,14 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
         .buttons_state = im->mouse_buttons_state,
     };
 
-    assert(im->mp->ops->process_mouse_motion);
-    im->mp->ops->process_mouse_motion(im->mp, &evt);
+    assert(im->binding.mp->ops->process_mouse_motion);
+    im->binding.mp->ops->process_mouse_motion(im->binding.mp, &evt);
 
     // vfinger must never be used in relative mode
-    assert(!im->mp->relative_mode || !im->vfinger_down);
+    assert(!im->binding.mp->relative_mode || !im->vfinger_down);
 
     if (im->vfinger_down) {
-        assert(!im->mp->relative_mode); // assert one more time
+        assert(!im->binding.mp->relative_mode); // assert one more time
         struct sc_point mouse =
            sc_screen_convert_window_to_frame_coords(im->screen, event->x,
                                                     event->y);
@@ -784,14 +912,18 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
     }
 }
 
+/** Route touch only through a ready mouse endpoint. */
 static void
 sc_input_manager_process_touch(struct sc_input_manager *im,
                                const SDL_TouchFingerEvent *event) {
-    if (im->camera || !im->mp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.mp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
-    if (!im->mp->ops->process_touch) {
+    if (!im->binding.mp->ops->process_touch) {
         // The mouse processor does not support touch events
         return;
     }
@@ -813,7 +945,7 @@ sc_input_manager_process_touch(struct sc_input_manager *im,
         .pressure = event->pressure,
     };
 
-    im->mp->ops->process_touch(im->mp, &evt);
+    im->binding.mp->ops->process_touch(im->binding.mp, &evt);
 }
 
 static enum sc_mouse_binding
@@ -835,13 +967,14 @@ sc_input_manager_get_binding(const struct sc_mouse_binding_set *bindings,
     }
 }
 
+/** Preserve local border resizing independently of remote mouse delivery. */
 static void
 sc_input_manager_process_mouse_button(struct sc_input_manager *im,
                                       const SDL_MouseButtonEvent *event) {
     // some mouse events do not interact with the device, so process the event
     // even if control is disabled
 
-    if (im->camera || im->disconnected) {
+    if (im->camera) {
         return;
     }
 
@@ -850,7 +983,8 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
         return;
     }
 
-    bool control = im->controller;
+    bool ready = sc_input_manager_is_ready(im);
+    bool control = ready && im->binding.controller;
     bool paused = im->screen->paused;
     bool down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
 
@@ -882,17 +1016,17 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
                 // ignore click
                 return;
             case SC_MOUSE_BINDING_BACK:
-                if (im->kp) {
+                if (im->binding.kp) {
                     press_back_or_turn_screen_on(im, action);
                 }
                 return;
             case SC_MOUSE_BINDING_HOME:
-                if (im->kp) {
+                if (im->binding.kp) {
                     action_home(im, action);
                 }
                 return;
             case SC_MOUSE_BINDING_APP_SWITCH:
-                if (im->kp) {
+                if (im->binding.kp) {
                     action_app_switch(im, action);
                 }
                 return;
@@ -913,7 +1047,7 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
 
     // double-click on black borders resizes to fit the device screen
     bool video = im->screen->video;
-    bool mouse_relative_mode = im->mp && im->mp->relative_mode;
+    bool mouse_relative_mode = im->binding.mp && im->binding.mp->relative_mode;
     if (video && !mouse_relative_mode && event->button == SDL_BUTTON_LEFT
             && event->clicks == 2) {
         int32_t x = event->x;
@@ -929,7 +1063,7 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
         }
     }
 
-    if (!im->mp || paused) {
+    if (!ready || !im->binding.mp || paused) {
         return;
     }
 
@@ -952,10 +1086,10 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
         .buttons_state = im->mouse_buttons_state,
     };
 
-    assert(im->mp->ops->process_mouse_click);
-    im->mp->ops->process_mouse_click(im->mp, &evt);
+    assert(im->binding.mp->ops->process_mouse_click);
+    im->binding.mp->ops->process_mouse_click(im->binding.mp, &evt);
 
-    if (im->mp->relative_mode) {
+    if (im->binding.mp->relative_mode) {
         assert(!im->vfinger_down); // vfinger must not be used in relative mode
         // No pinch-to-zoom simulation
         return;
@@ -1008,14 +1142,18 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
     }
 }
 
+/** Mouse-only bindings also support scrolling without a keyboard endpoint. */
 static void
 sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
                                      const SDL_MouseWheelEvent *event) {
-    if (im->camera || !im->kp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.mp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
-    if (!im->mp->ops->process_mouse_scroll) {
+    if (!im->binding.mp->ops->process_mouse_scroll) {
         // The mouse processor does not support scroll events
         return;
     }
@@ -1033,60 +1171,100 @@ sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
         .buttons_state = im->mouse_buttons_state,
     };
 
-    im->mp->ops->process_mouse_scroll(im->mp, &evt);
+    im->binding.mp->ops->process_mouse_scroll(im->binding.mp, &evt);
 }
 
+/** Open each local gamepad once and register it with the current endpoint. */
+static void
+sc_input_manager_open_gamepad(struct sc_input_manager *im, SDL_JoystickID id) {
+    for (struct sc_input_gamepad *gamepad = im->gamepads; gamepad;
+            gamepad = gamepad->next) {
+
+        if (gamepad->id == id) {
+            return;
+        }
+    }
+
+    SDL_Gamepad *handle = SDL_OpenGamepad(id);
+
+    if (!handle) {
+        LOGW("Could not open gamepad");
+        return;
+    }
+
+    struct sc_input_gamepad *gamepad = malloc(sizeof(*gamepad));
+
+    if (!gamepad) {
+        SDL_CloseGamepad(handle);
+        LOG_OOM();
+        return;
+    }
+
+    *gamepad = (struct sc_input_gamepad) {
+        .id = id,
+        .handle = handle,
+        .next = im->gamepads,
+    };
+    im->gamepads = gamepad;
+    struct sc_gamepad_device_event event = {.gamepad_id = id};
+    im->binding.gp->ops->process_gamepad_added(im->binding.gp, &event);
+}
+
+/** Local handle removal remains safe after the remote binding is revoked. */
+static void
+sc_input_manager_close_gamepad(struct sc_input_manager *im, SDL_JoystickID id) {
+    struct sc_input_gamepad **link = &im->gamepads;
+
+    while (*link && (*link)->id != id) {
+        link = &(*link)->next;
+    }
+
+    if (!*link) {
+        return;
+    }
+
+    struct sc_input_gamepad *gamepad = *link;
+    *link = gamepad->next;
+    SDL_CloseGamepad(gamepad->handle);
+    free(gamepad);
+    bool remote = sc_input_manager_is_ready(im) && im->binding.gp;
+
+    if (!remote) {
+        return;
+    }
+
+    struct sc_gamepad_device_event event = {.gamepad_id = id};
+    im->binding.gp->ops->process_gamepad_removed(im->binding.gp, &event);
+}
+
+/** Handle local removals independently and admit additions only when ready. */
 static void
 sc_input_manager_process_gamepad_device(struct sc_input_manager *im,
                                        const SDL_GamepadDeviceEvent *event) {
-    // Handle device added or removed even if paused
 
-    if (im->camera || !im->gp || im->disconnected) {
+    if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
+        sc_input_manager_close_gamepad(im, event->which);
         return;
     }
 
-    if (event->type == SDL_EVENT_GAMEPAD_ADDED) {
-        SDL_Gamepad *sdl_gamepad = SDL_OpenGamepad(event->which);
-        if (!sdl_gamepad) {
-            LOGW("Could not open gamepad");
-            return;
-        }
+    bool can_add = event->type == SDL_EVENT_GAMEPAD_ADDED && !im->camera
+                && im->binding.gp && sc_input_manager_is_ready(im);
 
-        SDL_Joystick *joystick = SDL_GetGamepadJoystick(sdl_gamepad);
-        if (!joystick) {
-            LOGW("Could not get gamepad joystick");
-            SDL_CloseGamepad(sdl_gamepad);
-            return;
-        }
-
-        struct sc_gamepad_device_event evt = {
-            .gamepad_id = SDL_GetJoystickID(joystick),
-        };
-        im->gp->ops->process_gamepad_added(im->gp, &evt);
-    } else if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
-        SDL_JoystickID id = event->which;
-
-        SDL_Gamepad *sdl_gamepad = SDL_GetGamepadFromID(id);
-        if (sdl_gamepad) {
-            SDL_CloseGamepad(sdl_gamepad);
-        } else {
-            LOGW("Unknown gamepad device removed");
-        }
-
-        struct sc_gamepad_device_event evt = {
-            .gamepad_id = id,
-        };
-        im->gp->ops->process_gamepad_removed(im->gp, &evt);
-    } else {
-        // Nothing to do
+    if (!can_add) {
         return;
     }
+
+    sc_input_manager_open_gamepad(im, event->which);
 }
 
+/** Route gamepad axes only through ready generation endpoints. */
 static void
 sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
                                       const SDL_GamepadAxisEvent *event) {
-    if (im->camera || !im->gp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.gp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
@@ -1100,13 +1278,17 @@ sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
         .axis = axis,
         .value = event->value,
     };
-    im->gp->ops->process_gamepad_axis(im->gp, &evt);
+    im->binding.gp->ops->process_gamepad_axis(im->binding.gp, &evt);
 }
 
+/** Route gamepad buttons only through ready generation endpoints. */
 static void
 sc_input_manager_process_gamepad_button(struct sc_input_manager *im,
                                        const SDL_GamepadButtonEvent *event) {
-    if (im->camera || !im->gp || im->screen->paused || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.gp && !im->screen->paused
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
@@ -1120,7 +1302,7 @@ sc_input_manager_process_gamepad_button(struct sc_input_manager *im,
         .action = sc_action_from_sdl_gamepad_button_type(event->type),
         .button = button,
     };
-    im->gp->ops->process_gamepad_button(im->gp, &evt);
+    im->binding.gp->ops->process_gamepad_button(im->binding.gp, &evt);
 }
 
 static bool
@@ -1129,10 +1311,14 @@ is_apk(const char *file) {
     return ext && !strcmp(ext, ".apk");
 }
 
+/** Accepted file work stays owned by the current generation's pusher queue. */
 static void
 sc_input_manager_process_file(struct sc_input_manager *im,
                               const SDL_DropEvent *event) {
-    if (im->camera || !im->controller || im->disconnected) {
+    bool can_forward = !im->camera && im->binding.controller && im->binding.fp
+                    && sc_input_manager_is_ready(im);
+
+    if (!can_forward) {
         return;
     }
 
@@ -1149,15 +1335,16 @@ sc_input_manager_process_file(struct sc_input_manager *im,
     } else {
         action = SC_FILE_PUSHER_ACTION_PUSH_FILE;
     }
-    bool ok = sc_file_pusher_request(im->fp, action, file);
+    bool ok = sc_file_pusher_request(im->binding.fp, action, file);
     if (!ok) {
         free(file);
     }
 }
 
+/** Revoke all endpoints before preserving local disconnection behavior. */
 static void
 sc_input_manager_on_device_disconnected(struct sc_input_manager *im) {
-    im->disconnected = true;
+    sc_input_manager_detach(im);
 
     struct sc_fps_counter *fps_counter = &im->screen->fps_counter;
     if (sc_fps_counter_is_started(fps_counter)) {
@@ -1165,9 +1352,11 @@ sc_input_manager_on_device_disconnected(struct sc_input_manager *im) {
     }
 }
 
+/** Run routing on the SDL main thread, which also owns binding transitions. */
 void
 sc_input_manager_handle_event(struct sc_input_manager *im,
                               const SDL_Event *event) {
+    assert(SDL_IsMainThread());
     switch (event->type) {
         case SDL_EVENT_TEXT_INPUT:
             sc_input_manager_process_text_input(im, &event->text);
