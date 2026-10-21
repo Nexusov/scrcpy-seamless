@@ -783,6 +783,94 @@ generation graph or transport policy is changed. P7.2 remains pending independen
 corrective source review; P7.3–P7.6 and Phase 8 are unstarted. No Desktop DEV
 package or hardware run is authorized by this correction.
 
+## P7.3 implementation contract recorded before production changes
+
+P7.3 is authorized on `2.0/p07-3-generation-graph`, starting at actual P7.2
+merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`. This section records the
+concrete implementation decisions before production edits; validation results
+are recorded separately after execution. P7.4–P7.6 and Phase 8 remain outside
+this checkpoint.
+
+### Owner and stage APIs
+
+`sc_session_create` allocates one stable concrete owner, initializes its bounded
+notification latch and begins the existing dispatcher generation with the typed
+target bundle. `sc_session_start_server` acquires and starts the server;
+`sc_session_start` builds/starts its connected media and control graph.
+`sc_session_request_stop`, `sc_session_join` and `sc_session_destroy` perform
+separate, idempotent retirement stages. Shipping restart orchestration calls
+these same APIs; tests replace only external resource/module boundaries.
+
+The application retains screen/presentation/input-router storage, immutable
+invocation options, dispatcher and its current-owner pointer. The owner retains
+server/channels, controller/receiver, processors and optional ACK/AOA/USB,
+file-pusher, decoders/demuxers, bridges/delay buffers, audio player, recorder,
+deadline and optional V4L2 sink. It borrows the persistent screen only until
+detach and all producer joins. No live aggregate is copied or relocated.
+
+The ledger records successful initialization and successful worker start
+separately; it additionally records stop requested and joins completed. Server,
+controller, file-pusher, recorder, deadline, ACK, USB, AOA and V4L2 releases are
+conditional on actual acquisition. Lazy workers remain module-owned. Decoder
+and delay/audio/V4L2 open/close belong to the existing sink cascades, not a
+second owner-level close. Demux join includes downstream close/rollback; owner
+destruction never repeats it. Failed init retains each module's partial unwind.
+
+### Borrowers, release dependencies and callback scope
+
+| Resource | Borrowers / settlement before release |
+| --- | --- |
+| Server channels | Both demuxers and controller sender/receiver; request server interruption before joining them, destroy server after their joins |
+| Controller / processors / file-pusher | Persistent input binding; detach before stop; receiver publications quiesce before screen ingress destruction |
+| ACK sync | AOA waiter and direct receiver ACK; stop/unblock AOA, stop controller and interrupt channels, join both before ACK destruction |
+| Video bridge / delay / decoder | Synchronous producer graph; demux join settles worker, FIFO metadata/frame calls and downstream close before owner storage release |
+| Audio player / regulator / callback buffer | Decoder push and SDL pull; demux join settles sink close; pinned SDL stream destruction must exclude/complete callback before regulator/buffer free |
+| Recorder | Video/audio packet sink callbacks and its worker; stop, join demux producers, join recorder, then destroy |
+| Deadline / server / controller callback context | Stable owner borrowed by worker until its successful-start join; no queued raw owner pointer |
+| Screen disconnect helper | Application-owned screen/helper, exact-instance notifications and payload cleanup; helper join before screen destruction, independent of generation replacement |
+
+Server connect/failure, demux/controller/recorder/deadline and conditional AOA/
+USB outcomes use `sc_session_notifications`: a fixed-size latch retaining first
+connection notification and first terminal outcome in publication order.
+Duplicate terminal callbacks do not cause another retirement. Publication stores
+the outcome under its own mutex, releases it, then posts an allocation-free
+captured-generation doorbell through the existing dispatcher. No owner pointer
+is queued. Capacity rejection or failed SDL wake cannot erase a critical result.
+Main polls the current owner's latch before blocking and after drain, with a
+named 50 ms maximum SDL event wait to service a failed wake. This is a wake-loss
+fallback, not changed retry/backoff or a promise of responsive synchronous joins.
+Revoke closes latch publication before dispatcher revocation; owner storage
+survives all publisher joins and failed-wakeup destructors.
+
+Worker callbacks only record outcomes. The outer application loop evaluates
+transitions after the non-reentrant dispatcher lease ends, including the turn
+that handled its wakeup. It never revokes, begins or destroys a generation inside
+a callback. Protocol SessionId/ConnectionAttemptId, native generation, stream
+metadata and server scid remain distinct. Server-disconnected remains log-only;
+audio EOS/error/disabled/require-audio precedence and retry selection remain.
+SDL window/quit, launcher Stop and machine Stop/Focus remain application-scoped.
+
+### Lock order and test boundary
+
+No nested notification/dispatcher lock: store or take the latch under its mutex,
+unlock before posting/draining/logging. No SDL, external module call, destructor
+or wait under a ledger/notification/registry lock. Existing ingress and regulator
+locks keep their module contracts. Retirement first detaches input/revokes work,
+then requests stop/unblock, then joins borrowers, then destroys destinations.
+Audio source inspection and an isolated dummy-backend callback gate distinguish
+the actual SDL exclusion guarantee from mocked release-order assertions.
+
+Production-linked owner tests inject failures at module acquisition/start
+boundaries and count exact stop/join/destroy calls, including partial startup,
+sticky stop and no replacement after stop. Notification tests use the real
+dispatcher for stale/revoked/duplicate, full queue and wake failure. ACK tests
+retain the real direct receiver borrow and exercise the shipping retirement
+dependency, retaining a red result before correcting release order. Existing
+frame/delay/receiver/dispatcher tests remain independent regressions. Conditional
+AOA/OTG/V4L2 builds are separately audited; a Windows `usb=false` result cannot
+certify those implementations. No real clipboard, audio device, phone or ADB is
+used in these tests.
+
 ## Historical planning recommendations and later review decisions
 
 The original plan recommended **P7.1 only** first: app-owned dispatcher admission/envelope, captured
