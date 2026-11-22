@@ -1,6 +1,80 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-21: P7.2 is accepted for engineering integration through
+## Autonomous technical completion — current authority
+
+On 2026-11-23 the maintainer authorized continuous technical completion of the
+remaining agreed 2.0 scope, including P7.4–P7.6 and Phases 8–13. Development now
+continues on `2.0/autonomous-completion` from the P7.3 source
+`0f5a165b9700cddb564c4df15ba1e15d59fff737`, which contains the five preserved
+P7.3 commits above integration base `799c5a31a5322815401c5b2a6cb93ac0f688ff24`.
+PR #17, its frozen candidate and its artifacts remain historical reference
+points; they need not be merged before dependent development. Its retained
+successful run `39663494758`, synthetic checkout
+`4986e925f644de5368faa5d08d32285434cda2cb`, validates that candidate only.
+
+This authorization supersedes earlier organizational instructions to stop at
+each checkpoint, await source review, request permission for the next phase or
+require an intermediate hardware smoke before implementation continues. It does
+not change technical dependencies, ownership/safety contracts or historical
+acceptance. Implement, test, independently review applicable risks, correct
+demonstrated findings and commit coherent verified changes before continuing.
+No new phase is complete merely because work on it is authorized. P7.3 is not
+thereby accepted or integrated, and no new runtime inherits old hardware passes.
+
+Normal non-forced pushes are authorized only for this task's work branch, with
+one implementation PR into `seamless-2.0` and auto-merge disabled. Merge, direct
+integration/stable branch writes, force/history rewriting, branch/artifact
+deletion, release tags/public releases and repository-setting changes remain
+outside scope. Physical devices, shared ADB, personal profiles/installation and
+the real clipboard remain isolated from development; synthetic/dummy automation
+is permitted. Joint hardware/manual acceptance and release approval follow
+technical completion. Missing hardware approval is not a development blocker.
+
+### Required outcome matrix
+
+The [accepted target](../../architecture/SEAMLESS_2_TARGET.md),
+[lifetime contract](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md), ordered
+roadmap below and maintainer's autonomous-completion instruction define this
+matrix. Existing foundations are starting points, not proof of final parity.
+Update each row with source-specific results as its remaining work is closed.
+
+| Required 2.0 outcome | Existing implementation | Remaining technical work | Automatic verification | Final joint/manual check |
+| --- | --- | --- | --- | --- |
+| Persistent app/presentation with safely replaceable generations (P7) | P7.1 dispatcher; P7.2 input/frame ingress; P7.3 stable `sc_session`, scoped outcomes, ACK/audio release contracts | P7.4 asynchronous join/retirement with main-thread SDL finalization; P7.5 one coordinator/recovery adapter; P7.6 consolidated parity and resource accounting | Production-linked blocked-worker/event-progress, partial-init/close/failure matrices, stale/duplicate/wake failures, 100 controlled replacements and retained regressions | Final changed-native USB/recovery/Stop media/input/audio observations; no intermediate campaign required |
+| Explicit reconnect and transport policy (P8) | Existing in-process USB→Wi-Fi recovery, typed Core connection plans and ADB boundaries; numeric-zero preflight correction | Application-owned ConnectionManager/TransportResolver, candidates, typed failure/retry/budget/hysteresis/degradation, no competing server policy | Fake transports/clocks, cancellation and sticky Stop at every stage; bounded retries; lost-wake/stale-callback and repeated-resource checks | USB→Wi-Fi and permitted outage/cancellation scenarios on the final RC |
+| Recording, headless and overall deadline parity (P8) | Native recording/no-window/deadline options; canonical numeric syntax | Recording segments across recovery, meaningful headless recovery, one wall-clock deadline including downtime; preserve zero spellings | Production-linked recording/segment collision/partial-close tests, fake-clock deadline including recovery, zero/positive/malformed and incompatible-option matrices | Relevant recording/headless/deadline scenarios on the final RC |
+| Reviewed current stable upstream improvements (P9) | Recorded scrcpy 4.0 fork baseline and selective historical audits | Recheck then-current stable; selectively port applicable security/correctness/codec/protocol/server changes with attribution and justified exclusions | Port-specific regressions, native/server builds, device-protocol C↔Java vectors and malformed/truncated/oversized inputs | Device compatibility of the final selected client/server pair |
+| Canonical configuration/options/protocol foundations (P3–P6, P9) | Typed v2 persistence/migration/drafts; generated options; bounded C/C# IPC and owned machine route | Close only actual 2.0 compatibility gaps; add canonical device-protocol specification/parity; preserve sources of truth through cutover | Locked restore, SpecGen drift/parity, atomic/CAS/recovery migration tests, bidirectional C/C#/C/Java conformance and exact-child process tests | Migration from preserved representative v1 data; final portable startup |
+| Multiple device/session/profile control center (P10) | Devices/Profiles/Settings and one visible session workflow; Core activation/session ownership primitives | Complete concurrent independent session ownership and Sessions presentation, guided setup and loading/error/empty/degraded/cancel states | Isolated multiple-owned-child, activation/root isolation, committed snapshots, Apply/Cancel and UI/headless/E2E scenarios | Two devices/sessions and independent Stop/Focus/close where hardware is available |
+| Agreed product feature and shortcut scope (P10) | Focused three-project UI audit; read-only mirror shortcut reference and control-center shortcut editor | Complete evidence-based feature audit/ADOPT or ADAPT decisions, accepted native shortcut-remapping UI and manual release-check notification; no union of competitor features | Decision-to-test mapping; shortcut scope/conflict/persistence tests; offline/error-safe release-check tests | Accepted shortcut/focus scope and guided workflows; no global-hook/new-platform expansion |
+| English UI with localization/accessibility readiness (P5/P10/P12) | Avalonia compiled bindings, English resources, semantic IDs, themes and bounded layout work | Complete resource coverage and required keyboard/automation/accessibility/DPI/layout behavior | Headless/visual/E2E/pseudo-localized tests, semantic resource/AutomationId checks and available accessibility inspection | Actual screen-reader and multi-monitor DPI checks; automation inspection is not a screen-reader pass |
+| One canonical portable production path (P11) | Device-enabled machine-route DEV composition; legacy launcher/adapters/catalogue/package paths still present | Remove production PowerShell/VBS/private-env/HWND IPC, duplicate catalogue/manual package lists/imported native fallback after replacement parity; normal portable entry | Source/parity/migration checks, no-legacy-dependency assertions, isolated clean no-device startup/package/process tests | Portable use without installed .NET, PowerShell/WSH launcher or developer files |
+| Hardened bounded runtime and diagnostics (P12) | Queue/message bounds, lifecycle projection, exact ownership and partial fault tests | Account for total retained memory; fuzz/property/sanitizer/static/fault/soak/performance checks; redacted bounded diagnostic exporter and aggregate counters | Supported ASan/UBSan/static analysis, parser properties/fuzz corpus, controlled 100-cycle resource/latency evidence, privacy/path/secret and access-boundary tests | Performance/audio/backend observations that require real devices; preserve untested-platform limits |
+| Current dependency security and redistribution obligations (P9/P12) | Pins/locks, reviewed imports, notices and provenance foundations | Review shipped advisories and licenses; fix applicable defects; complete SECURITY/NOTICE/SBOM/provenance and supported attestations | Security review/targeted scans, dependency/lock checks, source/license inventory and redaction/package-content gates | Maintainer review of remaining coverage limitations and distribution notices |
+| Source-identified final RC and technical handoff (P12/P13) | Canonical DEV staging/archive verification and preserved historical packages | Build one final self-contained Windows x64 Desktop/native/source-built server RC from clean final source; align docs/specs/generated output/AGENTS and final acceptance procedure | Final head-specific local and hosted gates; complete hash inventory, ZIP/sidecar, independent extraction, no-device checks against final bytes | One compact final joint acceptance plan; owner acceptance/merge/stable release remain explicitly pending |
+
+The competitive feature matrix is still an unpopulated audit scaffold; it is
+not evidence of additional selected competitor features. Existing product
+requirements above must be implemented, while larger additions require an
+actual supported decision. Embedded mirror, full translations/runtime language
+switching, new official desktop platforms, plugin marketplace, HTTP automation,
+updater, CMake migration and mandatory Native AOT remain outside this 2.0 task.
+The adopted master charter's hash and accepted decisions remain recorded in the
+target document; its original input was not found at the known Downloads path
+or in the repository/work filenames during this recovery. No content is
+invented for that missing historical file; the accepted canonical target and
+the current self-contained authorization remain available. The ADR index has
+no accepted or proposed records to apply at this starting point.
+
+Maintain resumable local state at ignored `work/2.0-autonomous/state.md` with
+current task, branch/HEAD, pending changes, source-specific checks/findings and
+the next concrete action. Do not put raw logs, secrets or device data in Git.
+The initial implementation focus is P7.4's asynchronous retirement boundary;
+the later rows remain open until their production paths and checks are complete.
+
+## Preserved P7.3 and integration status
+
+Recorded status on 2026-10-21: P7.2 is accepted for engineering integration through
 [PR #16](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6322014379),
 actual merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`, ordered parents
 `7dff15837c4c39dd63f8488500d5f5c5c423027e` and

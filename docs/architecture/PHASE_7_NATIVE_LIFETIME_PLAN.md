@@ -1,6 +1,23 @@
 # Phase 7 native application and connection lifetime plan
 
-Status: migration direction approved; P7.1 and P7.2 accepted for engineering
+Current implementation authority (2026-11-23): the autonomous-completion task
+authorizes the remaining technical checkpoints without intermediate approval
+gates. Historical acceptance below remains unchanged; hardware validation,
+integration merges and public release are not implied.
+
+P7.4 implementation contract: reserve one parked, single-slot retirement worker
+before acquiring a generation. Main detaches input, revokes notifications and
+dispatcher binding; the worker then requests module stop, joins borrowers and
+releases worker-owned resources. Main keeps owner/presentation storage alive,
+services SDL events and consumes the completion receipt before SDL-only final
+release or replacement. Final presentation helper joins also belong off main.
+An atomic callback receipt is not thread termination: shutdown/reap requires
+the real SDL thread state to be complete. No timeout authorizes freeing live
+resources. Initialization failure is pre-acquisition and cannot require a
+blocking main-thread cleanup fallback. Tests must hold real join boundaries
+and demonstrate SDL progress, sticky Stop and exact release ordering.
+
+Historical status: migration direction approved; P7.1 and P7.2 accepted for engineering
 integration through PR #15 and PR #16. P7.3 is authorized on its own branch;
 its implementation and fresh validation are recorded below. P7.4–P7.6 and
 Phase 8 remain unstarted and require separate authorization.
