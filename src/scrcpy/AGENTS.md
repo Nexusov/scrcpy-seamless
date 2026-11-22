@@ -50,8 +50,18 @@ P7.3 shipping orchestration uses the stable `app/src/session.h` owner. Detach
 input and close notification admission, revoke, request stop/unblock, join all
 borrowers/publishers, then destroy. In particular join receiver and AOA before
 ACK destruction; decoder/delay sink-close cascades keep their single owner.
-Application presentation/dispatcher/options outlive each owner. Joins remain
-synchronous at this checkpoint. Do not relocate live synchronization storage.
+Application presentation/dispatcher/options outlive each owner. P7.4 reserves
+one parked `session_retirement` worker before graph acquisition. Main prepares
+retirement (input detach, notification/dispatcher revoke); worker requests
+module stop, joins borrowers and releases external destinations. Main consumes
+the release/acquire receipt before notification filtering and owner free.
+Presentation helper joins use the same worker; SDL destruction stays on main.
+Pump only application/window work while input is detached. Preserve an already
+selected terminal failure when a later Quit cancels pending retry. Persistent
+worker shutdown must observe actual SDL_THREAD_COMPLETE before reaping; neither
+a timeout nor cancellation authorizes freeing live storage. The synchronous
+owner APIs remain for direct module tests; normal mirroring uses worker stages.
+Do not relocate live synchronization storage.
 `session_notifications.h` retains at most connected plus first terminal without
 allocation. Its exact application/generation SDL wakes preserve ordinary FIFO
 against Quit; only observed wakes or settled failed wakes may be consumed.

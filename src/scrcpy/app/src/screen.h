@@ -173,6 +173,10 @@ sc_screen_clear_pending_frames(struct sc_screen *screen);
 void
 sc_screen_interrupt(struct sc_screen *screen);
 
+/* Stop all app-owned helpers before asynchronous final presentation join. */
+void
+sc_screen_interrupt_helpers(struct sc_screen *screen);
+
 // join any inner thread
 void
 sc_screen_join(struct sc_screen *screen);

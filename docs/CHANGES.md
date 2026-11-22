@@ -1,5 +1,17 @@
 # Changes from scrcpy 4.0
 
+## Autonomous P7.4 retirement migration
+
+Normal mirroring reserves one bounded persistent retirement worker before any
+generation is acquired. The main thread detaches/revokes, then keeps pumping
+application and window events while the worker signals stop, joins borrowers
+and releases external resources. Notification filtering, owner free and SDL
+presentation destruction remain on main after settlement; presentation helper
+joins also run in the worker. Actual SDL thread completion precedes final reap.
+No timeout frees live state and no replacement overlaps retirement. A late Quit
+cannot rewrite an earlier terminal failure. This is not final Phase 7 or 2.0
+acceptance; later coordinator/reconnect/product/hardening work remains open.
+
 ## Phase 7 P7.3 connection-generation graph
 
 The native application retains presentation/input routing and one current

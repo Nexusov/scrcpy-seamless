@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -168,6 +169,7 @@ enum failure_stage {
     QUIT_BEFORE_READY,
     QUIT_BEFORE_TERMINAL,
     TERMINAL_BEFORE_QUIT,
+    RETIREMENT_MAIN_CALLBACK,
     JOYSTICK_OWNERSHIP,
     DUPLICATE_CONTROLLER_COMPLETION,
 };
@@ -209,6 +211,15 @@ static bool track_owner_allocation;
 static bool fail_latch_mutex;
 static void *tracked_owner;
 static unsigned tracked_owner_releases;
+
+struct retirement_probe {
+    SDL_Semaphore *release;
+    struct sc_dispatcher *dispatcher;
+    atomic_bool join_waiting;
+    unsigned callbacks; // main-thread only
+};
+
+static struct retirement_probe *retirement_probe;
 
 void __real_SDL_free(void *pointer);
 void *__real_calloc(size_t count, size_t size);
@@ -337,10 +348,44 @@ __wrap_sc_server_stop(struct sc_server *server) {
     assert(resources[RESOURCE_SERVER].started);
 }
 
+/** Observe actual main-loop progress while the generation join cannot finish. */
+static void SDLCALL
+test_retirement_main_callback(void *userdata) {
+    struct retirement_probe *probe = userdata;
+    assert(sc_thread_is_main());
+    assert(atomic_load_explicit(&probe->join_waiting, memory_order_acquire));
+    assert(tracked_owner && !tracked_owner_releases);
+    assert(resources[RESOURCE_SERVER].acquired == 1);
+    assert(resources[RESOURCE_SERVER].started == 1);
+    assert(!resources[RESOURCE_SERVER].joined);
+    assert(!resources[RESOURCE_SERVER].destroyed);
+    assert(graph_start_attempts == 1);
+    assert(!probe->dispatcher->generation);
+    ++probe->callbacks;
+
+    // A later user intent must not replace the earlier terminal failure.
+    SDL_Event quit = {.type = SDL_EVENT_QUIT};
+    bool posted = SDL_PushEvent(&quit);
+    assert(posted);
+    SDL_SignalSemaphore(probe->release);
+}
+
 /** Settle the synthetic external worker once, under the shipping owner. */
 void
 __wrap_sc_server_join(struct sc_server *server) {
     (void) server;
+
+    if (current_failure == RETIREMENT_MAIN_CALLBACK) {
+        assert(!sc_thread_is_main());
+        struct retirement_probe *probe = retirement_probe;
+        assert(probe);
+        atomic_store_explicit(&probe->join_waiting, true, memory_order_release);
+        bool queued = SDL_RunOnMainThread(test_retirement_main_callback,
+                                           probe, false);
+        assert(queued);
+        SDL_WaitSemaphore(probe->release);
+    }
+
     record_join(RESOURCE_SERVER);
 }
 
@@ -545,6 +590,11 @@ __wrap_sc_demuxer_start(struct sc_demuxer *demuxer) {
                                demuxer->cbs_userdata);
         SDL_Event quit = {.type = SDL_EVENT_QUIT};
         assert(SDL_PushEvent(&quit));
+    }
+
+    if (current_failure == RETIREMENT_MAIN_CALLBACK) {
+        demuxer->cbs->on_ended(demuxer, SC_DEMUXER_STATUS_ERROR,
+                               demuxer->cbs_userdata);
     }
     return true;
 }
@@ -941,7 +991,15 @@ test_application_outcome_order(enum failure_stage order) {
     struct sc_dispatcher dispatcher;
     assert(sc_dispatcher_init(&dispatcher, SC_EVENT_DISPATCHER_WAKEUP,
                                NULL, NULL));
-    enum scrcpy_exit_code expected = order == TERMINAL_BEFORE_QUIT
+    bool terminal_failure = order == TERMINAL_BEFORE_QUIT ||
+                            order == RETIREMENT_MAIN_CALLBACK;
+
+    if (order == RETIREMENT_MAIN_CALLBACK) {
+        assert(retirement_probe);
+        retirement_probe->dispatcher = &dispatcher;
+    }
+
+    enum scrcpy_exit_code expected = terminal_failure
         ? SCRCPY_EXIT_FAILURE : SCRCPY_EXIT_SUCCESS;
     assert(scrcpy(&options, &dispatcher) == expected);
 
@@ -955,6 +1013,29 @@ test_application_outcome_order(enum failure_stage order) {
     }
     test_destroy_dispatcher(&dispatcher);
     SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
+}
+
+/** Exercise the shipping retirement pump and owner lifetime, not a copied loop. */
+static void
+test_application_retirement_progress(void) {
+    struct retirement_probe probe = {
+        .release = SDL_CreateSemaphore(0),
+    };
+    assert(probe.release);
+    atomic_init(&probe.join_waiting, false);
+    retirement_probe = &probe;
+    tracked_owner_releases = 0;
+    track_owner_allocation = true;
+
+    // The dispatcher is stack-backed inside the shared shipping-path fixture;
+    // its lifetime covers the callback and the completed retirement worker.
+    test_application_outcome_order(RETIREMENT_MAIN_CALLBACK);
+    assert(probe.callbacks == 1);
+    assert(!tracked_owner && tracked_owner_releases == 1);
+    assert(resources[RESOURCE_SERVER].joined == 1);
+    assert(resources[RESOURCE_SERVER].destroyed == 1);
+    retirement_probe = NULL;
+    SDL_DestroySemaphore(probe.release);
 }
 
 /** Verify allocation, latch rollback and rejection of a second current owner. */
@@ -1031,6 +1112,8 @@ main(int argument_count, char **arguments) {
             test_failure_stage(JOYSTICK_OWNERSHIP);
         } else if (!strcmp(arguments[1], "--create-failures")) {
             test_create_failures();
+        } else if (!strcmp(arguments[1], "--retirement-main-progress")) {
+            test_application_retirement_progress();
         } else {
             enum failure_stage order = !strcmp(arguments[1], "--quit-before-ready")
                 ? QUIT_BEFORE_READY : QUIT_BEFORE_TERMINAL;
@@ -1061,11 +1144,12 @@ main(int argument_count, char **arguments) {
     test_application_outcome_order(QUIT_BEFORE_READY);
     test_application_outcome_order(QUIT_BEFORE_TERMINAL);
     test_application_outcome_order(TERMINAL_BEFORE_QUIT);
+    test_application_retirement_progress();
     test_application_startup_stop(STOP_BEFORE_CREATE);
     test_application_startup_stop(FAIL_CONTROLLER_START_AND_STOP);
     test_create_failures();
     SDL_Quit();
     printf("Session lifetime: %zu production-owner stage cases passed\n",
-           ARRAY_LEN(cases) + 8);
+           ARRAY_LEN(cases) + 9);
     return 0;
 }

@@ -782,6 +782,12 @@ sc_screen_join(struct sc_screen *screen) {
 }
 
 void
+sc_screen_interrupt_helpers(struct sc_screen *screen) {
+    sc_screen_interrupt(screen);
+    sc_screen_interrupt_disconnect(screen);
+}
+
+void
 sc_screen_destroy(struct sc_screen *screen) {
 #ifdef CONTINUOUS_RESIZING_WORKAROUND
     if (screen->event_watch_installed) {

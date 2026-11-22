@@ -39,10 +39,17 @@ sc_session_handle_event(struct sc_session *session, const SDL_Event *event,
                         uint32_t *outcome);
 
 void
+sc_session_prepare_retirement(struct sc_session *session);
+
+void
 sc_session_request_stop(struct sc_session *session);
 
 void
 sc_session_join(struct sc_session *session);
+
+/* After join, release external resources off main; keep notification storage. */
+void
+sc_session_release_resources(struct sc_session *session);
 
 void
 sc_session_destroy(struct sc_session *session);

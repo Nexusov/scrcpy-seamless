@@ -34,6 +34,7 @@ src = [
     'src/recorder.c',
     'src/scrcpy.c',
     'src/session.c',
+    'src/session_retirement.c',
     'src/session_notifications.c',
     'src/screen.c',
     'src/sdl_hints.c',
@@ -421,6 +422,16 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    retirement_test = executable('test_session_retirement', [
+        'tests/test_session_retirement.c', 'src/session_retirement.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=sc_mutex_init', '-Wl,--wrap=sc_mutex_destroy',
+                   '-Wl,--wrap=sc_cond_init', '-Wl,--wrap=sc_cond_destroy',
+                   '-Wl,--wrap=sc_thread_create', '-Wl,--wrap=sc_thread_join'])
+    test('test_session_retirement', retirement_test)
 
     # Exercise actual SDL dummy callback exclusion and production open unwind.
     timeout_lifetime_test = executable('test_timeout_lifetime', [

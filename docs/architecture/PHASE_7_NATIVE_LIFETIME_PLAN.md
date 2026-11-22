@@ -17,6 +17,19 @@ resources. Initialization failure is pre-acquisition and cannot require a
 blocking main-thread cleanup fallback. Tests must hold real join boundaries
 and demonstrate SDL progress, sticky Stop and exact release ordering.
 
+The first autonomous retirement change executes this path in shipping
+`scrcpy()`. Fresh default debug checks passed 34/34, and the separate Windows
+USB-enabled checks passed 36/36. The production-linked composition gate holds
+server join on the worker while a real SDL main callback observes the still-live
+owner and revoked dispatcher before releasing settlement. The old orchestration
+linked against the compatible extended fixture fails its main-thread join
+assertion; this is an isolated old-orchestration experiment, not a pristine
+historical full build or hardware failure. A separate actual regression red
+showed late Quit masking an earlier terminal failure; the corrected path keeps
+that failure while cancelling a pending retry. The worker's 100 controlled jobs
+are not P7.6's required 100 complete generation replacements. Source review,+conditional builds and synthetic tests do not establish physical backend or
+complete lifetime certification; coordinator/consolidated matrices remain work.
+
 Historical status: migration direction approved; P7.1 and P7.2 accepted for engineering
 integration through PR #15 and PR #16. P7.3 is authorized on its own branch;
 its implementation and fresh validation are recorded below. P7.4–P7.6 and

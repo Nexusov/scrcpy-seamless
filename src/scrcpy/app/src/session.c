@@ -131,6 +131,8 @@ struct sc_session {
     bool v4l2_sink_initialized;
 #endif
     bool stop_requested;
+    bool stop_signalled;
+    bool resources_released;
     bool joined;
     bool startup_interrupted;
 };
@@ -746,13 +748,14 @@ sc_session_start(struct sc_session *session) {
     return true;
 }
 
-/** Detach and close admission before interrupting any borrowed destination. */
+/** Main closes borrowing before a worker interrupts external destinations. */
 void
-sc_session_request_stop(struct sc_session *session) {
+sc_session_prepare_retirement(struct sc_session *session) {
 
     if (session->stop_requested) {
         return;
     }
+    assert(sc_thread_is_main());
     session->stop_requested = true;
 
     if (session->screen_attached) {
@@ -762,6 +765,17 @@ sc_session_request_stop(struct sc_session *session) {
     bool revoked = sc_dispatcher_generation_revoke(session->dispatcher, session->generation);
     assert(revoked);
     (void) revoked;
+}
+
+/** Preserve the synchronous API while allowing prepared worker-side stop. */
+void
+sc_session_request_stop(struct sc_session *session) {
+    sc_session_prepare_retirement(session);
+
+    if (session->stop_signalled) {
+        return;
+    }
+    session->stop_signalled = true;
 
     if (session->timeout_started) {
         sc_timeout_stop(&session->timeout);
@@ -796,7 +810,7 @@ sc_session_request_stop(struct sc_session *session) {
 /** Join every publisher and borrower before freeing any generation context. */
 void
 sc_session_join(struct sc_session *session) {
-    assert(session->stop_requested);
+    assert(session->stop_requested && session->stop_signalled);
 
     if (session->joined) {
         return;
@@ -842,10 +856,14 @@ sc_session_join(struct sc_session *session) {
     LOGD("Session generation=%" PRIu64_ " joined", session->generation);
 }
 
-/** Release acquired stages after every callback and lazy worker has settled. */
+/** Release external destinations only after all borrowers have joined. */
 void
-sc_session_destroy(struct sc_session *session) {
+sc_session_release_resources(struct sc_session *session) {
     assert(session->stop_requested && session->joined);
+
+    if (session->resources_released) {
+        return;
+    }
 #ifdef HAVE_V4L2
     if (session->v4l2_sink_initialized) {
         sc_v4l2_sink_destroy(&session->v4l2_sink);
@@ -899,6 +917,14 @@ sc_session_destroy(struct sc_session *session) {
     if (session->server_initialized) {
         sc_server_destroy(&session->server);
     }
+    session->resources_released = true;
+}
+
+/** Main filters scoped wakes only after worker resource settlement. */
+void
+sc_session_destroy(struct sc_session *session) {
+    assert(sc_thread_is_main());
+    sc_session_release_resources(session);
     sc_session_notifications_destroy(&session->notifications);
     LOGD("Session generation=%" PRIu64_ " destroyed", session->generation);
     free(session);

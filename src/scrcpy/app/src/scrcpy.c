@@ -26,11 +26,15 @@
 #include "util/log.h"
 #include "util/rand.h"
 #include "session.h"
+#include "session_retirement.h"
 
 /* Persistent presentation and one stable, sequentially retired generation. */
 struct scrcpy {
     struct sc_screen screen;
     struct sc_session *current;
+    struct sc_session_retirement retirement;
+    bool stopped;
+    bool retirement_quit_is_terminal;
 };
 
 #ifdef _WIN32
@@ -60,6 +64,100 @@ sc_machine_observe_quit(Uint32 event_type) {
     }
 }
 #endif // _WIN32
+
+/** Keep only application/window work live while destinations are detached. */
+static void
+sc_retirement_pump(struct scrcpy *s, bool has_screen,
+                   struct sc_dispatcher *dispatcher) {
+#ifdef _WIN32
+    if (sc_machine_is_active() && sc_machine_stop_requested()) {
+        s->stopped = true;
+    }
+#endif
+    SDL_Event event;
+
+    if (!SDL_WaitEventTimeout(&event, SC_SESSION_EVENT_WAIT_MS)) {
+        return;
+    }
+
+    if (sc_dispatcher_handle_event(dispatcher, &event)) {
+        return;
+    }
+
+    if (event.type == SDL_EVENT_QUIT ||
+            (has_screen && event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+             event.window.windowID == SDL_GetWindowID(s->screen.window))) {
+        s->stopped = true;
+#ifdef _WIN32
+        if (s->retirement_quit_is_terminal) {
+            sc_machine_observe_quit(SDL_EVENT_QUIT);
+        }
+#endif
+        return;
+    }
+
+    if (!has_screen) {
+        return;
+    }
+
+    switch (event.type) {
+        case SDL_EVENT_WINDOW_EXPOSED:
+        case SDL_EVENT_WINDOW_RESIZED:
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+        case SDL_EVENT_WINDOW_RESTORED:
+            sc_screen_handle_event(&s->screen, &event);
+            break;
+        default:
+            break;
+    }
+}
+
+/** No SDL presentation teardown or replacement is allowed in this worker. */
+static void
+sc_retire_generation(void *userdata) {
+    struct scrcpy *s = userdata;
+    sc_session_request_stop(s->current);
+    sc_session_join(s->current);
+    sc_session_release_resources(s->current);
+
+}
+
+static void
+sc_join_presentation(void *userdata) {
+    sc_screen_join(userdata);
+}
+
+/** Preserve presentation until its application-owned helpers actually join. */
+static void
+sc_retire_presentation(struct scrcpy *s, struct sc_dispatcher *dispatcher) {
+    sc_screen_interrupt_helpers(&s->screen);
+    bool accepted = sc_session_retirement_request(&s->retirement,
+                                                  sc_join_presentation,
+                                                  &s->screen);
+    assert(accepted);
+    (void) accepted;
+
+    while (!sc_session_retirement_take_completed(&s->retirement)) {
+        sc_retirement_pump(s, true, dispatcher);
+    }
+}
+
+/** Borrow stable application/owner storage until the worker releases it. */
+static void
+sc_retire_current(struct scrcpy *s, bool has_screen,
+                   struct sc_dispatcher *dispatcher) {
+    sc_session_prepare_retirement(s->current);
+    bool accepted = sc_session_retirement_request(&s->retirement,
+                                                  sc_retire_generation, s);
+    assert(accepted);
+    (void) accepted;
+
+    while (!sc_session_retirement_take_completed(&s->retirement)) {
+        sc_retirement_pump(s, has_screen, dispatcher);
+    }
+    sc_session_destroy(s->current);
+    s->current = NULL;
+}
 
 /** Service application wakeups without changing legacy session exit policy. */
 static enum scrcpy_exit_code
@@ -197,6 +295,11 @@ sc_wait_reconnect(struct sc_screen *screen, struct sc_dispatcher *dispatcher) {
     SDL_Event event;
 
     while (SDL_GetTicks() < deadline) {
+#ifdef _WIN32
+        if (sc_machine_is_active() && sc_machine_stop_requested()) {
+            return false;
+        }
+#endif
         if (!SDL_WaitEventTimeout(&event, event_poll_ms)) {
             continue;
         }
@@ -253,6 +356,12 @@ scrcpy(struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     }
     bool screen_initialized = false;
     bool retrying = false;
+    s->stopped = false;
+    s->retirement_quit_is_terminal = false;
+
+    if (!sc_session_retirement_init(&s->retirement)) {
+        return SCRCPY_EXIT_FAILURE;
+    }
 #ifdef _WIN32
     char machine_attempt_id[37] = {0};
 #endif
@@ -464,7 +573,8 @@ end:
     if (retry_session && screen_initialized) {
         sc_screen_prepare_reconnect(&s->screen);
     }
-    sc_session_request_stop(s->current);
+    s->retirement_quit_is_terminal = retry_session;
+    sc_session_prepare_retirement(s->current);
 
     if (screen_initialized && !retry_session) {
         sc_screen_interrupt(&s->screen);
@@ -475,9 +585,13 @@ end:
         }
         sc_screen_hide_window(&s->screen);
     }
-    sc_session_join(s->current);
-    sc_session_destroy(s->current);
-    s->current = NULL;
+    sc_retire_current(s, screen_initialized, dispatcher);
+
+    if (s->stopped && retry_session) {
+        retry_session = false;
+        ret = SCRCPY_EXIT_SUCCESS;
+    }
+    s->retirement_quit_is_terminal = false;
 
 finish_screen:
     if (screen_initialized && !retry_session) {
@@ -485,7 +599,7 @@ finish_screen:
         if (!screen_interrupted) {
             sc_screen_interrupt(&s->screen);
         }
-        sc_screen_join(&s->screen);
+        sc_retire_presentation(s, dispatcher);
 #ifdef _WIN32
         sc_machine_set_window(NULL);
 #endif
@@ -506,7 +620,7 @@ finish_screen:
 
         if (screen_initialized) {
             sc_screen_interrupt(&s->screen);
-            sc_screen_join(&s->screen);
+            sc_retire_presentation(s, dispatcher);
 #ifdef _WIN32
             sc_machine_set_window(NULL);
 #endif
@@ -515,5 +629,15 @@ finish_screen:
         ret = SCRCPY_EXIT_SUCCESS;
     }
 
+    bool shutdown = sc_session_retirement_request_shutdown(&s->retirement);
+    assert(shutdown);
+    (void) shutdown;
+
+    while (!sc_session_retirement_is_stopped(&s->retirement)) {
+        sc_retirement_pump(s, false, dispatcher);
+    }
+    bool destroyed = sc_session_retirement_destroy(&s->retirement);
+    assert(destroyed);
+    (void) destroyed;
     return ret;
 }
