@@ -351,6 +351,11 @@ public class CameraCapture extends SurfaceCapture {
     public void stop() {
         cameraHandler.post(() -> {
             assertCameraThread();
+            Exception stopFailure = CameraRequestStop.stop(currentSession == null ? null : currentSession::stopRepeating);
+
+            if (stopFailure != null) {
+                Ln.d("Could not stop repeating capture request: " + stopFailure.getMessage());
+            }
             currentSession = null;
             requestBuilder = null;
             started = false;
