@@ -135,3 +135,26 @@ cases, normalized key modifiers, modifier release, unknown-scancode rejection
 and pre-presentation/detached blocking, alongside its earlier input routes.
 Synthetic SDL/input traits establish no physical keyboard-layout, clipboard,
 UHID/AOA or platform-backend pass.
+
+## Playback capture mixing-rule correction — 2026-11-23
+
+Adapted upstream [8b05a6163c789f27da0ced27bec466f12f813b2e](https://github.com/Genymobile/scrcpy/commit/8b05a6163c789f27da0ced27bec466f12f813b2e)
+and [e71cdb8782f524d8ec4deaa1b1e4930c728acab0](https://github.com/Genymobile/scrcpy/commit/e71cdb8782f524d8ec4deaa1b1e4930c728acab0)
+from `server/src/main/java/com/genymobile/scrcpy/audio/AudioPlaybackCapture.java`.
+Original project: Genymobile/scrcpy; author zkyang (GitHub Jayatubi), committer
+Romain Vimont; Apache-2.0. Notices and dependency versions are retained.
+
+The voice-capture allowance is now applied before the immutable rule is built,
+and matching includes the upstream's thirteen usages, including GAME. The
+existing reflection sequence is extracted into the package-private
+`AudioPlaybackRule` helper; capture still constructs Android attributes and
+handles reflection errors through its existing exception path. No capture
+permission, route, audio lifetime or reconnect policy is changed.
+
+The retained two-test red uses that extracted production sequence with the old
+MEDIA-only/late-voice behavior, not an unmodified historical full build. Actual
+Gradle/JUnit discovery reports both semantic assertions failing before the fix.
+The corrected production helper is tested against an immutable controlled rule
+builder, all thirteen distinct usages and unavailable-method propagation. JVM
+reflection/order evidence is separate from Android service behavior, audible
+readiness and physical-device compatibility; none is claimed by these tests.
