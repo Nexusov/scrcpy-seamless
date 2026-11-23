@@ -707,14 +707,17 @@ enum recording_failure {
     RECORDING_VIDEO_PACKET_FAILURE,
     RECORDING_AVIO_FAILURE,
     RECORDING_FILE_CLOSE_FAILURE,
+    RECORDING_LAST_VIDEO_FAILURE,
 };
 
 /** Preserve real refs and output ownership on every bounded output error path. */
 static void
 test_recording_failure(enum recording_failure failure) {
     bool video = failure == RECORDING_AUDIO_PACKET_FAILURE
-        || failure == RECORDING_VIDEO_PACKET_FAILURE;
-    bool audio = failure != RECORDING_VIDEO_PACKET_FAILURE;
+        || failure == RECORDING_VIDEO_PACKET_FAILURE
+        || failure == RECORDING_LAST_VIDEO_FAILURE;
+    bool audio = failure != RECORDING_VIDEO_PACKET_FAILURE
+        && failure != RECORDING_LAST_VIDEO_FAILURE;
     char filename[48];
     int length = snprintf(filename, sizeof(filename), "failure-%u.mkv", failure);
     assert(length > 0 && (size_t) length < sizeof(filename));
@@ -729,7 +732,8 @@ test_recording_failure(enum recording_failure failure) {
     gate_header = true;
     fail_header_write = failure == RECORDING_HEADER_FAILURE;
     fail_audio_write = failure == RECORDING_AUDIO_PACKET_FAILURE;
-    fail_video_write = failure == RECORDING_VIDEO_PACKET_FAILURE;
+    fail_video_write = failure == RECORDING_VIDEO_PACKET_FAILURE
+        || failure == RECORDING_LAST_VIDEO_FAILURE;
     fail_output_write = failure == RECORDING_AVIO_FAILURE;
     fail_file_close = failure == RECORDING_FILE_CLOSE_FAILURE;
     unsigned buffer_baseline = freed_buffers;
@@ -776,7 +780,7 @@ test_recording_failure(enum recording_failure failure) {
         av_packet_free(&frame);
         ++packet_count;
 
-        if (!audio) {
+        if (!audio && failure != RECORDING_LAST_VIDEO_FAILURE) {
             frame = test_video_packet(false);
             frame->pts = 20000;
             frame->dts = frame->pts;
@@ -1108,7 +1112,9 @@ main(int argument_count, char **arguments) {
     assert(!mkdir(directory, 0700));
     assert(!chdir(directory));
 #endif
-    if (argument_count == 2 && !strcmp(arguments[1], "--late-candidate")) {
+    if (argument_count == 2 && !strcmp(arguments[1], "--last-video-packet")) {
+        test_recording_failure(RECORDING_LAST_VIDEO_FAILURE);
+    } else if (argument_count == 2 && !strcmp(arguments[1], "--late-candidate")) {
         test_late_candidate_result(true);
         test_late_candidate_result(false);
     } else if (argument_count == 2 && !strcmp(arguments[1], "--limits")) {
@@ -1133,7 +1139,7 @@ main(int argument_count, char **arguments) {
         test_optional_audio_readiness();
 
         for (enum recording_failure failure = RECORDING_HEADER_FAILURE;
-                failure <= RECORDING_FILE_CLOSE_FAILURE; ++failure) {
+                failure <= RECORDING_LAST_VIDEO_FAILURE; ++failure) {
             test_recording_failure(failure);
         }
         test_cancel_before_media(false);

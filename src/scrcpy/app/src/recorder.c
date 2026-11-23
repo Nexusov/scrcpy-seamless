@@ -768,10 +768,8 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
         video_pkt_previous->duration = 100000;
         bool ok = sc_recorder_write_video(recorder, video_pkt_previous);
         if (!ok) {
-            // failing to write the last frame is not very serious, no
-            // future frame may depend on it, so the resulting file
-            // will still be valid
-            LOGW("Could not record last packet");
+            LOGE("Could not record last video packet");
+            error = true;
         }
         sc_recorder_packet_free(recorder, &video_pkt_previous, previous_charge);
     }
