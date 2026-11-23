@@ -9,6 +9,20 @@ adds device operations only for `--dev-data-dir=<absolute>` together with
 `--device-runtime=<absolute>`. Preview still constructs no persistent, ADB,
 activation or native adapters.
 
+## Explicit release metadata boundary
+
+`IReleaseChecker` takes the actual current product SemVer and an explicit
+Stable/Prerelease channel. Constructing its GitHub adapter performs no request;
+only an explicit manual call reads the fixed official repository endpoint.
+There is no installer, startup poll, redirect, remote HTML display or automatic
+retry. The adapter owns and disposes request, response, body and cancellation
+timer; one call is bounded to ten seconds, 256 KiB, 30 entries and JSON depth 32.
+Returned links are constructed under the official release-tag URL after
+validation, rather than trusting remote `html_url`. NoNewerRelease describes
+the checked 30-entry window, not an exhaustive release-history search. The
+initial Core/Infrastructure implementation has controlled HTTP/time tests;
+its Desktop command must remain explicitly user initiated when composed.
+
 ## Storage and authority
 
 `ApplicationDataPaths.Resolve` takes explicit roots. Portable mode stores
