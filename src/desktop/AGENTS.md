@@ -13,6 +13,12 @@ adjacent package runtime. Installed mode also uses that runtime; DEV keeps its
 explicit opt-in runtime selection and isolated root. Preview never resolves
 persistent adapters. Do not search the working directory/PATH for a runtime or
 substitute the legacy host when the machine bundle is missing/incompatible.
+Normal startup waits asynchronously for activation, runtime validation and the
+initial configuration read before handing ownership to the visible shell. Keep
+the waiting startup window cancellable. Normal close settles activation and
+the explicit release check before disposing their adapters. The Diagnostics
+release command must remain manual. Historical managed launcher adapters are
+test fixtures only.
 
 Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds the
 owned `MachineNativeHost` and typed Core interactive-session observations.

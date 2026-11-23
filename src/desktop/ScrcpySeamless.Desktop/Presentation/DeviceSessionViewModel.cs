@@ -89,7 +89,6 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
     public string HostModeStatus => text.Get(host switch
     {
         MachineNativeHost => "devices.machine.hostMachine",
-        LegacyNativeHost => "devices.machine.hostLegacy",
         null => "devices.machine.hostUnavailable",
         _ => "devices.machine.hostSynthetic",
     });
@@ -274,13 +273,8 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
 
             }
 
-            ProcessId = started switch
-            {
-                MachineNativeSession machine => machine.ProcessId,
-                LegacyNativeSession legacy => legacy.ProcessId,
-                _ => null,
-            };
-            WindowHandle = (started as LegacyNativeSession)?.MainWindowHandle ?? nint.Zero;
+            ProcessId = (started as MachineNativeSession)?.ProcessId;
+            WindowHandle = nint.Zero;
             ChannelEvidence = text.Get("devices.machine.channelsUnknown");
             VideoEvidence = AudioEvidence = ControlEvidence = text.Get("channels.unknown");
             FocusStatus = string.Empty;

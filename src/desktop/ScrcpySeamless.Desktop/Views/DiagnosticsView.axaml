@@ -1,12 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             xmlns:views="using:ScrcpySeamless.Desktop.Views"
              x:Class="ScrcpySeamless.Desktop.Views.DiagnosticsView"
              x:DataType="vm:DiagnosticsWorkspaceViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="{DynamicResource PageInset}" Spacing="{DynamicResource SectionGap}">
       <TextBlock Classes="pageTitle" Text="{Binding Title}" />
       <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap" />
+      <Border IsVisible="{Binding HasReleaseChecks}">
+        <views:ReleaseCheckView DataContext="{Binding Releases}" />
+      </Border>
       <Button Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}" HorizontalAlignment="Left"
               AutomationProperties.AutomationId="diagnostics.refresh" />
       <ItemsControl ItemsSource="{Binding Rows}">

@@ -20,8 +20,11 @@ timer; one call is bounded to ten seconds, 256 KiB, 30 entries and JSON depth 32
 Returned links are constructed under the official release-tag URL after
 validation, rather than trusting remote `html_url`. NoNewerRelease describes
 the checked 30-entry window, not an exhaustive release-history search. The
-initial Core/Infrastructure implementation has controlled HTTP/time tests;
-its Desktop command must remain explicitly user initiated when composed.
+Diagnostics exposes Check, Cancel and the release channel. It compares the
+Desktop assembly's informational SemVer and opens a verified release link only
+on a separate click. Normal close cancels and joins outstanding checks and link
+operations before disposing the adapter. Controlled HTTP/time tests and headless
+UI tests cover these paths.
 
 ## Storage and authority
 
@@ -30,8 +33,8 @@ its Desktop command must remain explicitly user initiated when composed.
 `%LOCALAPPDATA%/scrcpy-seamless/`. The path resolver does not probe for a
 `portable.flag`; callers select a mode explicitly. Tests use synthetic roots
 and isolated temporary directories, never the owner's portable installation.
-Desktop normal startup requires exactly one of `--portable`, `--installed`, or
-`--dev-data-dir=<absolute directory>`. The development override uses its exact
+Desktop normal startup defaults to portable. An explicit `--installed` or
+`--dev-data-dir=<absolute directory>` selects a different root. The development override uses its exact
 directory without appending `data`. Paths derive from the executable directory
 or an explicit selected root, never the current working directory. A missing
 document stays absent until Apply. Malformed or ambiguous launch arguments are
@@ -82,9 +85,10 @@ does not change the independently reported ADB authorization state or select a
 row on the user's behalf. Multiple USB devices without explicit devpaths can
 remain Unknown when ADB cannot select a unique USB transport.
 
-For a Phase 6C explicit device runtime, normal Desktop preflight additionally
-requires a machine-contract claim compatible with the current protocol and
-required capabilities. A hash-valid older DEV runtime without that claim is
+Portable and installed startup validate the adjacent runtime using
+`runtime/runtime-manifest.json`. Explicit DEV runtime selection uses
+`runtime-dev-manifest.json`. Both require a compatible machine claim and
+hashes for each runtime component. A hash-valid older DEV runtime without that claim is
 reported as incompatible while Settings and stored configuration stay available.
 No legacy child is launched as an automatic fallback. An explicit Mirror
 still negotiates the actual child; preflight metadata alone is not proof of
@@ -95,21 +99,19 @@ ADB transport and no pending profile/mirroring edits. It rereads the committed
 v2 document and checks its byte revision against the loaded editor before
 building an immutable native request. A selected Wi-Fi endpoint that differs
 from the saved profile blocks launch until the profile is explicitly updated.
-Unknown/managed options and currently
-unsupported legacy reconnect combinations block execution without deleting
-their stored values. Appearance edits do not block Mirror. One active mirror
-is permitted per control center. Process existence reports only process
-evidence; video, audio and control remain unverified until hardware observation.
-For a selected USB transport, the legacy reconnect target is exported only
-when the saved profile permits fallback and the connection plan includes a
-network candidate with a saved endpoint. A selected network transport may
+Unknown or unsupported options block execution and retain their stored values.
+Appearance edits do not block Mirror. The control center can own up to eight
+session entries and reserves at most one live session per profile until cleanup
+settles. Observed video presentation, audio and control have independent states.
+For a selected USB transport, the machine launch plan includes a network
+candidate only when the committed profile permits fallback. A selected network transport may
 retry its own saved endpoint even when cross-transport fallback is disabled.
 Reconnect-specific option restrictions apply only when a reconnect target is
 actually enabled; an unused saved endpoint does not block USB recording.
 
-The compatibility adapter owns only its native child, stop event and bounded
-sanitized lifecycle JSONL in the selected DEV data root. It does not stop the
-shared ADB daemon or replace the native client's existing in-process reconnect.
+The machine adapter owns its exact native child, bounded lifecycle stream and
+command channel. A shared ADB server remains outside that ownership. The old
+named-event adapter is held by the historical test fixtures.
 Same-user normal Desktop activation is scoped to the selected data root;
 preview creates no activation endpoint. Accepted exit decisions cancel/settle
 live work and stop the owned child. Superseded Pair/Connect operations remain

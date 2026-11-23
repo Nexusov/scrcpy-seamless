@@ -424,6 +424,41 @@ public sealed class NormalCompositionTests
         Assert.False(File.Exists(composition.DataPaths.DesktopPreferencesFile));
     }
 
+    [AvaloniaFact]
+    public async Task IdleWindowCloseWaitsForTheOwnedApplicationSettlementOnce()
+    {
+        using TemporaryDataRoot root = new();
+        NormalDesktopComposition composition = Create(root.Path);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        await composition.InitializeAsync(cancellationToken);
+        MainWindow window = new(composition.Shell);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        window.AttachNormalComposition(composition, () =>
+        {
+            calls++;
+            return release.Task;
+        });
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Show();
+
+        try
+        {
+            window.Close();
+            window.Close();
+            Assert.True(window.IsVisible);
+            Assert.Equal(1, calls);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+        }
+
+        Assert.False(window.IsVisible);
+    }
+
     /// <summary>Repeated close requests share one pending confirmation and leave the editor intact.</summary>
     [AvaloniaFact]
     public async Task RepeatedCloseRequestsDoNotStackConfirmations()

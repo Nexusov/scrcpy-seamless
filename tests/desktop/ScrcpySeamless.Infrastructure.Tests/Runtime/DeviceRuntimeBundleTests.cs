@@ -24,12 +24,44 @@ public sealed class DeviceRuntimeBundleTests
     {
         using SyntheticBundle fixture = new();
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.Ready, result.Status);
         Assert.Equal(Path.Combine(fixture.Directory, "scrcpy.exe"), result.Bundle!.NativeExecutablePath);
         Assert.Equal(Path.Combine(fixture.Directory, "scrcpy-server"), result.Bundle.ServerPath);
         Assert.Equal(Path.Combine(fixture.Directory, "adb.exe"), result.Bundle.AdbExecutablePath);
+    }
+
+    [Fact]
+    public void ProductValidationRequiresTheCanonicalManifest()
+    {
+        using SyntheticBundle fixture = new();
+        Assert.Equal(RuntimeBundleStatus.Missing, DeviceRuntimeBundle.ValidateProduction(fixture.Directory, TestContext.Current.CancellationToken).Status);
+        string productionManifest = Path.Combine(fixture.Directory, DeviceRuntimeBundle.ProductionManifestFileName);
+        File.Move(Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName), productionManifest);
+
+        Assert.Equal(RuntimeBundleStatus.Ready, DeviceRuntimeBundle.ValidateProduction(fixture.Directory, TestContext.Current.CancellationToken).Status);
+        Assert.Equal(RuntimeBundleStatus.Missing, DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken).Status);
+    }
+
+    [Fact]
+    public void RejectsManifestBeyondTheReadLimit()
+    {
+        using SyntheticBundle fixture = new();
+        string manifestPath = Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName);
+        File.AppendAllText(manifestPath, new string(' ', 32 * 1024));
+
+        Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken).Status);
+    }
+
+    [Fact]
+    public void StartupCancellationTakesPrecedenceOverMissingBundle()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            DeviceRuntimeBundle.ValidateProduction(string.Empty, cancellation.Token));
     }
 
     /// <summary>The staging claim follows the exact managed handshake version and required capabilities.</summary>
@@ -59,7 +91,7 @@ public sealed class DeviceRuntimeBundleTests
         byte[] oldBytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
         File.WriteAllBytes(manifestPath, oldBytes);
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.IncompatibleMachineContract, result.Status);
         Assert.Null(result.Bundle);
@@ -80,7 +112,7 @@ public sealed class DeviceRuntimeBundleTests
         byte[] original = Encoding.UTF8.GetBytes(manifest.ToJsonString());
         File.WriteAllBytes(manifestPath, original);
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.IncompatibleMachineContract, result.Status);
         Assert.Null(result.Bundle);
@@ -97,7 +129,7 @@ public sealed class DeviceRuntimeBundleTests
         manifest["MachineContract"] = null;
         File.WriteAllText(manifestPath, manifest.ToJsonString());
 
-        Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate(fixture.Directory).Status);
+        Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken).Status);
     }
 
     /// <summary>A coherent but wrong machine claim cannot turn a legacy or incompatible peer into a launch.</summary>
@@ -117,7 +149,7 @@ public sealed class DeviceRuntimeBundleTests
         manifest["MachineContract"]!.AsObject()[member] = JsonNode.Parse(replacementJson);
         File.WriteAllText(manifestPath, manifest.ToJsonString());
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.IncompatibleMachineContract, result.Status);
         Assert.Null(result.Bundle);
@@ -146,7 +178,7 @@ public sealed class DeviceRuntimeBundleTests
         manifest["MachineContract"]!.AsObject()[member] = JsonNode.Parse(replacementJson);
         File.WriteAllText(manifestPath, manifest.ToJsonString());
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.InvalidManifest, result.Status);
         Assert.Null(result.Bundle);
@@ -159,12 +191,12 @@ public sealed class DeviceRuntimeBundleTests
         using SyntheticBundle fixture = new();
         string serverPath = Path.Combine(fixture.Directory, "scrcpy-server");
         File.WriteAllText(serverPath, "tampered");
-        RuntimeBundleResult tampered = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult tampered = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
         Assert.Equal(RuntimeBundleStatus.HashMismatch, tampered.Status);
         Assert.Equal("scrcpy-server", tampered.Component);
 
         File.Delete(serverPath);
-        RuntimeBundleResult missing = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult missing = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
         Assert.Equal(RuntimeBundleStatus.MissingComponent, missing.Status);
         Assert.Equal("scrcpy-server", missing.Component);
     }
@@ -176,8 +208,9 @@ public sealed class DeviceRuntimeBundleTests
         using SyntheticBundle fixture = new();
         File.Delete(Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName));
 
-        Assert.Equal(RuntimeBundleStatus.Missing, DeviceRuntimeBundle.Validate(fixture.Directory).Status);
-        Assert.Equal(RuntimeBundleStatus.InvalidManifest, DeviceRuntimeBundle.Validate("relative-runtime").Status);
+        Assert.Equal(RuntimeBundleStatus.Missing, DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken).Status);
+        Assert.Equal(RuntimeBundleStatus.InvalidManifest,
+            DeviceRuntimeBundle.Validate("relative-runtime", TestContext.Current.CancellationToken).Status);
     }
 
     /// <summary>Malformed required manifest values leave the original bytes intact and report an invalid runtime.</summary>
@@ -224,7 +257,7 @@ public sealed class DeviceRuntimeBundleTests
         byte[] malformedBytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
         File.WriteAllBytes(manifestPath, malformedBytes);
 
-        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory, TestContext.Current.CancellationToken);
 
         Assert.Equal(RuntimeBundleStatus.InvalidManifest, result.Status);
         Assert.Null(result.Bundle);

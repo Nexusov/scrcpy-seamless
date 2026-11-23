@@ -8,19 +8,23 @@ public sealed record SessionDiagnosticRow(string Label, IReadOnlyList<StatusMetr
 /// <summary>Explicit bounded snapshots over existing owners, never another protocol consumer.</summary>
 public sealed class DiagnosticsWorkspaceViewModel : ObservableViewModel
 {
-    private readonly SessionsWorkspaceViewModel sessions;
+    private readonly SessionsWorkspaceViewModel? sessions;
     private readonly PresentationText text;
     private readonly ObservableCollection<SessionDiagnosticRow> rows = [];
 
-    public DiagnosticsWorkspaceViewModel(SessionsWorkspaceViewModel sessions, PresentationText text)
+    public DiagnosticsWorkspaceViewModel(SessionsWorkspaceViewModel? sessions, PresentationText text,
+        ReleaseCheckViewModel? releases = null)
     {
         this.sessions = sessions;
         this.text = text;
+        Releases = releases;
         Rows = new ReadOnlyObservableCollection<SessionDiagnosticRow>(rows);
         RefreshCommand = new ActionCommand(Refresh);
     }
 
     public ReadOnlyObservableCollection<SessionDiagnosticRow> Rows { get; }
+    public ReleaseCheckViewModel? Releases { get; }
+    public bool HasReleaseChecks => Releases is not null;
     public ICommand RefreshCommand { get; }
     public string Title => text.Get("diagnostics.title");
     public string Description => text.Get("diagnostics.description");
@@ -29,6 +33,12 @@ public sealed class DiagnosticsWorkspaceViewModel : ObservableViewModel
     public void Refresh()
     {
         rows.Clear();
+
+        if (sessions is null)
+        {
+            return;
+        }
+
         foreach (DeviceSessionViewModel entry in sessions.Entries)
         {
             SessionEvidenceSnapshot evidence = entry.CaptureSessionEvidence();

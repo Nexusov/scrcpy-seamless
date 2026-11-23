@@ -130,7 +130,7 @@ public sealed class ShellViewModel : ObservableViewModel
     /// <summary>Navigates to the implemented Settings preview.</summary>
     public void ShowSettings() => CurrentPage = Settings;
 
-    public void AttachSessionWorkspaces(SessionsWorkspaceViewModel workspace, DiagnosticsWorkspaceViewModel observations)
+    public void AttachSessionWorkspaces(SessionsWorkspaceViewModel? workspace, DiagnosticsWorkspaceViewModel observations)
     {
         sessions = workspace;
         diagnostics = observations;

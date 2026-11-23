@@ -1,12 +1,14 @@
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.NativeHost;
+using ScrcpySeamless.Core.Application.Updates;
 using ScrcpySeamless.Desktop.Presentation;
 using ScrcpySeamless.Infrastructure.Adb;
 using ScrcpySeamless.Infrastructure.Configuration;
 using ScrcpySeamless.Infrastructure.NativeHost;
 using ScrcpySeamless.Infrastructure.Runtime;
 using Avalonia.Threading;
+using System.Reflection;
 
 namespace ScrcpySeamless.Desktop;
 
@@ -29,7 +31,8 @@ public sealed class NormalDesktopComposition
         DeviceSessionViewModel? deviceSession,
         ApplicationDataPaths dataPaths,
         PresentationText text,
-        SessionsWorkspaceViewModel? sessions = null)
+        SessionsWorkspaceViewModel? sessions = null,
+        ReleaseCheckViewModel? releases = null)
     {
         Shell = shell;
         Settings = settings;
@@ -39,6 +42,7 @@ public sealed class NormalDesktopComposition
         Devices = devices;
         initialDeviceSession = deviceSession;
         Sessions = sessions;
+        Releases = releases;
         DataPaths = dataPaths;
         this.text = text;
         Configuration.AttachCloseSaveGuard(() => closeSaveActive || exitReserved);
@@ -54,6 +58,7 @@ public sealed class NormalDesktopComposition
     public DevicesViewModel Devices { get; }
     public DeviceSessionViewModel? DeviceSession => Sessions is null ? initialDeviceSession : Sessions.SelectedSession;
     public SessionsWorkspaceViewModel? Sessions { get; }
+    internal ReleaseCheckViewModel? Releases { get; }
     public ApplicationDataPaths DataPaths { get; }
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
@@ -221,7 +226,10 @@ public static class NormalDesktopFactory
         Action<DesktopShortcutPreferences> activateShortcuts,
         Func<string?, string?> resolveEffectiveFont,
         Func<CancellationToken, Task>? beforePreferencesCommit = null,
-        Func<string, Task>? copySessionEvidence = null)
+        Func<string, Task>? copySessionEvidence = null,
+        RuntimeBundleResult? validatedRuntime = null,
+        IReleaseChecker? releaseChecker = null,
+        Func<Uri, CancellationToken, Task>? openReleaseLink = null)
     {
         if (options.Preview || options.StorageMode == DesktopStorageMode.None)
         {
@@ -286,7 +294,7 @@ public static class NormalDesktopFactory
 
         if (runtimeDirectory is not null)
         {
-            RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(runtimeDirectory);
+            RuntimeBundleResult runtime = validatedRuntime ?? ValidateRuntime(options, runtimeDirectory, default);
             bool enableOpenScreenMdnsCompatibility = runtime.Bundle is { } validatedBundle &&
                 BundledAdbCompatibility.RequiresOpenScreenMdns(validatedBundle.Manifest.Files["adb.exe"]);
             // Only a validated machine-capable bundle can supply the normal device-enabled host.
@@ -299,7 +307,6 @@ public static class NormalDesktopFactory
                 options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null),
                 devices.SelectSessionActions, text);
             deviceSession = sessions.SelectedSession;
-            shell.AttachSessionWorkspaces(sessions, new DiagnosticsWorkspaceViewModel(sessions, text));
             devices.AttachSessionsWorkspace(sessions, shell.ShowProfilesCommand);
 
             if (runtime.Bundle is { } readyBundle)
@@ -316,8 +323,22 @@ public static class NormalDesktopFactory
             }
         }
 
+        ReleaseCheckViewModel? releases = null;
+
+        if (releaseChecker is not null && openReleaseLink is not null)
+        {
+            string productVersion = typeof(NormalDesktopFactory).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty;
+            releases = new ReleaseCheckViewModel(releaseChecker, productVersion, text, openReleaseLink);
+        }
+
+        if (sessions is not null || releases is not null)
+        {
+            shell.AttachSessionWorkspaces(sessions, new DiagnosticsWorkspaceViewModel(sessions, text, releases));
+        }
+
         return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences,
-            devices, deviceSession, paths, text, sessions);
+            devices, deviceSession, paths, text, sessions, releases);
     }
 
     /// <summary>Uses the package runtime for normal modes and only an explicit runtime for DEV.</summary>
@@ -336,6 +357,20 @@ public static class NormalDesktopFactory
         return options.StorageMode is DesktopStorageMode.Portable or DesktopStorageMode.Installed
             ? Path.Combine(applicationDirectory, "runtime") : null;
     }
+
+    internal static Task<RuntimeBundleResult?> ValidateRuntimeAsync(DesktopLaunchOptions options,
+        CancellationToken cancellationToken)
+    {
+        string? directory = ResolveDeviceRuntimeDirectory(options, AppContext.BaseDirectory);
+        return directory is null
+            ? Task.FromResult<RuntimeBundleResult?>(null)
+            : Task.Run<RuntimeBundleResult?>(() => ValidateRuntime(options, directory, cancellationToken), cancellationToken);
+    }
+
+    private static RuntimeBundleResult ValidateRuntime(DesktopLaunchOptions options, string directory,
+        CancellationToken cancellationToken) => options.StorageMode == DesktopStorageMode.Development
+        ? DeviceRuntimeBundle.Validate(directory, cancellationToken)
+        : DeviceRuntimeBundle.ValidateProduction(directory, cancellationToken);
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>
     public static ApplicationDataPaths ResolveDataPaths(DesktopLaunchOptions options)

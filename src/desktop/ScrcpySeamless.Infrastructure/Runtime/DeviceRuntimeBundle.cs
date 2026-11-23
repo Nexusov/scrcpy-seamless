@@ -47,6 +47,10 @@ public sealed class MachineRuntimeContract
 public sealed class DeviceRuntimeBundle
 {
     public const string ManifestFileName = "runtime-dev-manifest.json";
+    public const string ProductionManifestFileName = "runtime-manifest.json";
+    private const int MaximumManifestBytes = 32 * 1024;
+    private const int HashReadBytes = 64 * 1024;
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     public const int RequiredConnectionPlanVersion = 1;
     public const int RequiredShortcutBindingsVersion = 1;
     private static readonly string[] RequiredFiles =
@@ -73,8 +77,17 @@ public sealed class DeviceRuntimeBundle
     public string AdbExecutablePath => Path.Combine(Directory, "adb.exe");
 
     /// <summary>Reads only a caller-selected directory and checks every required component before ADB or native launch.</summary>
-    public static RuntimeBundleResult Validate(string directory)
+    public static RuntimeBundleResult Validate(string directory, CancellationToken cancellationToken = default) =>
+        Validate(directory, ManifestFileName, cancellationToken);
+
+    /// <summary>Requires the canonical product manifest at the adjacent runtime root.</summary>
+    public static RuntimeBundleResult ValidateProduction(string directory, CancellationToken cancellationToken = default) =>
+        Validate(directory, ProductionManifestFileName, cancellationToken);
+
+    private static RuntimeBundleResult Validate(string directory, string manifestFileName, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrWhiteSpace(directory) || !Path.IsPathFullyQualified(directory))
         {
             return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, null);
@@ -90,11 +103,11 @@ public sealed class DeviceRuntimeBundle
         {
             return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, null);
         }
-        string manifestPath = Path.Combine(fullDirectory, ManifestFileName);
+        string manifestPath = Path.Combine(fullDirectory, manifestFileName);
 
         if (!File.Exists(manifestPath))
         {
-            return new RuntimeBundleResult(null, RuntimeBundleStatus.Missing, ManifestFileName);
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.Missing, manifestFileName);
         }
 
         DeviceRuntimeManifest? manifest;
@@ -102,15 +115,26 @@ public sealed class DeviceRuntimeBundle
 
         try
         {
-            string manifestJson = File.ReadAllText(manifestPath);
+            using FileStream stream = File.OpenRead(manifestPath);
+            byte[] bytes = new byte[MaximumManifestBytes + 1];
+            int length = stream.ReadAtLeast(bytes, bytes.Length, false);
+
+            if (length > MaximumManifestBytes)
+            {
+                return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, manifestFileName);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            ReadOnlySpan<byte> json = bytes.AsSpan(0, length);
+            string manifestJson = StrictUtf8.GetString(json.StartsWith(Encoding.UTF8.Preamble) ? json[3..] : json);
             using JsonDocument document = JsonDocument.Parse(manifestJson);
             machineContractDeclared = document.RootElement.ValueKind == JsonValueKind.Object &&
                 document.RootElement.TryGetProperty(nameof(DeviceRuntimeManifest.MachineContract), out _);
             manifest = JsonSerializer.Deserialize<DeviceRuntimeManifest>(manifestJson, JsonOptions);
         }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or DecoderFallbackException)
         {
-            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, ManifestFileName);
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, manifestFileName);
         }
 
         bool invalidManifest = manifest is null || manifest.SchemaVersion != 1 ||
@@ -128,11 +152,13 @@ public sealed class DeviceRuntimeBundle
 
         if (invalidManifest)
         {
-            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, ManifestFileName);
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, manifestFileName);
         }
 
+        byte[] hashBuffer = new byte[HashReadBytes];
         foreach (string name in RequiredFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string path = Path.Combine(fullDirectory, name);
 
             if (!File.Exists(path))
@@ -142,7 +168,16 @@ public sealed class DeviceRuntimeBundle
 
             try
             {
-                string actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+                using FileStream stream = File.OpenRead(path);
+                using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                int count;
+                while ((count = stream.Read(hashBuffer)) != 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    hash.AppendData(hashBuffer, 0, count);
+                }
+
+                string actual = Convert.ToHexString(hash.GetHashAndReset());
 
                 if (!string.Equals(actual, manifest!.Files![name], StringComparison.OrdinalIgnoreCase))
                 {
@@ -163,7 +198,7 @@ public sealed class DeviceRuntimeBundle
             RuntimeBundleStatus status = machineContractDeclared
                 ? RuntimeBundleStatus.InvalidManifest
                 : RuntimeBundleStatus.IncompatibleMachineContract;
-            return new RuntimeBundleResult(null, status, ManifestFileName);
+            return new RuntimeBundleResult(null, status, manifestFileName);
         }
 
         bool malformedContract = string.IsNullOrWhiteSpace(contract.Product) ||
@@ -179,7 +214,7 @@ public sealed class DeviceRuntimeBundle
 
         if (malformedContract)
         {
-            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, ManifestFileName);
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.InvalidManifest, manifestFileName);
         }
 
         bool compatibleContract = contract.Product == ProtocolCompatibility.Product &&
@@ -192,7 +227,7 @@ public sealed class DeviceRuntimeBundle
 
         if (!compatibleContract)
         {
-            return new RuntimeBundleResult(null, RuntimeBundleStatus.IncompatibleMachineContract, ManifestFileName);
+            return new RuntimeBundleResult(null, RuntimeBundleStatus.IncompatibleMachineContract, manifestFileName);
         }
 
         return new RuntimeBundleResult(new DeviceRuntimeBundle(fullDirectory, manifest), RuntimeBundleStatus.Ready, null);

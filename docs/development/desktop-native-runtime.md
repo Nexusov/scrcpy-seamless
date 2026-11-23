@@ -8,6 +8,11 @@ an explicit development root may select its isolated runtime. Validation still
 precedes all device effects, and missing or incompatible inputs leave launch
 unavailable. Working-directory search, PATH-native lookup and a legacy process
 fallback are not allowed. Preview never resolves a runtime or persistent root.
+Startup displays its loading window while same-root activation and runtime
+validation settle. Component hashing uses fixed-size reads off the UI thread.
+Closing during startup requests cancellation and releases the activation lease
+before closing the loading window. Normal close waits for owned device and
+application operations, including activation and explicit release checks.
 The canonical source-built package must carry the compatible runtime manifest,
 full inventories and source/build evidence; no-argument startup is not proof
 of a successful device handshake.
@@ -21,6 +26,13 @@ is incompatible with this route, not an implicit legacy fallback. Preview and
 settings-only startup do not launch native. The machine route is Windows x64
 only at this stage. Synthetic process tests do not establish Android video,
 control or audible output behavior.
+
+The production executable has no private launcher Stop event or environment
+recovery adapter. Machine Stop uses the framed channel and recovery uses the
+validated launch plan. Ordinary CLI invocation preserves its command-line device
+selectors, including the standard ANDROID_SERIAL fallback. That invocation has
+one attempt without a machine plan. Historical launcher contracts are kept
+under the test directories for regression evidence.
 
 The build-side machine capability claim is
 [`runtime-contract.json`](../../spec/desktop-native/runtime-contract.json).
