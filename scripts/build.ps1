@@ -3,7 +3,8 @@ param(
     [string]$ConfigPath,
     [string]$BuildDirectory,
     [string]$RuntimeDirectory,
-    [switch]$NativeTests
+    [switch]$NativeTests,
+    [switch]$PortableRelease
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +19,17 @@ if (Test-Path -LiteralPath (Join-Path $repositoryDirectory '.git')) {
 
     if ($LASTEXITCODE) {
         throw 'Could not identify the native build source commit.'
+    }
+}
+
+if ($PortableRelease) {
+    if ($NativeTests -or -not $sourceHead) {
+        throw 'Portable release requires a committed checkout and cannot be combined with native debug tests.'
+    }
+
+    $sourceChanges = @(git -C $repositoryDirectory status --porcelain --untracked-files=all)
+    if ($LASTEXITCODE -or $sourceChanges.Count) {
+        throw 'Portable release requires a clean source checkout.'
     }
 }
 
@@ -131,9 +143,10 @@ try {
         $env:PKG_CONFIG_PATH = $pkgConfigPathParts -join [IO.Path]::PathSeparator
     }
 
+    $buildType = if ($NativeTests) { 'debug' } elseif ($PortableRelease) { 'release' } else { 'debugoptimized' }
     $setupArguments = @(
         'setup', $buildDirectory, $sourceDirectory,
-        $(if ($NativeTests) { '--buildtype=debug' } else { '--buildtype=debugoptimized' }),
+        "--buildtype=$buildType",
         '-Dcompile_server=false', '-Dportable=true', '-Dusb=false'
     )
 
@@ -141,11 +154,27 @@ try {
         $setupArguments += '--reconfigure'
     }
 
+    $compilerOptions = @()
+    $linkerOptions = @()
+
     if ($compilerBinDirectory) {
         $compilerPrefix = '-B' + $compilerBinDirectory.Replace('\', '/').TrimEnd('/') + '/'
-        $compilerArguments = "['" + $compilerPrefix.Replace("'", "\'") + "']"
-        $setupArguments += "-Dc_args=$compilerArguments"
-        $setupArguments += "-Dc_link_args=$compilerArguments"
+        $compilerOptions += $compilerPrefix
+        $linkerOptions += $compilerPrefix
+    }
+
+    if ($PortableRelease) {
+        $compilerOptions += ('-ffile-prefix-map=' + $repositoryDirectory.Replace('\', '/') + '=.')
+        $linkerOptions += '-s'
+        $setupArguments += '-Db_ndebug=true'
+    }
+
+    if ($compilerOptions.Count) {
+        $setupArguments += '-Dc_args=[' + (($compilerOptions | ForEach-Object { "'" + $_.Replace("'", "\'") + "'" }) -join ',') + ']'
+    }
+
+    if ($linkerOptions.Count) {
+        $setupArguments += '-Dc_link_args=[' + (($linkerOptions | ForEach-Object { "'" + $_.Replace("'", "\'") + "'" }) -join ',') + ']'
     }
 
     & $mesonExecutable @setupArguments
@@ -193,7 +222,8 @@ try {
     $outputExecutable = Join-Path $distributionDirectory 'scrcpy.exe'
     Copy-Item -LiteralPath $compiledExecutable -Destination $outputExecutable -Force
 
-    Write-NativeBuildManifest -RepositoryDirectory $repositoryDirectory -ExecutablePath $outputExecutable -SourceFingerprint $sourceFingerprintBeforeBuild -SourceHead $sourceHead
+    $profile = if ($PortableRelease) { 'portable-release' } else { 'debugoptimized' }
+    Write-NativeBuildManifest -RepositoryDirectory $repositoryDirectory -ExecutablePath $outputExecutable -SourceFingerprint $sourceFingerprintBeforeBuild -SourceHead $sourceHead -BuildProfile $profile
     Write-Host "Built: $outputExecutable"
     Write-Host 'This executable requires compatible runtime DLLs and the scrcpy server. The installed portable application was not modified.'
 }

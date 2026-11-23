@@ -86,7 +86,8 @@ function Get-NativeSourceFingerprint {
 
 # Save provenance beside the client produced by the native build.
 function Write-NativeBuildManifest {
-    param([string]$RepositoryDirectory, [string]$ExecutablePath, [string]$SourceFingerprint, [string]$SourceHead)
+    param([string]$RepositoryDirectory, [string]$ExecutablePath, [string]$SourceFingerprint, [string]$SourceHead,
+        [string]$BuildProfile)
 
     if (-not $SourceFingerprint) {
         $SourceFingerprint = Get-NativeSourceFingerprint -RepositoryDirectory $RepositoryDirectory
@@ -99,6 +100,10 @@ function Write-NativeBuildManifest {
     }
     if ($SourceHead) {
         $manifest.SourceHead = $SourceHead
+    }
+
+    if ($BuildProfile) {
+        $manifest.BuildProfile = $BuildProfile
     }
 
     $manifest | ConvertTo-Json | Set-Content -LiteralPath ($ExecutablePath + '.manifest.json') -Encoding UTF8

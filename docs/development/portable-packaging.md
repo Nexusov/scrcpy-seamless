@@ -12,6 +12,9 @@ Use the [native source-build procedure](native-build.md) and the
 executable and its build sidecar together. Keep the Android server and
 server-build.json together. Both build sidecars must identify the commit
 being staged. Staging recomputes both source fingerprints and artifact hashes.
+Build the native component with `scripts/build.ps1 -PortableRelease`. This
+selects the Release configuration and strips symbols from the linked client.
+The stage requires that build profile from the exact committed source.
 
 The native bootstrap downloads two preapproved archives. Staging uses
 [scripts/portable-runtime.json](../../scripts/portable-runtime.json) to select

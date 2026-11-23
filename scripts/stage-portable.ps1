@@ -47,6 +47,7 @@ $serverFingerprint = Get-ServerBuildFingerprint -RepositoryDirectory $portableRe
 
 if ($nativeEvidence.SchemaVersion -ne 1 -or $nativeEvidence.Origin -cne 'local-build' -or
     $nativeEvidence.SourceHead -cne $SourceSha -or $nativeEvidence.SourceFingerprint -cne $nativeFingerprint -or
+    'BuildProfile' -cnotin $nativeEvidence.PSObject.Properties.Name -or $nativeEvidence.BuildProfile -cne 'portable-release' -or
     (Get-PortableHash $nativePath) -cne $nativeEvidence.ExecutableSha256) {
     throw 'Source-built native evidence is stale or mismatched.'
 }
