@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 public class DeviceMessageWriter {
 
     private static final int MESSAGE_MAX_SIZE = 1 << 18; // 256k
+    private static final int UNSIGNED_SHORT_MAX = 0xffff;
     public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 5; // type: 1 byte; length: 4 bytes
 
     private final DataOutputStream dos;
@@ -21,6 +22,15 @@ public class DeviceMessageWriter {
 
     public void write(DeviceMessage msg) throws IOException {
         int type = msg.getType();
+
+        if (type == DeviceMessage.TYPE_UHID_OUTPUT) {
+            byte[] payload = msg.getData();
+
+            if (msg.getId() < 0 || msg.getId() > UNSIGNED_SHORT_MAX || payload == null || payload.length > UNSIGNED_SHORT_MAX) {
+                // Reject before touching the buffered stream, including its type byte.
+                throw new ControlProtocolException("Unrepresentable UHID output");
+            }
+        }
         dos.writeByte(type);
         switch (type) {
             case DeviceMessage.TYPE_CLIPBOARD:
