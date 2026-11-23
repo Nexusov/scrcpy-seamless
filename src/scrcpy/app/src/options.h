@@ -234,10 +234,14 @@ struct sc_port_range {
 
 #define SC_WINDOW_POSITION_UNDEFINED (-0x8000)
 
+struct sc_connection_launch_plan;
+
 struct scrcpy_options {
+    const struct sc_connection_launch_plan *connection_plan;
     const char *serial;
     const char *crop;
     const char *record_filename;
+    bool record_exclusive; // Application-generated recovery segment, not a CLI override.
     const char *window_title;
     const char *push_target;
     const char *render_driver;

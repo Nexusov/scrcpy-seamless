@@ -62,6 +62,16 @@ worker shutdown must observe actual SDL_THREAD_COMPLETE before reaping; neither
 a timeout nor cancellation authorizes freeing live storage. The synchronous
 owner APIs remain for direct module tests; normal mirroring uses worker stages.
 Do not relocate live synchronization storage.
+Phase 8 machine launches carry the immutable, bounded connection plan described
+in `../../spec/desktop-native/CONNECTION_PLAN.md`; never reconstruct it from
+Status text or private reconnect environment values. The pure connection manager
+owns finite attempts/backoff/deadline and emits effects once. The resolver owns
+its interruptible worker and exact query children until real settlement; cancel
+is not join. Keep initial selected network identity separate from retry discovery.
+See `../../docs/architecture/CONNECTION_MANAGER.md` for generation/recording,
+capability and effect bounds. Recorders publish output readiness before sinks
+borrow the context; segment numbering follows joined actual-open receipts.
+
 P7.5 application orchestration lives in `app/src/app.c`; `scrcpy.c` is only an
 entry shim. The recovery adapter captures invocation inputs once and passes
 explicit selectors/connect intent to server parameters. The server must not

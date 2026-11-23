@@ -8,6 +8,7 @@
 #include <SDL3/SDL.h>
 
 #include "controller.h"
+#include "connection_plan.h"
 #include "demuxer.h"
 #include "dispatcher.h"
 #include "events.h"
@@ -207,6 +208,8 @@ static unsigned graph_start_attempts;
 static SDL_JoystickID *joystick_allocation;
 static unsigned joystick_releases;
 static struct sc_controller *current_controller;
+static struct sc_demuxer *current_video_demuxer;
+static struct sc_demuxer *current_audio_demuxer;
 static bool fail_owner_allocation;
 static bool track_owner_allocation;
 static bool fail_latch_mutex;
@@ -603,6 +606,11 @@ __wrap_sc_recorder_destroy(struct sc_recorder *recorder) {
 bool
 __wrap_sc_demuxer_start(struct sc_demuxer *demuxer) {
     bool video = !strcmp(demuxer->name, "video");
+    if (video) {
+        current_video_demuxer = demuxer;
+    } else {
+        current_audio_demuxer = demuxer;
+    }
     enum resource resource = video ? RESOURCE_VIDEO : RESOURCE_AUDIO;
     enum failure_stage failure = video ? FAIL_VIDEO_START : FAIL_AUDIO_START;
 
@@ -981,9 +989,9 @@ test_failure_stage(enum failure_stage failure) {
 
     if (failure == DUPLICATE_CONTROLLER_COMPLETION) {
         assert(current_controller);
-        current_controller->cbs->on_ended(current_controller, false,
+        current_controller->cbs->on_ended(current_controller, SC_CONTROL_STATUS_TRANSPORT_LOST,
                                            current_controller->cbs_userdata);
-        current_controller->cbs->on_ended(current_controller, true,
+        current_controller->cbs->on_ended(current_controller, SC_CONTROL_STATUS_LOCAL_ERROR,
                                            current_controller->cbs_userdata);
         uint32_t outcome;
         assert(take_connected(session, &dispatcher, &outcome));
@@ -993,7 +1001,7 @@ test_failure_stage(enum failure_stage failure) {
     sc_session_request_stop(session);
 
     if (failure == DUPLICATE_CONTROLLER_COMPLETION) {
-        current_controller->cbs->on_ended(current_controller, true,
+        current_controller->cbs->on_ended(current_controller, SC_CONTROL_STATUS_LOCAL_ERROR,
                                            current_controller->cbs_userdata);
         uint32_t outcome;
         assert(!take_connected(session, &dispatcher, &outcome));
@@ -1281,6 +1289,151 @@ test_generation_replacements(void) {
            TEST_GENERATION_REPLACEMENTS, TEST_GENERATION_COUNT);
 }
 
+/** Exercise registered production adapters without replacing their policy. */
+static void
+test_channel_policy(void) {
+    const enum sc_demuxer_status optional_audio_statuses[] = {
+        SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_ERROR,
+        SC_DEMUXER_STATUS_DISABLED, SC_DEMUXER_STATUS_PROTOCOL_ERROR,
+    };
+    for (unsigned index = 0; index < 18; ++index) {
+        memset(resources, 0, sizeof(resources));
+        current_failure = FAIL_NONE;
+        machine_stop = false;
+        current_controller = NULL;
+        current_video_demuxer = NULL;
+        current_audio_demuxer = NULL;
+        struct scrcpy_options options = options_for_failure(FAIL_NONE);
+        options.video = true;
+        options.audio = true;
+        struct sc_connection_launch_plan plan = {0};
+
+        if (index == 4 || index == 11 || index == 12) {
+            options.require_audio = true;
+        }
+
+        if (index == 5) {
+            options.video = false;
+            options.control = false;
+        }
+
+        if (index == 6 || index == 8 || index == 9 || index == 10) {
+            plan.required_capabilities = index == 6 ? SC_SESSION_CAPABILITY_VIDEO
+                : index == 9 ? SC_SESSION_CAPABILITY_AUDIO : SC_SESSION_CAPABILITY_CONTROL;
+            options.connection_plan = &plan;
+        }
+
+        if (index == 9) {
+            options.audio = false;
+            options.control = false;
+        }
+
+        if (index == 10) {
+            options.audio = false;
+            options.record_filename = "fixture-recording-requirement-not-started.mkv";
+        }
+
+        struct sc_dispatcher dispatcher;
+        bool initialized = sc_dispatcher_init(&dispatcher, SC_EVENT_DISPATCHER_WAKEUP, NULL, NULL);
+        assert(initialized);
+        struct sc_screen screen;
+        bool screen_initialized = false;
+        struct sc_session *session = sc_session_create(&options, &dispatcher, &screen, &screen_initialized);
+        assert(session);
+
+        if (index == 10) {
+            assert(sc_session_required_capabilities(session)
+                    == (SC_SESSION_CAPABILITY_VIDEO | SC_SESSION_CAPABILITY_CONTROL));
+        } else {
+            struct sc_server_params parameters = {0};
+            bool started = sc_session_start_server(session, &parameters);
+            assert(started);
+            uint32_t outcome;
+            bool connected = take_connected(session, &dispatcher, &outcome);
+            assert(connected && outcome == SC_EVENT_SERVER_CONNECTED);
+            started = sc_session_start(session);
+            assert(started);
+            unsigned optional = 0;
+            uint32_t expected_event = 0;
+
+            if (index >= 13) {
+                enum sc_control_status status = index == 15 || index == 17
+                    ? SC_CONTROL_STATUS_PROTOCOL_ERROR : index == 16
+                    ? SC_CONTROL_STATUS_LOCAL_ERROR : SC_CONTROL_STATUS_TRANSPORT_LOST;
+
+                if (index == 17) {
+                    sc_session_request_stop(session);
+                }
+
+                if (index == 14) {
+                    current_video_demuxer->cbs->on_ended(current_video_demuxer,
+                        SC_DEMUXER_STATUS_EOS, current_video_demuxer->cbs_userdata);
+                }
+
+                current_controller->cbs->on_ended(current_controller, status, current_controller->cbs_userdata);
+                current_video_demuxer->cbs->on_ended(current_video_demuxer,
+                    SC_DEMUXER_STATUS_EOS, current_video_demuxer->cbs_userdata);
+                expected_event = index == 17 ? 0 : index == 15 ? SC_EVENT_PROTOCOL_ERROR
+                    : index == 16 ? SC_EVENT_CONTROLLER_ERROR : SC_EVENT_DEVICE_DISCONNECTED;
+            } else if (index < 4) {
+                current_audio_demuxer->cbs->on_ended(current_audio_demuxer,
+                    optional_audio_statuses[index], current_audio_demuxer->cbs_userdata);
+                current_audio_demuxer->cbs->on_ended(current_audio_demuxer,
+                    optional_audio_statuses[index], current_audio_demuxer->cbs_userdata);
+                optional = SC_SESSION_CAPABILITY_AUDIO;
+            } else if (index == 6 || index == 7) {
+                assert(current_controller);
+                current_controller->cbs->on_ended(current_controller, SC_CONTROL_STATUS_LOCAL_ERROR, current_controller->cbs_userdata);
+
+                if (index == 6) {
+                    current_controller->cbs->on_ended(current_controller, SC_CONTROL_STATUS_TRANSPORT_LOST, current_controller->cbs_userdata);
+                    optional = SC_SESSION_CAPABILITY_CONTROL;
+                } else {
+                    expected_event = SC_EVENT_CONTROLLER_ERROR;
+                }
+            } else if (index == 8 || index == 9) {
+                current_video_demuxer->cbs->on_ended(current_video_demuxer,
+                    index == 8 ? SC_DEMUXER_STATUS_EOS : SC_DEMUXER_STATUS_PROTOCOL_ERROR,
+                    current_video_demuxer->cbs_userdata);
+                optional = index == 8 ? SC_SESSION_CAPABILITY_VIDEO : 0;
+                expected_event = index == 9 ? SC_EVENT_PROTOCOL_ERROR : 0;
+            } else {
+                enum sc_demuxer_status status = index == 4 ? SC_DEMUXER_STATUS_EOS
+                    : index == 5 ? SC_DEMUXER_STATUS_DISABLED
+                    : index == 11 ? SC_DEMUXER_STATUS_ERROR : SC_DEMUXER_STATUS_PROTOCOL_ERROR;
+                current_audio_demuxer->cbs->on_ended(current_audio_demuxer, status,
+                                                    current_audio_demuxer->cbs_userdata);
+                expected_event = index == 4 ? SC_EVENT_DEVICE_DISCONNECTED
+                    : index == 12 ? SC_EVENT_PROTOCOL_ERROR : SC_EVENT_DEMUXER_ERROR;
+            }
+
+            uint8_t degraded = sc_session_take_degraded(session);
+            assert(degraded == optional);
+            degraded = sc_session_take_degraded(session);
+            assert(!degraded);
+            bool terminal = take_connected(session, &dispatcher, &outcome);
+            assert(terminal == !!expected_event);
+
+            if (terminal) {
+                assert(outcome == expected_event);
+            }
+        }
+
+        sc_session_request_stop(session);
+        sc_session_join(session);
+        sc_session_destroy(session);
+
+        for (unsigned resource = 0; resource < RESOURCE_COUNT; ++resource) {
+            assert(resources[resource].acquired == resources[resource].destroyed);
+            assert(resources[resource].started == resources[resource].joined);
+        }
+
+        test_destroy_dispatcher(&dispatcher);
+    }
+
+    puts("Session channel policy: 18 production owner/callback cases");
+}
+
 /** Run nonzero production-owner stage coverage without devices or visible UI. */
 int
 main(int argument_count, char **arguments) {
@@ -1299,6 +1452,8 @@ main(int argument_count, char **arguments) {
             test_application_list_routes();
         } else if (!strcmp(arguments[1], "--generation-replacements")) {
             test_generation_replacements();
+        } else if (!strcmp(arguments[1], "--channel-policy")) {
+            test_channel_policy();
         } else {
             enum failure_stage order = !strcmp(arguments[1], "--quit-before-ready")
                 ? QUIT_BEFORE_READY : QUIT_BEFORE_TERMINAL;
@@ -1335,6 +1490,7 @@ main(int argument_count, char **arguments) {
     test_create_failures();
     test_application_list_routes();
     test_generation_replacements();
+    test_channel_policy();
     SDL_Quit();
     printf("Session lifetime: %zu production-owner stage cases passed\n",
            ARRAY_LEN(cases) + 9);

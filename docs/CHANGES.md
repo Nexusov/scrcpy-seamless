@@ -1,5 +1,23 @@
 # Changes from scrcpy 4.0
 
+## Autonomous bounded connection recovery
+
+One application-owned connection manager now executes finite candidate/retry
+policy through an interruptible resolver and sequential generation retirement.
+The committed Desktop plan is transported explicitly; a separate bootstrap
+version rejects older native runtimes without changing framed IPC v1. The
+selected initial network route is retained; later mDNS resolution can refresh
+its endpoint. USB requires positive ADB evidence, not serial spelling.
+
+Headless recovery, one invocation-wide deadline (zero disables it), optional
+channel degradation and exclusive part01/part02 recording replace the earlier
+compatibility restrictions. Recorder publication, packet-reference cleanup and
+joined finalization outcomes are checked independently of user Stop intent and
+notification revocation. Local, protocol and real recording failures are not
+retried as transport loss. See the [connection contract](architecture/CONNECTION_MANAGER.md)
+for bounds, source-derived corrections and validation limits. No changed source
+or future package inherits a historical hardware pass.
+
 ## Autonomous P7.5 coordinator and consolidated owner checks
 
 One application coordinator now owns connecting, streaming, retiring, waiting

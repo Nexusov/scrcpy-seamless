@@ -114,8 +114,10 @@ function Assert-RuntimeManifest {
         $machine = $machineProperty.Value
         $expectedCapabilities = @($expectedMachineContract.Capabilities)
         $actualCapabilities = @($machine.Capabilities)
+        $planProperty = $machine.PSObject.Properties['ConnectionPlanVersion']
+        $expectedPropertyCount = if ($null -eq $planProperty) { 4 } else { 5 }
         $invalidMachine = $machine -isnot [pscustomobject] -or
-            @($machine.PSObject.Properties).Count -ne 4 -or
+            @($machine.PSObject.Properties).Count -ne $expectedPropertyCount -or
             $machine.Product -isnot [string] -or
             $machine.Product -cne $expectedMachineContract.Product -or
             ($machine.ProtocolMajor -isnot [int] -and $machine.ProtocolMajor -isnot [long]) -or
@@ -124,6 +126,17 @@ function Assert-RuntimeManifest {
             $machine.ProtocolMinor -ne $expectedMachineContract.ProtocolMinor -or
             $machine.Capabilities -isnot [array] -or
             $actualCapabilities.Count -ne $expectedCapabilities.Count
+
+        # Old archived claims remain hash-verifiable; new bundles need this bootstrap.
+        if ($null -eq $planProperty) {
+            $invalidMachine = $invalidMachine -or $RequireMachineContract
+        }
+        else {
+            $planVersion = $planProperty.Value
+            $invalidMachine = $invalidMachine -or
+                ($planVersion -isnot [int] -and $planVersion -isnot [long]) -or
+                $planVersion -ne $expectedMachineContract.ConnectionPlanVersion
+        }
 
         if (-not $invalidMachine) {
             for ($index = 0; $index -lt $expectedCapabilities.Count; $index++) {

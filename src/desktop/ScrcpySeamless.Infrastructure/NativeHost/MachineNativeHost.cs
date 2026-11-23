@@ -63,6 +63,7 @@ public sealed class MachineNativeHost : INativeHost
         startInfo.ArgumentList.Add($"--seamless-session-id={request.SessionId.Value:D}");
         startInfo.ArgumentList.Add($"--seamless-parent-pid={parent.Id.ToString(CultureInfo.InvariantCulture)}");
         startInfo.ArgumentList.Add($"--seamless-parent-created={parentCreated.ToString(CultureInfo.InvariantCulture)}");
+        startInfo.ArgumentList.Add($"--seamless-connection-plan={NativeConnectionPlanSerializer.Serialize(request)}");
         startInfo.ArgumentList.Add("-s");
         startInfo.ArgumentList.Add(request.SelectedAdbSerial);
 
@@ -82,10 +83,7 @@ public sealed class MachineNativeHost : INativeHost
         startInfo.Environment.Remove("SCRCPY_STOP_EVENT");
         startInfo.Environment.Remove("SCRCPY_RECONNECT_SERIAL");
 
-        if (request.Mirroring.Reconnect && request.ReconnectEndpoint is not null)
-        {
-            startInfo.Environment["SCRCPY_RECONNECT_SERIAL"] = request.ReconnectEndpoint.ToString();
-        }
+        startInfo.Environment.Remove("ANDROID_SERIAL");
 
         if (enableOpenScreenMdnsCompatibility)
         {

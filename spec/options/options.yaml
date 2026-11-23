@@ -1436,3 +1436,15 @@ options:
     category: "Technical"
     valueKind: "unsignedInteger"
     label: "Machine parent creation time"
+  - id: "seamless-connection-plan"
+    longName: "seamless-connection-plan"
+    nativeId: "OPT_SEAMLESS_CONNECTION_PLAN"
+    nativeNumericId: 1093
+    argumentShape: "required"
+    argumentHint: "json"
+    nativeHelp: "Internal: carry an immutable bounded versioned Desktop connection plan."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "string"
+    label: "Machine connection plan"

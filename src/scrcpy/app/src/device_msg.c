@@ -22,13 +22,18 @@ sc_device_msg_deserialize(const uint8_t *buf, size_t len,
                 return 0; // no complete message
             }
             size_t clipboard_len = sc_read32be(&buf[1]);
+
+            if (clipboard_len > DEVICE_MSG_TEXT_MAX_LENGTH) {
+                return SC_DEVICE_MSG_MALFORMED;
+            }
+
             if (clipboard_len > len - 5) {
                 return 0; // no complete message
             }
             char *text = malloc(clipboard_len + 1);
             if (!text) {
                 LOG_OOM();
-                return -1;
+                return SC_DEVICE_MSG_NO_MEMORY;
             }
             if (clipboard_len) {
                 memcpy(text, &buf[5], clipboard_len);
@@ -59,7 +64,7 @@ sc_device_msg_deserialize(const uint8_t *buf, size_t len,
             uint8_t *data = malloc(size);
             if (!data) {
                 LOG_OOM();
-                return -1;
+                return SC_DEVICE_MSG_NO_MEMORY;
             }
             if (size) {
                 memcpy(data, &buf[5], size);
@@ -73,7 +78,7 @@ sc_device_msg_deserialize(const uint8_t *buf, size_t len,
         }
         default:
             LOGW("Unknown device message type: %d", (int) msg->type);
-            return -1; // error, we cannot recover
+            return SC_DEVICE_MSG_MALFORMED;
     }
 }
 

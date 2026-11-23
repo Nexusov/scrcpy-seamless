@@ -38,6 +38,7 @@ public sealed class MachineRuntimeContract
     public string Product { get; init; } = string.Empty;
     public int ProtocolMajor { get; init; }
     public int ProtocolMinor { get; init; }
+    public int ConnectionPlanVersion { get; init; }
     public string[]? Capabilities { get; init; }
 }
 
@@ -45,6 +46,7 @@ public sealed class MachineRuntimeContract
 public sealed class DeviceRuntimeBundle
 {
     public const string ManifestFileName = "runtime-dev-manifest.json";
+    public const int RequiredConnectionPlanVersion = 1;
     private static readonly string[] RequiredFiles =
     [
         "scrcpy.exe", "scrcpy-server", "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll",
@@ -166,6 +168,7 @@ public sealed class DeviceRuntimeBundle
             Encoding.UTF8.GetByteCount(contract.Product) > 256 || contract.Product.Contains('\0') ||
             contract.ProtocolMajor is < 0 or > ushort.MaxValue ||
             contract.ProtocolMinor is < 0 or > ushort.MaxValue ||
+            contract.ConnectionPlanVersion is < 0 or > ushort.MaxValue ||
             contract.Capabilities is null || contract.Capabilities.Length is < 1 or > 16 ||
             contract.Capabilities.Any(capability => string.IsNullOrEmpty(capability) ||
                 Encoding.UTF8.GetByteCount(capability) > 64 || capability.Contains('\0')) ||
@@ -179,6 +182,7 @@ public sealed class DeviceRuntimeBundle
         bool compatibleContract = contract.Product == ProtocolCompatibility.Product &&
             contract.ProtocolMajor == ProtocolCompatibility.Major &&
             contract.ProtocolMinor >= ProtocolCompatibility.Minor &&
+            contract.ConnectionPlanVersion == RequiredConnectionPlanVersion &&
             ProtocolCompatibility.RequiredCapabilities.All(capability =>
                 contract.Capabilities!.Contains(capability, StringComparer.Ordinal));
 

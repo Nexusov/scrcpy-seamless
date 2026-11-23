@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using ScrcpySeamless.Core;
 using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.Connection;
@@ -48,10 +49,15 @@ public sealed class MachineNativeCompositionMetadataTests
                     argument.StartsWith("--seamless-parent-created=", StringComparison.Ordinal)));
             Assert.Contains($"--seamless-session-id={request.SessionId.Value:D}", startInfo.ArgumentList);
             Assert.Contains("--seamless-machine", startInfo.ArgumentList);
+            string planArgument = Assert.Single(startInfo.ArgumentList, argument =>
+                argument.StartsWith("--seamless-connection-plan=", StringComparison.Ordinal));
+            using JsonDocument launchPlan = JsonDocument.Parse(planArgument.Split('=', 2)[1]);
+            Assert.Equal("SYNTHETIC_USB", launchPlan.RootElement.GetProperty("candidates")[0].GetProperty("serial").GetString());
             Assert.True(startInfo.RedirectStandardInput && startInfo.RedirectStandardOutput &&
                 startInfo.RedirectStandardError);
             Assert.False(startInfo.Environment.ContainsKey("SCRCPY_STOP_EVENT"));
             Assert.False(startInfo.Environment.ContainsKey("SCRCPY_RECONNECT_SERIAL"));
+            Assert.False(startInfo.Environment.ContainsKey("ANDROID_SERIAL"));
         }
         finally
         {

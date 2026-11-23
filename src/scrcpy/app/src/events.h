@@ -25,6 +25,8 @@ enum {
     SC_EVENT_DISPATCHER_WAKEUP,
     // Fixed owner latches use value-scoped FIFO wakeups, never owner pointers.
     SC_EVENT_SESSION_NOTIFICATION,
+    SC_EVENT_SERVER_TRANSIENT_FAILURE,
+    SC_EVENT_PROTOCOL_ERROR,
 };
 
 bool

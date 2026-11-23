@@ -29,7 +29,7 @@ public sealed class SpecGenerationTests
     {
         var specification = Load();
         var internalOptions = specification.Options.Where(option => option.InternalOnly).ToArray();
-        Assert.Equal(4, internalOptions.Length);
+        Assert.Equal(5, internalOptions.Length);
         Assert.All(internalOptions, option => Assert.Equal("managed", option.Classification));
 
         var outputs = OutputGenerator.Generate(specification);

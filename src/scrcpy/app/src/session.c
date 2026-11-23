@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <SDL3/SDL.h>
@@ -16,6 +17,7 @@
 
 #include "audio_player.h"
 #include "controller.h"
+#include "connection_plan.h"
 #include "decoder.h"
 #include "delay_buffer.h"
 #include "demuxer.h"
@@ -111,6 +113,7 @@ struct sc_session {
     bool file_pusher_initialized;
     bool recorder_initialized;
     bool recorder_started;
+    bool recording_output_opened;
     bool video_demuxer_started;
     bool audio_demuxer_started;
     bool controller_initialized;
@@ -135,7 +138,64 @@ struct sc_session {
     bool resources_released;
     bool joined;
     bool startup_interrupted;
+    uint8_t required_capabilities;
+    atomic_uint unavailable_capabilities;
+    atomic_uint pending_degraded;
 };
+
+static uint8_t
+sc_session_effective_requirements(const struct scrcpy_options *options) {
+    uint8_t requested = (options->video ? SC_SESSION_CAPABILITY_VIDEO : 0)
+        | (options->audio ? SC_SESSION_CAPABILITY_AUDIO : 0)
+        | (options->control ? SC_SESSION_CAPABILITY_CONTROL : 0);
+    uint8_t required = options->connection_plan
+        ? options->connection_plan->required_capabilities
+        : SC_SESSION_CAPABILITY_VIDEO | SC_SESSION_CAPABILITY_CONTROL;
+    required &= requested;
+
+    if (options->record_filename && options->video) {
+        /* Recording has no video-disable path: its header requires this stream. */
+        required |= SC_SESSION_CAPABILITY_VIDEO;
+    }
+
+    if (options->audio && (options->require_audio || (!options->video && !options->control))) {
+        required |= SC_SESSION_CAPABILITY_AUDIO;
+    }
+
+    /* Disabled requested channels cannot leave an immortal empty requirement. */
+    if (!required) {
+        required = requested & SC_SESSION_CAPABILITY_VIDEO ? SC_SESSION_CAPABILITY_VIDEO
+            : requested & SC_SESSION_CAPABILITY_CONTROL ? SC_SESSION_CAPABILITY_CONTROL
+            : requested & SC_SESSION_CAPABILITY_AUDIO;
+    }
+
+    return required;
+}
+
+static bool
+sc_session_optional_loss(struct sc_session *session, unsigned capability) {
+    if (session->required_capabilities & capability) {
+        return false;
+    }
+
+    unsigned previous = atomic_fetch_or_explicit(&session->unavailable_capabilities,
+                                                  capability, memory_order_relaxed);
+
+    if (!(previous & capability)) {
+        atomic_fetch_or_explicit(&session->pending_degraded, capability, memory_order_release);
+    }
+
+    return true;
+}
+
+static void
+sc_session_publish_demuxer_failure(struct sc_session *session,
+                                    enum sc_demuxer_status status) {
+    uint32_t event = status == SC_DEMUXER_STATUS_EOS ? SC_EVENT_DEVICE_DISCONNECTED
+        : status == SC_DEMUXER_STATUS_PROTOCOL_ERROR ? SC_EVENT_PROTOCOL_ERROR
+        : SC_EVENT_DEMUXER_ERROR;
+    sc_session_notifications_publish(&session->notifications, event);
+}
 
 /** Observe application Stop without reclassifying a preceding module failure. */
 static bool
@@ -170,13 +230,8 @@ sc_video_demuxer_on_ended(struct sc_demuxer *demuxer,
     (void) demuxer;
     struct sc_session *session = userdata;
 
-    // The device may not decide to disable the video
-    assert(status != SC_DEMUXER_STATUS_DISABLED);
-
-    if (status == SC_DEMUXER_STATUS_EOS) {
-        sc_session_notifications_publish(&session->notifications, SC_EVENT_DEVICE_DISCONNECTED);
-    } else {
-        sc_session_notifications_publish(&session->notifications, SC_EVENT_DEMUXER_ERROR);
+    if (!sc_session_optional_loss(session, SC_SESSION_CAPABILITY_VIDEO)) {
+        sc_session_publish_demuxer_failure(session, status);
     }
 }
 
@@ -186,28 +241,31 @@ sc_audio_demuxer_on_ended(struct sc_demuxer *demuxer,
     (void) demuxer;
 
     struct sc_session *session = userdata;
-    const struct scrcpy_options *options = session->options;
 
-    // Contrary to the video demuxer, keep mirroring if only the audio fails
-    // (unless --require-audio is set).
-    if (status == SC_DEMUXER_STATUS_EOS) {
-        sc_session_notifications_publish(&session->notifications, SC_EVENT_DEVICE_DISCONNECTED);
-    } else if (status == SC_DEMUXER_STATUS_ERROR
-            || (status == SC_DEMUXER_STATUS_DISABLED
-                && options->require_audio)) {
-        sc_session_notifications_publish(&session->notifications, SC_EVENT_DEMUXER_ERROR);
+    if (!sc_session_optional_loss(session, SC_SESSION_CAPABILITY_AUDIO)) {
+        sc_session_publish_demuxer_failure(session, status);
     }
 }
 
 static void
-sc_controller_on_ended(struct sc_controller *controller, bool error,
+sc_controller_on_ended(struct sc_controller *controller, enum sc_control_status status,
                        void *userdata) {
     // Note: this function may be called twice, once from the controller thread
     // and once from the receiver thread
     (void) controller;
     struct sc_session *session = userdata;
 
-    if (error) {
+    if (status == SC_CONTROL_STATUS_STOPPED) {
+        return;
+    }
+
+    if (sc_session_optional_loss(session, SC_SESSION_CAPABILITY_CONTROL)) {
+        return;
+    }
+
+    if (status == SC_CONTROL_STATUS_PROTOCOL_ERROR) {
+        sc_session_notifications_publish(&session->notifications, SC_EVENT_PROTOCOL_ERROR);
+    } else if (status == SC_CONTROL_STATUS_LOCAL_ERROR) {
         sc_session_notifications_publish(&session->notifications, SC_EVENT_CONTROLLER_ERROR);
     } else {
         sc_session_notifications_publish(&session->notifications, SC_EVENT_DEVICE_DISCONNECTED);
@@ -216,10 +274,11 @@ sc_controller_on_ended(struct sc_controller *controller, bool error,
 
 static void
 sc_server_on_connection_failed(struct sc_server *server, void *userdata) {
-    (void) server;
     struct sc_session *session = userdata;
 
-    sc_session_notifications_publish(&session->notifications, SC_EVENT_SERVER_CONNECTION_FAILED);
+    uint32_t event = server->failure == SC_SERVER_FAILURE_TRANSIENT_CONNECTION
+        ? SC_EVENT_SERVER_TRANSIENT_FAILURE : SC_EVENT_SERVER_CONNECTION_FAILED;
+    sc_session_notifications_publish(&session->notifications, event);
 }
 
 static void
@@ -273,6 +332,9 @@ sc_session_create(const struct scrcpy_options *options,
     session->dispatcher = dispatcher;
     session->screen = screen;
     session->screen_initialized = screen_initialized;
+    session->required_capabilities = sc_session_effective_requirements(options);
+    atomic_init(&session->unavailable_capabilities, 0);
+    atomic_init(&session->pending_degraded, 0);
 
     if (!sc_session_notifications_init(&session->notifications, dispatcher)) {
         free(session);
@@ -414,6 +476,10 @@ sc_session_start(struct sc_session *session) {
             return false;
         }
         session->recorder_initialized = true;
+
+        if (options->record_exclusive) {
+            sc_recorder_set_exclusive_output(&session->recorder);
+        }
 
         if (!sc_session_start_allowed(session) || !sc_recorder_start(&session->recorder)) {
             return false;
@@ -843,6 +909,8 @@ sc_session_join(struct sc_session *session) {
 
     if (session->recorder_started) {
         sc_recorder_join(&session->recorder);
+        session->recording_output_opened =
+            sc_recorder_output_opened(&session->recorder);
     }
 
     if (session->file_pusher_initialized) {
@@ -854,6 +922,24 @@ sc_session_join(struct sc_session *session) {
     }
     session->joined = true;
     LOGD("Session generation=%" PRIu64_ " joined", session->generation);
+}
+
+bool
+sc_session_recording_output_opened(const struct sc_session *session) {
+    assert(session->joined);
+    return session->recording_output_opened;
+}
+
+bool
+sc_session_get_recording_result(const struct sc_session *session,
+                                 enum sc_recorder_result *result) {
+    assert(session->joined);
+
+    if (!session->recorder_started) {
+        return false;
+    }
+    *result = sc_recorder_get_result(&session->recorder);
+    return true;
 }
 
 /** Release external destinations only after all borrowers have joined. */
@@ -931,6 +1017,25 @@ sc_session_destroy(struct sc_session *session) {
 }
 
 /** Take only the current owner's retained, publication-ordered outcome. */
+uint8_t
+sc_session_take_degraded(struct sc_session *session) {
+    assert(sc_thread_is_main());
+    unsigned degraded = atomic_exchange_explicit(&session->pending_degraded, 0,
+                                                   memory_order_acquire);
+
+    if ((degraded & SC_SESSION_CAPABILITY_CONTROL) && session->screen_attached) {
+        sc_input_manager_detach(&session->screen->im);
+        sc_mouse_capture_set_active(&session->screen->mc, false);
+    }
+
+    return (uint8_t) degraded;
+}
+
+uint8_t
+sc_session_required_capabilities(const struct sc_session *session) {
+    return session->required_capabilities;
+}
+
 bool
 sc_session_take_event(struct sc_session *session, uint32_t *event) {
     return sc_session_notifications_take(&session->notifications, event);

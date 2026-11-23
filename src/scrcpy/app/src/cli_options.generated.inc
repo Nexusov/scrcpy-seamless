@@ -95,6 +95,7 @@ enum {
     OPT_SEAMLESS_SESSION_ID = 1090,
     OPT_SEAMLESS_PARENT_PID = 1091,
     OPT_SEAMLESS_PARENT_CREATED = 1092,
+    OPT_SEAMLESS_CONNECTION_PLAN = 1093,
 };
 
 static const struct sc_option options[] = {
@@ -724,5 +725,10 @@ static const struct sc_option options[] = {
         .longopt_id = OPT_SEAMLESS_PARENT_CREATED,
         .longopt = "seamless-parent-created",
         .argdesc = "filetime",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_CONNECTION_PLAN,
+        .longopt = "seamless-connection-plan",
+        .argdesc = "json",
     },
 };

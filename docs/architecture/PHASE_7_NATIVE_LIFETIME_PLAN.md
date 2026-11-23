@@ -51,6 +51,18 @@ fixture compiler warnings; an exact retirement-target rebuild and 1/1 run passed
 cycles or physical media proof. The earlier P7.4 production/conformance/process
 snapshot results remain tied to that snapshot, not this newer cutover.
 
+P7.6 consolidated automatic coverage now includes the real owner failure/close
+matrix and one actual application coordinator executing 100 sequential graph
+replacements (101 owners, peak one server owner). Every replacement requires
+settled acquisition/start/join/release ledgers and zero dispatcher retained work;
+this is additional to the earlier direct-owner campaign and worker-operation
+tests. The fake-clock stable-health schedule is not real-time media soak or
+hardware certification. Current combined Windows debug/USB module validation
+passed 46/46 and 48/48 checks; the [Phase 8 contract](CONNECTION_MANAGER.md)
+records integration of finite policy and joined recording outcomes. Separate
+source-identified process/production/package gates and final joint hardware
+acceptance still require their own actual records.
+
 Historical status: migration direction approved; P7.1 and P7.2 accepted for engineering
 integration through PR #15 and PR #16. P7.3 is authorized on its own branch;
 its implementation and fresh validation are recorded below. P7.4–P7.6 and

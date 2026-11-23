@@ -34,7 +34,12 @@ struct sc_device_msg {
     };
 };
 
-// return the number of bytes consumed (0 for no msg available, -1 on error)
+enum {
+    SC_DEVICE_MSG_MALFORMED = -1,
+    SC_DEVICE_MSG_NO_MEMORY = -2,
+};
+
+// Bytes consumed; 0=incomplete, MALFORMED=invalid protocol, NO_MEMORY=local OOM.
 ssize_t
 sc_device_msg_deserialize(const uint8_t *buf, size_t len,
                           struct sc_device_msg *msg);

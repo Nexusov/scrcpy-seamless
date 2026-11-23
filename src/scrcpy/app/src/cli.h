@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "options.h"
+#include "connection_plan.h"
 
 enum sc_pause_on_exit {
     SC_PAUSE_ON_EXIT_UNDEFINED,
@@ -25,6 +26,7 @@ struct scrcpy_cli_args {
     const char *machine_session_id;
     uint32_t machine_parent_pid;
     uint64_t machine_parent_created;
+    struct sc_connection_launch_plan connection_plan;
 };
 
 void

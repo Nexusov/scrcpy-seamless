@@ -980,6 +980,7 @@ public sealed class NormalCompositionTests
             Origins = origins,
             MachineContract = machineCompatible ? new MachineRuntimeContract
             {
+                ConnectionPlanVersion = DeviceRuntimeBundle.RequiredConnectionPlanVersion,
                 Product = ProtocolCompatibility.Product,
                 ProtocolMajor = ProtocolCompatibility.Major,
                 ProtocolMinor = ProtocolCompatibility.Minor,

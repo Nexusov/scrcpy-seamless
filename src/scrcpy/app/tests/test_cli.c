@@ -45,18 +45,19 @@ static void test_flag_help(void) {
 // Check the option declarations compiled into the native parser.
 static void test_generated_option_table(void) {
     enum {
-        EXPECTED_OPTIONS = 113,
-        EXPECTED_LONG_OPTIONS = 110,
+        EXPECTED_OPTIONS = 114,
+        EXPECTED_LONG_OPTIONS = 111,
         EXPECTED_SHORT_OPTIONS = 20,
         EXPECTED_OPTIONAL_ARGUMENTS = 3,
     };
 
     assert(sc_cli_option_count() == EXPECTED_OPTIONS);
-    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory) + 4);
+    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory) + 5);
 
     static const char *const internal_options[] = {
         "seamless-machine", "seamless-session-id",
         "seamless-parent-pid", "seamless-parent-created",
+        "seamless-connection-plan",
     };
 
     size_t long_count = 0;
@@ -571,6 +572,41 @@ static void test_bit_rate_numeric_spelling(void) {
     }
 }
 
+static void test_connection_plan_bootstrap(void) {
+    char plan_argument[] = "--seamless-connection-plan={\"version\":1,\"reconnect\":false,"
+        "\"selected\":0,\"requiredCapabilities\":5,\"desiredCapabilities\":7,"
+        "\"maximumAttempts\":3,\"initialBackoffUs\":\"1000000\",\"maximumBackoffUs\":\"8000000\","
+        "\"candidates\":[{\"transport\":\"usb\",\"serial\":\"SYNTHETIC_USB\"}]}";
+    char *argv[] = {"scrcpy", "--seamless-machine",
+        "--seamless-session-id=01234567-89ab-cdef-0123-456789abcdef",
+        "--seamless-parent-pid=123", "--seamless-parent-created=456", plan_argument};
+    struct scrcpy_cli_args args = {.opts = scrcpy_options_default};
+    bool accepted = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    assert(accepted);
+    assert(args.opts.connection_plan == &args.connection_plan);
+    assert(!args.opts.connection_plan->reconnect);
+    assert(!strcmp(args.opts.connection_plan->targets[0].serial, "SYNTHETIC_USB"));
+
+    char *ordinary[] = {"scrcpy", plan_argument};
+    args = (struct scrcpy_cli_args) {.opts = scrcpy_options_default};
+    accepted = scrcpy_parse_args(&args, ARRAY_LEN(ordinary), ordinary);
+    assert(!accepted);
+
+    char *missing[] = {"scrcpy", "--seamless-machine",
+        "--seamless-session-id=01234567-89ab-cdef-0123-456789abcdef",
+        "--seamless-parent-pid=123", "--seamless-parent-created=456"};
+    args = (struct scrcpy_cli_args) {.opts = scrcpy_options_default};
+    accepted = scrcpy_parse_args(&args, ARRAY_LEN(missing), missing);
+    assert(!accepted);
+
+    char *duplicate[] = {"scrcpy", "--seamless-machine",
+        "--seamless-session-id=01234567-89ab-cdef-0123-456789abcdef",
+        "--seamless-parent-pid=123", "--seamless-parent-created=456", plan_argument, plan_argument};
+    args = (struct scrcpy_cli_args) {.opts = scrcpy_options_default};
+    accepted = scrcpy_parse_args(&args, ARRAY_LEN(duplicate), duplicate);
+    assert(!accepted);
+}
+
 static void test_parse_shortcut_mods(void) {
     uint8_t mods;
     bool ok;
@@ -619,5 +655,6 @@ int main(int argc, char *argv[]) {
     test_min_size_alignment_values();
     test_bit_rate_numeric_spelling();
     test_parse_shortcut_mods();
+    test_connection_plan_bootstrap();
     return 0;
 }

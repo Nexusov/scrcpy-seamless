@@ -15,6 +15,7 @@
 
 #include "ipc/ipc_frame.h"
 #include "ipc/ipc_json.h"
+#include "ipc/machine_stream.h"
 
 #define SC_MACHINE_QUEUE_ITEMS 64
 #define SC_MACHINE_QUEUE_BYTES (2u * 1024u * 1024u)
@@ -61,8 +62,7 @@ struct sc_machine_state {
     LONG handshake_complete;
     char session_id[37];
     char attempt_id[37];
-    bool attempt_reconnecting;
-    bool frame_presented;
+    struct sc_machine_stream stream;
     SDL_Window *window; // SDL main thread only
     void (*request_stop)(void *);
     void *stop_userdata;
@@ -594,19 +594,22 @@ sc_machine_set_attempt_id(const char attempt_id[37], bool reconnecting) {
         return;
     }
     strcpy(machine.attempt_id, attempt_id);
-    machine.attempt_reconnecting = reconnecting;
-    machine.frame_presented = false;
+    sc_machine_stream_begin(&machine.stream, reconnecting);
 }
 
 /** A decoded byte or opened window is not the first presented video frame. */
 void
 sc_machine_on_frame_presented(void) {
-    if (!sc_machine_is_active() || machine.frame_presented ||
+    if (!sc_machine_is_active() ||
             !machine.attempt_id[0]) {
         return;
     }
-    machine.frame_presented = true;
-    sc_machine_emit_lifecycle(machine.attempt_reconnecting ? "StreamResumed" :
+    enum sc_machine_stream_event event = sc_machine_stream_presented(&machine.stream);
+
+    if (event == SC_MACHINE_STREAM_NONE) {
+        return;
+    }
+    sc_machine_emit_lifecycle(event == SC_MACHINE_STREAM_RESUMED ? "StreamResumed" :
                               "StreamStarted", "video", machine.attempt_id,
                               "none", "none");
 }

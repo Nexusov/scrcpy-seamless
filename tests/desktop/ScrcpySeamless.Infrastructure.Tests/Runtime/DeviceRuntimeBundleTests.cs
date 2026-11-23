@@ -43,6 +43,7 @@ public sealed class DeviceRuntimeBundleTests
         Assert.Equal(ProtocolCompatibility.Product, claim.Product);
         Assert.Equal(ProtocolCompatibility.Major, claim.ProtocolMajor);
         Assert.Equal(ProtocolCompatibility.Minor, claim.ProtocolMinor);
+        Assert.Equal(DeviceRuntimeBundle.RequiredConnectionPlanVersion, claim.ConnectionPlanVersion);
         Assert.Equal(ProtocolCompatibility.RequiredCapabilities, claim.Capabilities);
     }
 
@@ -65,6 +66,24 @@ public sealed class DeviceRuntimeBundleTests
         Assert.Equal(oldBytes, File.ReadAllBytes(manifestPath));
     }
 
+    /// <summary>Wire-compatible old bytes cannot accept the new connection-plan bootstrap argument.</summary>
+    [Fact]
+    public void OlderMachineClaimWithoutConnectionPlanIsIncompatible()
+    {
+        using SyntheticBundle fixture = new();
+        string manifestPath = Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName);
+        JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        manifest["MachineContract"]!.AsObject().Remove("ConnectionPlanVersion");
+        byte[] original = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        File.WriteAllBytes(manifestPath, original);
+
+        RuntimeBundleResult result = DeviceRuntimeBundle.Validate(fixture.Directory);
+
+        Assert.Equal(RuntimeBundleStatus.IncompatibleMachineContract, result.Status);
+        Assert.Null(result.Bundle);
+        Assert.Equal(original, File.ReadAllBytes(manifestPath));
+    }
+
     /// <summary>An explicit null claim is malformed; only absent metadata identifies an older manifest.</summary>
     [Fact]
     public void RejectsExplicitNullMachineClaim()
@@ -82,6 +101,8 @@ public sealed class DeviceRuntimeBundleTests
     [Theory]
     [InlineData("Product", "\"another-product\"")]
     [InlineData("ProtocolMajor", "2")]
+    [InlineData("ConnectionPlanVersion", "0")]
+    [InlineData("ConnectionPlanVersion", "2")]
     [InlineData("Capabilities", "[\"focus-window\",\"stop\"]")]
     public void RejectsIncompatibleMachineClaim(string member, string replacementJson)
     {
@@ -104,6 +125,10 @@ public sealed class DeviceRuntimeBundleTests
     [InlineData("Capabilities", "42")]
     [InlineData("ProtocolMajor", "-1")]
     [InlineData("Product", "null")]
+    [InlineData("ConnectionPlanVersion", "null")]
+    [InlineData("ConnectionPlanVersion", "\"1\"")]
+    [InlineData("ConnectionPlanVersion", "-1")]
+    [InlineData("ConnectionPlanVersion", "65536")]
     public void RejectsMalformedMachineClaim(string member, string replacementJson)
     {
         using SyntheticBundle fixture = new();
@@ -239,6 +264,7 @@ public sealed class DeviceRuntimeBundleTests
                     Product = ProtocolCompatibility.Product,
                     ProtocolMajor = ProtocolCompatibility.Major,
                     ProtocolMinor = ProtocolCompatibility.Minor,
+                    ConnectionPlanVersion = DeviceRuntimeBundle.RequiredConnectionPlanVersion,
                     Capabilities = ProtocolCompatibility.RequiredCapabilities.ToArray(),
                 },
             };

@@ -2,6 +2,10 @@ src = [
     'src/main.c',
     'src/app.c',
     'src/recovery_adapter.c',
+    'src/recording_segments.c',
+    'src/connection_manager.c',
+    'src/connection_plan.c',
+    'src/transport_resolver.c',
     'src/adb/adb.c',
     'src/adb/adb_device.c',
     'src/adb/adb_parser.c',
@@ -94,6 +98,7 @@ if host_machine.system() == 'windows'
         'src/ipc/ipc_json.c',
         'src/ipc/machine_exit.c',
         'src/ipc/machine.c',
+        'src/ipc/machine_stream.c',
         'vendor/yyjson/yyjson.c',
         windows.compile_resources('scrcpy-windows.rc'),
     ]
@@ -287,6 +292,19 @@ if get_option('buildtype') == 'debug'
             include_directories: src_dir, dependencies: dependencies,
             link_args: session_link_args)
         test('test_session', session_test)
+        app_connection_args = session_link_args
+        foreach symbol : ['SDL_Init', 'SDL_WaitEventTimeout', 'sc_tick_now',
+                           'sc_adb_query', 'sc_transport_resolver_take',
+                           'sc_connection_manager_connected', 'sc_recorder_join',
+                           'av_write_trailer']
+            app_connection_args += '-Wl,--wrap=' + symbol
+        endforeach
+        app_connection_test = executable('test_app_connection',
+            ['tests/test_app_connection.c'] + session_sources,
+            include_directories: src_dir, dependencies: dependencies,
+            link_args: app_connection_args)
+        test('test_app_connection', app_connection_test)
+
 
         if usb_support
             ack_wraps = [
@@ -318,8 +336,42 @@ if get_option('buildtype') == 'debug'
     endif
 
     tests = [
+        ['test_control_outcomes', [
+            'tests/test_control_outcomes.c', 'src/control_msg.c',
+            'src/dispatcher.c', 'src/events.c', 'src/util/acksync.c',
+            'src/util/str.c', 'src/util/strbuf.c', 'src/util/thread.c',
+            'src/util/tick.c', 'src/util/log.c', 'src/util/memory.c',
+        ]],
+        ['test_demuxer_outcomes', [
+            'tests/test_demuxer_outcomes.c', 'src/packet_merger.c',
+            'src/trait/packet_source.c', 'src/util/thread.c',
+            'src/util/log.c', 'src/util/tick.c',
+        ]],
+        ['test_machine_stream', [
+            'tests/test_machine_stream.c', 'src/ipc/machine_stream.c',
+        ]],
+        ['test_connection_manager', [
+            'tests/test_connection_manager.c', 'src/connection_manager.c',
+        ]],
+        ['test_connection_plan', [
+            'tests/test_connection_plan.c', 'src/connection_plan.c',
+            'vendor/yyjson/yyjson.c',
+        ]],
+        ['test_transport_resolver', [
+            'tests/test_transport_resolver.c', 'src/transport_resolver.c',
+            'src/connection_plan.c', 'vendor/yyjson/yyjson.c',
+            'src/util/intr.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
+        ]],
         ['test_recovery_adapter', [
             'tests/test_recovery_adapter.c', 'src/recovery_adapter.c',
+        ]],
+        ['test_recording_segments', [
+            'tests/test_recording_segments.c', 'src/recording_segments.c',
+            'src/trait/packet_source.c',
+            'src/options.c', 'src/util/str.c', 'src/util/strbuf.c',
+            'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
         ]],
         ['test_recorder_lifetime', [
             'tests/test_recorder_lifetime.c', 'src/options.c',
@@ -395,6 +447,8 @@ if get_option('buildtype') == 'debug'
         ['test_cli', [
             'tests/test_cli.c',
             'src/cli.c',
+            'src/connection_plan.c',
+            'vendor/yyjson/yyjson.c',
             'src/options.c',
             'src/util/log.c',
             'src/util/net.c',
@@ -448,6 +502,16 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    adb_query_test = executable('test_adb_query', [
+        'tests/test_adb_query.c', 'src/adb/adb_parser.c',
+        'src/adb/adb_device.c', 'src/util/str.c', 'src/util/strbuf.c',
+        'src/util/process_intr.c', 'src/util/intr.c', 'src/util/thread.c',
+        'src/util/log.c', 'src/util/tick.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST', '-ffunction-sections', '-fdata-sections'],
+       link_args: ['-Wl,--gc-sections'])
+    test('test_adb_query', adb_query_test)
 
     retirement_test = executable('test_session_retirement', [
         'tests/test_session_retirement.c', 'src/session_retirement.c',
@@ -584,6 +648,7 @@ if get_option('buildtype') == 'debug'
         executable('test_machine_child', [
             'tests/test_machine_child.c',
             'src/ipc/machine.c',
+        'src/ipc/machine_stream.c',
             'src/ipc/ipc_frame.c',
             'src/ipc/ipc_json.c',
             'vendor/yyjson/yyjson.c',

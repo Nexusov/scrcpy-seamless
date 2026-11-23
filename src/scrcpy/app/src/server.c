@@ -958,6 +958,7 @@ run_server(void *data) {
     struct sc_server *server = data;
 
     const struct sc_server_params *params = &server->params;
+    server->failure = SC_SERVER_FAILURE_START;
 
     // Execute "adb start-server" before "adb devices" so that daemon starting
     // output/errors is correctly printed in the console ("adb devices" output
@@ -974,6 +975,7 @@ run_server(void *data) {
         ok = sc_adb_connect(&server->intr, params->req_serial, SC_ADB_SILENT);
 
         if (!ok) {
+            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
             goto error_connection_failed;
         }
     }
@@ -1010,6 +1012,7 @@ run_server(void *data) {
         struct sc_adb_device device;
         ok = sc_adb_select_device(&server->intr, &selector, 0, &device);
         if (!ok) {
+            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
             goto error_connection_failed;
         }
 
@@ -1038,6 +1041,7 @@ run_server(void *data) {
         }
         ok = sc_server_configure_tcpip_known_address(server, tcpip_dst, plus);
         if (!ok) {
+            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
             goto error_connection_failed;
         }
     }

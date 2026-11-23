@@ -15,6 +15,10 @@
 #endif
 
 #include "dispatcher.h"
+#include "adb/adb.h"
+#include "connection_plan.h"
+#include "transport_resolver.h"
+#include "recording_segments.h"
 #include "events.h"
 #ifdef _WIN32
 # include "ipc/machine.h"
@@ -28,6 +32,8 @@
 #include "session.h"
 #include "session_retirement.h"
 #include "recovery_adapter.h"
+
+#define SC_APP_STARTUP_TIMEOUT SC_TICK_FROM_SEC(30)
 
 enum sc_app_state {
     SC_APP_CONNECTING,
@@ -43,9 +49,36 @@ struct sc_app {
     struct sc_screen screen;
     struct sc_session *current;
     struct sc_session_retirement retirement;
+    struct sc_connection_manager connection;
+    enum sc_connection_failure failure;
+    sc_tick startup_started;
     bool stopped;
+    bool recording_output_opened;
+    bool has_recording_result;
+    enum sc_recorder_result recording_result;
+    bool video_initialized;
+    bool audio_initialized;
+    bool gamepad_initialized;
     bool retirement_quit_is_terminal;
 };
+
+/** Observe sticky process intent independently of SDL wake delivery. */
+static void
+sc_app_observe_stop(struct sc_app *s) {
+#ifdef _WIN32
+
+    if (sc_machine_is_active() && sc_machine_stop_requested()) {
+        s->stopped = true;
+        enum sc_connection_failure reason =
+            !strcmp(sc_machine_stop_reason(), "protocolError")
+                ? SC_CONNECTION_FAILURE_PROTOCOL
+                : SC_CONNECTION_FAILURE_USER_STOP;
+        sc_connection_manager_stop(&s->connection, reason, sc_tick_now());
+    }
+#else
+    (void) s;
+#endif
+}
 
 #ifdef _WIN32
 static BOOL WINAPI windows_ctrl_handler(DWORD ctrl_type) {
@@ -79,11 +112,7 @@ sc_machine_observe_quit(Uint32 event_type) {
 static void
 sc_retirement_pump(struct sc_app *s, bool has_screen,
                    struct sc_dispatcher *dispatcher) {
-#ifdef _WIN32
-    if (sc_machine_is_active() && sc_machine_stop_requested()) {
-        s->stopped = true;
-    }
-#endif
+    sc_app_observe_stop(s);
     SDL_Event event;
 
     if (!SDL_WaitEventTimeout(&event, SC_SESSION_EVENT_WAIT_MS)) {
@@ -128,6 +157,10 @@ sc_retire_generation(void *userdata) {
     struct sc_app *s = userdata;
     sc_session_request_stop(s->current);
     sc_session_join(s->current);
+    s->recording_output_opened =
+        sc_session_recording_output_opened(s->current);
+    s->has_recording_result =
+        sc_session_get_recording_result(s->current, &s->recording_result);
     sc_session_release_resources(s->current);
 
 }
@@ -202,6 +235,57 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
     SDL_Event event;
 
     for (;;) {
+        sc_app_observe_stop(s);
+        struct sc_connection_action action =
+            sc_connection_manager_poll(&s->connection, sc_tick_now());
+
+        if (action.type == SC_CONNECTION_ACTION_RETIRE
+                || action.type == SC_CONNECTION_ACTION_FINISH) {
+            s->failure = action.failure;
+
+            if (connected) {
+                *connected = false;
+            }
+            return action.failure == SC_CONNECTION_FAILURE_DEADLINE
+                || action.failure == SC_CONNECTION_FAILURE_USER_STOP
+                ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
+        }
+
+        if (s->state == SC_APP_CONNECTING
+                && sc_tick_now() - s->startup_started >= SC_APP_STARTUP_TIMEOUT) {
+            s->failure = SC_CONNECTION_FAILURE_TRANSIENT_CONNECT;
+
+            if (connected) {
+                *connected = false;
+            }
+            return SCRCPY_EXIT_FAILURE;
+        }
+        uint8_t degraded = sc_session_take_degraded(s->current);
+#ifdef _WIN32
+
+        if (sc_machine_is_active() && degraded) {
+            static const struct {
+                uint8_t bit;
+                const char *name;
+            } channels[] = {
+                {SC_SESSION_CAPABILITY_VIDEO, "video"},
+                {SC_SESSION_CAPABILITY_AUDIO, "audio"},
+                {SC_SESSION_CAPABILITY_CONTROL, "control"},
+            };
+
+            for (unsigned index = 0; index < ARRAY_LEN(channels); ++index) {
+
+                if ((degraded & channels[index].bit)
+                        && !sc_machine_emit_lifecycle("CapabilityDegraded",
+                            channels[index].name, NULL, "unknown", "unknown")) {
+                    s->failure = SC_CONNECTION_FAILURE_PROTOCOL;
+                    return SCRCPY_EXIT_FAILURE;
+                }
+            }
+        }
+#else
+        (void) degraded;
+#endif
 
         if (!sc_app_next_event(s, dispatcher, &event)) {
             continue;
@@ -212,6 +296,7 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
             sc_machine_observe_quit(event.type);
 #endif
             s->stopped = true;
+            s->failure = SC_CONNECTION_FAILURE_WINDOW_CLOSED;
 
             if (connected) {
                 *connected = false;
@@ -221,7 +306,13 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
 
         if (s->state == SC_APP_CONNECTING) {
 
+            if (event.type == SC_EVENT_SERVER_TRANSIENT_FAILURE) {
+                s->failure = SC_CONNECTION_FAILURE_TRANSIENT_CONNECT;
+                return SCRCPY_EXIT_FAILURE;
+            }
+
             if (event.type == SC_EVENT_SERVER_CONNECTION_FAILED) {
+                s->failure = SC_CONNECTION_FAILURE_SERVER_START;
                 return SCRCPY_EXIT_FAILURE;
             }
 
@@ -241,18 +332,29 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
 
         switch (event.type) {
             case SC_EVENT_DEVICE_DISCONNECTED:
+                s->failure = SC_CONNECTION_FAILURE_TRANSPORT_LOST;
 
                 if (has_screen && !reconnect) {
                     sc_screen_handle_event(&s->screen, &event);
                 }
                 return SCRCPY_EXIT_DISCONNECTED;
             case SC_EVENT_DEMUXER_ERROR:
+                s->failure = SC_CONNECTION_FAILURE_DECODER;
+                return SCRCPY_EXIT_FAILURE;
+            case SC_EVENT_PROTOCOL_ERROR:
+                s->failure = SC_CONNECTION_FAILURE_PROTOCOL;
+                return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_CONTROLLER_ERROR:
-                return reconnect ? SCRCPY_EXIT_DISCONNECTED : SCRCPY_EXIT_FAILURE;
+                s->failure = SC_CONNECTION_FAILURE_CONTROLLER;
+                return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_RECORDER_ERROR:
+                s->failure = SC_CONNECTION_FAILURE_RECORDING;
+                return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_AOA_OPEN_ERROR:
+                s->failure = SC_CONNECTION_FAILURE_SERVER_START;
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_TIME_LIMIT_REACHED:
+                s->failure = SC_CONNECTION_FAILURE_DEADLINE;
                 return SCRCPY_EXIT_SUCCESS;
             default:
 
@@ -264,41 +366,101 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
     }
 }
 
-/** Wait between attempts while processing close and repaint events. */
+/** Poll value-only policy while keeping application events responsive. */
 static bool
-sc_wait_reconnect(struct sc_screen *screen, struct sc_dispatcher *dispatcher) {
-    const Uint64 retry_delay_ms = 1000;
-    const int event_poll_ms = 50;
-    Uint64 deadline = SDL_GetTicks() + retry_delay_ms;
-    SDL_Event event;
+sc_app_acquire_target(struct sc_app *s, struct sc_dispatcher *dispatcher,
+                       bool has_screen,
+                       const struct sc_connection_launch_plan *plan,
+                       const struct sc_recovery_adapter *legacy,
+                       const struct scrcpy_options *options,
+                       struct sc_recovery_target *target,
+                       struct sc_transport_result *resolved) {
+    struct sc_transport_resolver resolver = {0};
+    bool cancelled = false;
+    sc_tick started = 0;
 
-    while (SDL_GetTicks() < deadline) {
-#ifdef _WIN32
-        if (sc_machine_is_active() && sc_machine_stop_requested()) {
-            return false;
+    for (;;) {
+        sc_app_observe_stop(s);
+
+        if (s->stopped) {
+            sc_connection_manager_stop(&s->connection,
+                                       SC_CONNECTION_FAILURE_WINDOW_CLOSED,
+                                       sc_tick_now());
         }
-#endif
-        if (!SDL_WaitEventTimeout(&event, event_poll_ms)) {
-            continue;
+        struct sc_connection_action action =
+            sc_connection_manager_poll(&s->connection, sc_tick_now());
+
+        switch (action.type) {
+            case SC_CONNECTION_ACTION_RESOLVE:
+
+                if (!plan) {
+                    bool retrying = action.attempt > 1;
+                    bool success = sc_recovery_adapter_resolve(legacy, options,
+                                                               retrying, target);
+                    sc_connection_manager_resolved(&s->connection, action.attempt,
+                        success ? SC_CONNECTION_FAILURE_NONE
+                                : SC_CONNECTION_FAILURE_INVALID_CONFIGURATION,
+                        sc_tick_now());
+                    break;
+                }
+
+                if (!sc_transport_resolver_start(&resolver, action.attempt,
+                                                  &plan->targets[action.candidate])) {
+                    sc_connection_manager_resolved(&s->connection, action.attempt,
+                        SC_CONNECTION_FAILURE_SERVER_START, sc_tick_now());
+                    break;
+                }
+                cancelled = false;
+                started = sc_tick_now();
+                break;
+            case SC_CONNECTION_ACTION_START:
+
+                if (plan) {
+                    *target = (struct sc_recovery_target) {
+                        .req_serial = resolved->serial,
+                    };
+                }
+                return true;
+            case SC_CONNECTION_ACTION_RETIRE:
+
+                if (resolver.started && !cancelled) {
+                    sc_transport_resolver_cancel(&resolver);
+                    cancelled = true;
+                }
+
+                if (!resolver.started) {
+                    sc_connection_manager_retired(&s->connection, action.attempt,
+                                                   sc_tick_now());
+                }
+                break;
+            case SC_CONNECTION_ACTION_FINISH:
+                s->failure = action.failure;
+                return false;
+            case SC_CONNECTION_ACTION_WAIT:
+                break;
         }
 
-        if (sc_dispatcher_handle_event(dispatcher, &event)) {
-            continue;
-        }
+        if (resolver.started) {
 
-        if (event.type == SDL_EVENT_QUIT) {
-#ifdef _WIN32
-            sc_machine_observe_quit(event.type);
-#endif
-            return false;
-        }
+            if (!cancelled && sc_tick_now() - started >= SC_TICK_FROM_SEC(8)) {
+                sc_transport_resolver_cancel(&resolver);
+                cancelled = true;
+            }
 
-        if (screen) {
-            sc_screen_handle_event(screen, &event);
+            if (sc_transport_resolver_take(&resolver, resolved)) {
+
+                if (sc_connection_manager_get_state(&s->connection)
+                        == SC_CONNECTION_RETIRING) {
+                    sc_connection_manager_retired(&s->connection,
+                                                   resolved->attempt, sc_tick_now());
+                } else {
+                    sc_connection_manager_resolved(&s->connection,
+                        resolved->attempt, resolved->failure, sc_tick_now());
+                }
+            }
         }
+        sc_retirement_pump(s, has_screen, dispatcher);
     }
-
-    return true;
 }
 
 // Generate a scrcpy id to differentiate multiple running scrcpy instances
@@ -323,23 +485,57 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
     const char *reconnect_serial = getenv("SCRCPY_RECONNECT_SERIAL");
     struct sc_recovery_adapter recovery;
     sc_recovery_adapter_init(&recovery, reconnect_serial, getenv("ANDROID_SERIAL"));
-    bool reconnect = sc_recovery_adapter_enabled(&recovery);
-    bool incompatible = !options->window || !options->video_playback
-                     || options->record_filename || options->time_limit
-                     || options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA
+    const struct sc_connection_launch_plan *plan = options->connection_plan;
+    bool reconnect = plan ? plan->reconnect
+                          : sc_recovery_adapter_enabled(&recovery);
+    bool incompatible = options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA
                      || options->mouse_input_mode == SC_MOUSE_INPUT_MODE_AOA
                      || options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_AOA;
 
     if (reconnect && incompatible) {
-        LOGE("Reconnect requires video playback without recording, time limit or AOA");
+        LOGE("Network recovery is unavailable for AOA input");
+        return SCRCPY_EXIT_FAILURE;
+    }
+    struct sc_connection_plan policy = plan ? plan->policy
+        : (struct sc_connection_plan) {
+            .candidates = {SC_CONNECTION_USB, SC_CONNECTION_NETWORK},
+            .candidate_count = reconnect ? 2 : 1,
+            .allow_fallback = reconnect,
+            .retry_enabled = reconnect,
+            .maximum_attempts = 3,
+            .initial_backoff = SC_TICK_FROM_SEC(1),
+            .maximum_backoff = SC_TICK_FROM_SEC(8),
+        };
+    policy.time_limit = options->time_limit;
+
+    if (!sc_connection_manager_init(&s->connection, &policy, sc_tick_now())) {
+        return SCRCPY_EXIT_FAILURE;
+    }
+    bool segmented_recording = reconnect && options->record_filename;
+    struct sc_recording_segments segments;
+
+    if (segmented_recording &&
+            !sc_recording_segments_init(&segments, options->record_filename)) {
+        return SCRCPY_EXIT_FAILURE;
+    }
+    /* One application clock includes resolve/start/backoff/retirement. */
+    struct scrcpy_options generation_options = *options;
+    generation_options.time_limit = 0;
+
+    if (!sc_adb_init()) {
         return SCRCPY_EXIT_FAILURE;
     }
     bool screen_initialized = false;
     bool retrying = false;
     s->stopped = false;
+    s->video_initialized = false;
+    s->audio_initialized = false;
+    s->gamepad_initialized = false;
+    s->current = NULL;
     s->retirement_quit_is_terminal = false;
 
     if (!sc_session_retirement_init(&s->retirement)) {
+        sc_adb_destroy();
         return SCRCPY_EXIT_FAILURE;
     }
 #ifdef _WIN32
@@ -350,10 +546,14 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
 
     for (;;) {
         s->state = SC_APP_CONNECTING;
+        s->failure = SC_CONNECTION_FAILURE_SERVER_START;
         ret = SCRCPY_EXIT_FAILURE;
         bool retry_session = false;
         bool disconnected = false;
         bool screen_interrupted = false;
+        struct sc_recording_segment segment = {0};
+        s->recording_output_opened = false;
+        s->has_recording_result = false;
 #ifdef _WIN32
         bool reconnect_scheduled = false;
 
@@ -363,14 +563,41 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
         }
 #endif
         struct sc_recovery_target target;
+        struct sc_transport_result resolved;
 
-        if (!sc_recovery_adapter_resolve(&recovery, options, retrying, &target)) {
+        if (!sc_app_acquire_target(s, dispatcher, screen_initialized, plan,
+                                    &recovery, options, &target, &resolved)) {
+            ret = s->failure == SC_CONNECTION_FAILURE_USER_STOP
+                || s->failure == SC_CONNECTION_FAILURE_WINDOW_CLOSED
+                || s->failure == SC_CONNECTION_FAILURE_DEADLINE
+                ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
             goto finish_screen;
         }
-        s->current = sc_session_create(options, dispatcher, &s->screen,
+        retrying = s->connection.attempt > 1;
+
+        if (segmented_recording) {
+
+            if (!sc_recording_segments_prepare(&segments, &segment)) {
+                sc_connection_manager_failed(&s->connection, s->connection.attempt,
+                    SC_CONNECTION_FAILURE_RECORDING, sc_tick_now());
+                sc_connection_manager_poll(&s->connection, sc_tick_now());
+                sc_connection_manager_retired(&s->connection, s->connection.attempt,
+                                               sc_tick_now());
+                goto finish_screen;
+            }
+            generation_options.record_filename = segment.filename;
+            generation_options.record_exclusive = true;
+        }
+        s->current = sc_session_create(&generation_options, dispatcher, &s->screen,
                                         &screen_initialized);
 
         if (!s->current) {
+            sc_connection_manager_failed(&s->connection, s->connection.attempt,
+                                          SC_CONNECTION_FAILURE_SERVER_START,
+                                          sc_tick_now());
+            sc_connection_manager_poll(&s->connection, sc_tick_now());
+            sc_connection_manager_retired(&s->connection, s->connection.attempt,
+                                           sc_tick_now());
             goto finish_screen;
         }
         uint32_t scid = scrcpy_generate_scid();
@@ -456,6 +683,8 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             }
         }
 #endif
+        s->startup_started = sc_tick_now();
+
         if (!sc_session_start_server(s->current, &params)) {
             ret = sc_session_startup_interrupted(s->current)
                 ? SCRCPY_EXIT_SUCCESS : SCRCPY_EXIT_FAILURE;
@@ -480,7 +709,7 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
         assert(!options->video_playback || options->video);
         assert(!options->audio_playback || options->audio);
 
-        if (!retrying && (options->window ||
+        if (!s->video_initialized && (options->window ||
                 (options->control && options->clipboard_autosync))) {
             // Initialize the video subsystem even if --no-video or
             // --no-video-playback is passed so that clipboard synchronization
@@ -494,21 +723,25 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
                 } else {
                     LOGW("Could not initialize SDL video: %s", SDL_GetError());
                 }
+            } else {
+                s->video_initialized = true;
             }
         }
 
-        if (!retrying && options->audio_playback) {
+        if (!s->audio_initialized && options->audio_playback) {
             if (!SDL_Init(SDL_INIT_AUDIO)) {
                 LOGE("Could not initialize SDL audio: %s", SDL_GetError());
                 goto end;
             }
+            s->audio_initialized = true;
         }
 
-        if (!retrying && options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
+        if (!s->gamepad_initialized && options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
             if (!SDL_Init(SDL_INIT_GAMEPAD)) {
                 LOGE("Could not initialize SDL gamepad: %s", SDL_GetError());
                 goto end;
             }
+            s->gamepad_initialized = true;
         }
 
         // Await for server without blocking Ctrl+C handling
@@ -535,6 +768,8 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             goto end;
         }
 
+        sc_connection_manager_connected(&s->connection, s->connection.attempt,
+                                          sc_tick_now());
         s->state = SC_APP_STREAMING;
         ret = sc_app_wait(s, options->window, reconnect, dispatcher, NULL);
         retry_session = reconnect && ret == SCRCPY_EXIT_DISCONNECTED;
@@ -554,6 +789,24 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
 
     end:
         s->state = SC_APP_RETIRING;
+
+        if (ret == SCRCPY_EXIT_SUCCESS) {
+            sc_app_observe_stop(s);
+        }
+
+        if (s->stopped || options->list || ret == SCRCPY_EXIT_SUCCESS) {
+            sc_connection_manager_stop(&s->connection,
+                s->failure == SC_CONNECTION_FAILURE_DEADLINE
+                    ? s->failure : s->stopped
+                    ? SC_CONNECTION_FAILURE_WINDOW_CLOSED
+                    : SC_CONNECTION_FAILURE_APPLICATION_SHUTDOWN,
+                sc_tick_now());
+        } else {
+            sc_connection_manager_failed(&s->connection, s->connection.attempt,
+                                          s->failure, sc_tick_now());
+        }
+        sc_connection_manager_poll(&s->connection, sc_tick_now());
+        retry_session = !s->connection.terminal;
 #ifdef _WIN32
         if (sc_machine_is_active() && retry_session && !reconnect_scheduled) {
             sc_machine_emit_lifecycle("ReconnectScheduled", "connection", NULL,
@@ -576,14 +829,47 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             sc_screen_hide_window(&s->screen);
         }
         sc_retire_current(s, screen_initialized, dispatcher);
+        bool recording_failed = s->has_recording_result
+            && s->recording_result == SC_RECORDER_RESULT_FAILED;
 
-        if (s->stopped && retry_session) {
+        if (recording_failed) {
+            /* Revocation ends publication, not finalization. Keep this joined
+             * failure separate from already recorded user/deadline intent. */
+            sc_connection_manager_stop(&s->connection,
+                SC_CONNECTION_FAILURE_RECORDING, sc_tick_now());
+            ret = SCRCPY_EXIT_FAILURE;
+        }
+
+        if (segmented_recording && s->recording_output_opened
+                && !sc_recording_segments_commit(&segments,
+                                      &segment, s->recording_output_opened)) {
+            sc_connection_manager_stop(&s->connection,
+                SC_CONNECTION_FAILURE_RECORDING, sc_tick_now());
+            ret = SCRCPY_EXIT_FAILURE;
+        }
+
+        if (s->stopped) {
+            sc_connection_manager_stop(&s->connection,
+                SC_CONNECTION_FAILURE_WINDOW_CLOSED, sc_tick_now());
+        }
+        sc_connection_manager_retired(&s->connection, s->connection.attempt,
+                                       sc_tick_now());
+
+        if (!recording_failed
+                && s->connection.failure == SC_CONNECTION_FAILURE_DEADLINE) {
+            ret = SCRCPY_EXIT_SUCCESS;
+        }
+        retry_session = !s->connection.terminal;
+
+        if (!recording_failed && s->stopped && s->retirement_quit_is_terminal) {
             retry_session = false;
             ret = SCRCPY_EXIT_SUCCESS;
         }
         s->retirement_quit_is_terminal = false;
 
     finish_screen:
+        sc_recording_segment_destroy(&segment);
+
         if (screen_initialized && !retry_session) {
 
             if (!screen_interrupted) {
@@ -597,28 +883,12 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
         }
 
         if (retry_session) {
+
             if (screen_initialized) {
                 sc_screen_clear_pending_frames(&s->screen);
             }
-
             s->state = SC_APP_WAITING;
-
-            if (sc_wait_reconnect(screen_initialized ? &s->screen : NULL,
-                                   dispatcher)) {
-                retrying = true;
-                LOGI("Reconnecting to %s", reconnect_serial);
-                continue;
-            }
-
-            if (screen_initialized) {
-                sc_screen_interrupt(&s->screen);
-                sc_retire_presentation(s, dispatcher);
-#ifdef _WIN32
-                sc_machine_set_window(NULL);
-#endif
-                sc_screen_destroy(&s->screen);
-            }
-            ret = SCRCPY_EXIT_SUCCESS;
+            continue;
         }
 
         break;
@@ -635,5 +905,6 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
     bool destroyed = sc_session_retirement_destroy(&s->retirement);
     assert(destroyed);
     (void) destroyed;
+    sc_adb_destroy();
     return ret;
 }

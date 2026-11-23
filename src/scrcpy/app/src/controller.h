@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "control_msg.h"
+#include "control_status.h"
 #include "receiver.h"
 #include "util/acksync.h"
 #include "util/net.h"
@@ -38,7 +39,7 @@ struct sc_controller {
 };
 
 struct sc_controller_callbacks {
-    void (*on_ended)(struct sc_controller *controller, bool error,
+    void (*on_ended)(struct sc_controller *controller, enum sc_control_status status,
                      void *userdata);
 };
 

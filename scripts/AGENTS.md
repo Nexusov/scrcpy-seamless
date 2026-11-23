@@ -59,6 +59,9 @@ Phase 6C staging reads `spec/desktop-native/runtime-contract.json` for its
 machine compatibility claim, requires a source-built machine native client and
 includes the yyjson MIT notice. A new archive requires that claim; read-only
 verification of an older archive still checks its old schema and hashes.
+ConnectionPlanVersion separately guards the new launch-plan bootstrap. New
+archives require it; read-only verification preserves older machine claims that
+predate it without treating their unchanged artifacts as current-host compatible.
 
 ## Provenance
 

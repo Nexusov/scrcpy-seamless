@@ -17,7 +17,14 @@ product, protocol version and required capabilities against
 `ProtocolCompatibility`. The runtime manifest remains schema 1 with optional
 machine metadata so previously built bundles remain readable. Full file/hash
 checks run first; an otherwise valid old manifest without machine metadata
-returns `IncompatibleMachineContract`. This local manifest is consistency
+returns `IncompatibleMachineContract`. A current machine runtime also claims
+`ConnectionPlanVersion: 1` for the bounded immutable launch argument. A missing
+or different version is incompatible before child creation even if its framed
+IPC version and capabilities match. This bootstrap version does not change the
+version-1 wire codec. Read-only archive verification still accepts historical
+four-field machine claims; creating a new package requires the current claim.
+Neither verification path modifies an older package or grants it new runtime
+features. This local manifest is consistency
 metadata, not a signature. The child must still pass the real negotiated
 handshake on Mirror, and a failed handshake never starts a legacy child.
 

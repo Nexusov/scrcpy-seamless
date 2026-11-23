@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <libavcodec/packet.h>
 #include <libavformat/avformat.h>
 
@@ -18,6 +19,12 @@ struct sc_recorder_queue SC_VECDEQUE(AVPacket *);
 struct sc_recorder_stream {
     int index;
     int64_t last_pts;
+};
+
+enum sc_recorder_result {
+    SC_RECORDER_RESULT_FAILED,
+    SC_RECORDER_RESULT_CANCELLED_BEFORE_MEDIA,
+    SC_RECORDER_RESULT_SUCCEEDED,
 };
 
 struct sc_recorder {
@@ -40,6 +47,11 @@ struct sc_recorder {
     char *filename;
     enum sc_record_format format;
     AVFormatContext *ctx;
+    FILE *exclusive_file;
+    bool exclusive_output;
+    bool output_ready;
+    bool output_opened;
+    enum sc_recorder_result result;
 
     sc_thread thread;
     sc_mutex mutex;
@@ -63,6 +75,7 @@ struct sc_recorder {
 };
 
 struct sc_recorder_callbacks {
+    /* Nonfailure includes cancellation; the joined result distinguishes it. */
     void (*on_ended)(struct sc_recorder *recorder, bool success,
                      void *userdata);
 };
@@ -75,6 +88,18 @@ sc_recorder_init(struct sc_recorder *recorder, const char *filename,
 
 bool
 sc_recorder_start(struct sc_recorder *recorder);
+
+/* Configure before start. Ordinary CLI recording keeps its existing behavior. */
+void
+sc_recorder_set_exclusive_output(struct sc_recorder *recorder);
+
+/* Read only after join: true means an actual output file was opened. */
+bool
+sc_recorder_output_opened(const struct sc_recorder *recorder);
+
+/* Read only after the worker joins; Stop intent does not overwrite this fact. */
+enum sc_recorder_result
+sc_recorder_get_result(const struct sc_recorder *recorder);
 
 void
 sc_recorder_stop(struct sc_recorder *recorder);

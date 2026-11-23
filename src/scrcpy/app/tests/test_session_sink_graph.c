@@ -25,6 +25,7 @@ struct packet_endpoint {
     bool fail_open;
     unsigned opens;
     unsigned closes;
+    unsigned disables;
 };
 
 /** Count final buffer release through the actual FFmpeg reference API. */
@@ -84,6 +85,15 @@ close_packet(struct sc_packet_sink *sink) {
     ++endpoint->closes;
 }
 
+/* Model the recorder's uninitialized-audio waiter, not its worker state machine. */
+static void
+disable_packet(struct sc_packet_sink *sink) {
+    struct packet_endpoint *endpoint = container_of(sink, struct packet_endpoint, sink);
+    assert(!endpoint->closes);
+    assert(!endpoint->opens || endpoint->fail_open);
+    ++endpoint->disables;
+}
+
 /** Exercise the real packet-source → decoder → frame-source open/close path. */
 static void
 test_graph(int failing_frame, bool failing_packet) {
@@ -94,6 +104,7 @@ test_graph(int failing_frame, bool failing_packet) {
     static const struct sc_packet_sink_ops packet_operations = {
         .open = open_packet,
         .close = close_packet,
+        .disable = disable_packet,
     };
     struct frame_endpoint endpoints[TEST_SINK_COUNT] = {0};
     struct sc_decoder decoder;
@@ -137,6 +148,7 @@ test_graph(int failing_frame, bool failing_packet) {
     assert(!decoder.frame);
     assert(packet.opens == (failing_frame < 0));
     assert(packet.closes == opened);
+    assert(packet.disables == !opened);
     avcodec_free_context(&context);
 }
 

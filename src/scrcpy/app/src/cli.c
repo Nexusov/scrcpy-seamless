@@ -1948,6 +1948,15 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
             case OPT_SEAMLESS_MACHINE:
                 args->machine_mode = true;
                 break;
+            case OPT_SEAMLESS_CONNECTION_PLAN:
+                if (opts->connection_plan ||
+                        !sc_connection_launch_plan_parse(optarg, &args->connection_plan)) {
+                    LOGE("Invalid or duplicate managed connection plan");
+                    return false;
+                }
+
+                opts->connection_plan = &args->connection_plan;
+                break;
             case OPT_SEAMLESS_SESSION_ID:
                 args->machine_session_id = optarg;
                 break;
@@ -1986,11 +1995,12 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
     }
 
     bool machine_metadata = args->machine_session_id ||
-                            args->machine_parent_pid || args->machine_parent_created;
+                            args->machine_parent_pid || args->machine_parent_created ||
+                            opts->connection_plan;
     if (args->machine_mode != machine_metadata ||
             (args->machine_mode && (!args->machine_session_id ||
              !args->machine_parent_pid || !args->machine_parent_created ||
-             args->help || args->version))) {
+             !opts->connection_plan || args->help || args->version))) {
         LOGE("Incomplete or unexpected managed machine bootstrap");
         return false;
     }

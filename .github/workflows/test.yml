@@ -51,7 +51,7 @@ jobs:
         shell: powershell
         run: |
           $sdk = ./scripts/bootstrap-dotnet.ps1
-          ./scripts/test-ipc-contract.ps1 -CompilerPath ./work/native/w64devkit/bin/gcc.exe -DotnetPath $sdk
+          ./scripts/test-ipc-contract.ps1 -CompilerPath ./work/native/w64devkit/bin/gcc.exe -DotnetPath $sdk -ConnectionPlanHarnessPath ./work/native-tests/app/test_connection_plan.exe
       - name: Exercise owned IPC and parent-death cleanup without ADB
         shell: powershell
         run: |

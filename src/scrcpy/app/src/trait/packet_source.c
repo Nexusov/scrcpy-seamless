@@ -34,6 +34,15 @@ sc_packet_source_sinks_open(struct sc_packet_source *source,
         struct sc_packet_sink *sink = source->sinks[i];
         if (!sink->ops->open(sink, ctx, session)) {
             sc_packet_source_sinks_close_firsts(source, i);
+            /* Settle unopened optional consumers (notably recorder audio). */
+            for (unsigned pending = i; pending < source->sink_count; ++pending) {
+                struct sc_packet_sink *unopened = source->sinks[pending];
+
+                if (unopened->ops->disable) {
+                    unopened->ops->disable(unopened);
+                }
+            }
+
             return false;
         }
     }

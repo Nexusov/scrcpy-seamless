@@ -25,6 +25,8 @@ enum sc_demuxer_status {
     SC_DEMUXER_STATUS_EOS,
     SC_DEMUXER_STATUS_DISABLED,
     SC_DEMUXER_STATUS_ERROR,
+    SC_DEMUXER_STATUS_PROTOCOL_ERROR,
+    SC_DEMUXER_STATUS_SINK_ERROR,
 };
 
 struct sc_demuxer_callbacks {

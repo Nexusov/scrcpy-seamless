@@ -79,6 +79,7 @@ public sealed class ProductionNativeBootstrapTests
         "--seamless-session-id=" + Guid.NewGuid().ToString("D"),
         "--seamless-parent-pid=" + parentPid,
         "--seamless-parent-created=" + parentCreated,
+        "--seamless-connection-plan={\"version\":1,\"reconnect\":false,\"selected\":0,\"requiredCapabilities\":5,\"desiredCapabilities\":7,\"maximumAttempts\":3,\"initialBackoffUs\":\"1000000\",\"maximumBackoffUs\":\"8000000\",\"candidates\":[{\"transport\":\"usb\",\"serial\":\"SYNTHETIC_USB\"}]}",
     ];
 
     /// <summary>Runs only explicitly bounded bootstrap paths and settles the exact started process.</summary>

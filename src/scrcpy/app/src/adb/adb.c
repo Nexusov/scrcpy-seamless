@@ -27,9 +27,16 @@
 #define SC_ADB_COMMAND(...) { sc_adb_get_executable(), __VA_ARGS__, NULL }
 
 static char *adb_executable;
+static unsigned adb_owners;
 
 bool
 sc_adb_init(void) {
+
+    if (adb_owners) {
+        ++adb_owners;
+        return true;
+    }
+    adb_owners = 1;
     adb_executable = sc_get_env("ADB");
     if (adb_executable) {
         LOGD("Using adb: %s", adb_executable);
@@ -40,6 +47,7 @@ sc_adb_init(void) {
     adb_executable = strdup("adb");
     if (!adb_executable) {
         LOG_OOM();
+        adb_owners = 0;
         return false;
     }
 #else
@@ -49,18 +57,29 @@ sc_adb_init(void) {
     adb_executable = sc_file_get_local_path("adb");
     if (!adb_executable) {
         // Error already logged
+        adb_owners = 0;
         return false;
     }
 
     LOGD("Using adb (portable): %s", adb_executable);
 #endif
 
+    if (!adb_executable) {
+        adb_owners = 0;
+        return false;
+    }
     return true;
 }
 
 void
 sc_adb_destroy(void) {
+    assert(adb_owners);
+
+    if (--adb_owners) {
+        return;
+    }
     free(adb_executable);
+    adb_executable = NULL;
 }
 
 const char *
@@ -183,8 +202,15 @@ process_check_success_internal(sc_pid pid, const char *name, bool close,
 static bool
 process_check_success_intr(struct sc_intr *intr, sc_pid pid, const char *name,
                            unsigned flags) {
+    if (pid == SC_PROCESS_NONE) {
+        return process_check_success_internal(pid, name, false, flags);
+    }
+
     if (intr && !sc_intr_set_process(intr, pid)) {
-        // Already interrupted
+        /* Spawn won the cancellation race; retain exact ownership to reap it. */
+        sc_process_terminate(pid);
+        sc_process_wait(pid, false);
+        sc_process_close(pid);
         return false;
     }
 
@@ -229,11 +255,66 @@ sc_adb_execute(const char *const argv[], unsigned flags) {
     return sc_adb_execute_p(argv, flags, NULL);
 }
 
+static sc_pid
+sc_adb_execute_p_intr(struct sc_intr *intr, const char *const argv[],
+                       unsigned flags, sc_pipe *output) {
+    if (intr && sc_intr_is_interrupted(intr)) {
+        return SC_PROCESS_NONE;
+    }
+
+    return sc_adb_execute_p(argv, flags, output);
+}
+
+static sc_pid
+sc_adb_execute_intr(struct sc_intr *intr, const char *const argv[], unsigned flags) {
+    return sc_adb_execute_p_intr(intr, argv, flags, NULL);
+}
+
+bool
+sc_adb_query(struct sc_intr *intr, const char *const argv[], char *output,
+              size_t capacity) {
+    assert(intr && capacity > 1);
+
+    if (sc_intr_is_interrupted(intr)) {
+        output[0] = '\0';
+        return false;
+    }
+    sc_pipe pipe;
+    sc_pid pid = sc_adb_execute_p(argv, SC_ADB_NO_STDERR, &pipe);
+
+    if (pid == SC_PROCESS_NONE) {
+        return false;
+    }
+    bool registered = sc_intr_set_process(intr, pid);
+    ssize_t count = -1;
+
+    if (registered) {
+        count = sc_pipe_read_all(pipe, output, capacity - 1);
+    }
+    bool complete = count >= 0 && (size_t) count < capacity - 1;
+
+    if (!registered || !complete) {
+        /* Do not wait on a writer blocked behind the bounded output buffer. */
+        sc_process_terminate(pid);
+    }
+    sc_pipe_close(pipe);
+    sc_exit_code code = sc_process_wait(pid, false);
+    sc_intr_set_process(intr, SC_PROCESS_NONE);
+    sc_process_close(pid);
+
+    if (!complete || code || sc_intr_is_interrupted(intr)) {
+        output[0] = '\0';
+        return false;
+    }
+    output[count] = '\0';
+    return true;
+}
+
 bool
 sc_adb_start_server(struct sc_intr *intr, unsigned flags) {
     const char *const argv[] = SC_ADB_COMMAND("start-server");
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb start-server", flags);
 }
 
@@ -241,7 +322,7 @@ bool
 sc_adb_kill_server(struct sc_intr *intr, unsigned flags) {
     const char *const argv[] = SC_ADB_COMMAND("kill-server");
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb kill-server", flags);
 }
 
@@ -265,7 +346,7 @@ sc_adb_forward(struct sc_intr *intr, const char *serial, uint16_t local_port,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "forward", local, remote);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb forward", flags);
 }
 
@@ -281,7 +362,7 @@ sc_adb_forward_remove(struct sc_intr *intr, const char *serial,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "forward", "--remove", local);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb forward --remove", flags);
 }
 
@@ -305,7 +386,7 @@ sc_adb_reverse(struct sc_intr *intr, const char *serial,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "reverse", remote, local);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb reverse", flags);
 }
 
@@ -324,7 +405,7 @@ sc_adb_reverse_remove(struct sc_intr *intr, const char *serial,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "reverse", "--remove", remote);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb reverse --remove", flags);
 }
 
@@ -335,7 +416,7 @@ sc_adb_push(struct sc_intr *intr, const char *serial, const char *local,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "push", local, remote);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
 
     return process_check_success_intr(intr, pid, "adb push", flags);
 }
@@ -347,7 +428,7 @@ sc_adb_install(struct sc_intr *intr, const char *serial, const char *local,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "install", "-r", local);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
 
     return process_check_success_intr(intr, pid, "adb install", flags);
 }
@@ -364,7 +445,7 @@ sc_adb_tcpip(struct sc_intr *intr, const char *serial, uint16_t port,
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "tcpip", port_string);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb tcpip", flags);
 }
 
@@ -373,7 +454,7 @@ sc_adb_connect(struct sc_intr *intr, const char *ip_port, unsigned flags) {
     const char *const argv[] = SC_ADB_COMMAND("connect", ip_port);
 
     sc_pipe pout;
-    sc_pid pid = sc_adb_execute_p(argv, flags, &pout);
+    sc_pid pid = sc_adb_execute_p_intr(intr, argv, flags, &pout);
     if (pid == SC_PROCESS_NONE) {
         LOGE("Could not execute \"adb connect\"");
         return false;
@@ -415,7 +496,7 @@ sc_adb_disconnect(struct sc_intr *intr, const char *ip_port, unsigned flags) {
     assert(ip_port);
     const char *const argv[] = SC_ADB_COMMAND("disconnect", ip_port);
 
-    sc_pid pid = sc_adb_execute(argv, flags);
+    sc_pid pid = sc_adb_execute_intr(intr, argv, flags);
     return process_check_success_intr(intr, pid, "adb disconnect", flags);
 }
 
@@ -432,7 +513,7 @@ sc_adb_list_devices(struct sc_intr *intr, unsigned flags,
     }
 
     sc_pipe pout;
-    sc_pid pid = sc_adb_execute_p(argv, flags, &pout);
+    sc_pid pid = sc_adb_execute_p_intr(intr, argv, flags, &pout);
     if (pid == SC_PROCESS_NONE) {
         LOGE("Could not execute \"adb devices -l\"");
         free(buf);
@@ -672,7 +753,7 @@ sc_adb_getprop(struct sc_intr *intr, const char *serial, const char *prop,
         SC_ADB_COMMAND("-s", serial, "shell", "getprop", prop);
 
     sc_pipe pout;
-    sc_pid pid = sc_adb_execute_p(argv, flags, &pout);
+    sc_pid pid = sc_adb_execute_p_intr(intr, argv, flags, &pout);
     if (pid == SC_PROCESS_NONE) {
         LOGE("Could not execute \"adb getprop\"");
         return NULL;
@@ -706,7 +787,7 @@ sc_adb_get_device_ip(struct sc_intr *intr, const char *serial, unsigned flags) {
         SC_ADB_COMMAND("-s", serial, "shell", "ip", "route");
 
     sc_pipe pout;
-    sc_pid pid = sc_adb_execute_p(argv, flags, &pout);
+    sc_pid pid = sc_adb_execute_p_intr(intr, argv, flags, &pout);
     if (pid == SC_PROCESS_NONE) {
         LOGD("Could not execute \"ip route\"");
         return NULL;
