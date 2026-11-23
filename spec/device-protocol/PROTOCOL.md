@@ -106,6 +106,14 @@ declarations, using actual codec buffers. Three Java codec classes must be disco
 with nonzero tests, no failures and no skips; artifact presence is required.
 The ordinary native CI job invokes the lane after pinned server bootstrap.
 
+The integrated native parser initially accepted the rejected NUL clipboard
+vector: the real harness failed its `consumed < 0` assertion before the guard
+was added. Complete bounded clipboard text is now validated before allocation;
+incomplete payload still requests more input, and allocation failure remains a
+distinct local outcome. The fresh combined lane then passed 30 C-to-Java and
+10 Java-to-C frames, 21 Java codec tests and the 30 shared UTF-8 cases. This
+establishes codec behavior, not a historical device failure or a hardware pass.
+
 Each invocation uses a new retained evidence directory, hashes direct source,
 fixture, tool/config and golden inputs before/after, and refuses overwrite.
 An explicit NativeSourceRoot override records a mixed-source codec experiment;

@@ -6,6 +6,7 @@
 
 #include "util/binary.h"
 #include "util/log.h"
+#include "util/utf8.h"
 
 ssize_t
 sc_device_msg_deserialize(const uint8_t *buf, size_t len,
@@ -29,6 +30,10 @@ sc_device_msg_deserialize(const uint8_t *buf, size_t len,
 
             if (clipboard_len > len - 5) {
                 return 0; // no complete message
+            }
+
+            if (!sc_utf8_validate_text(&buf[5], clipboard_len)) {
+                return SC_DEVICE_MSG_MALFORMED;
             }
             char *text = malloc(clipboard_len + 1);
             if (!text) {
