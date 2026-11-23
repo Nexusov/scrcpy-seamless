@@ -11,6 +11,7 @@
 #include "util/log.h"
 
 #define SC_PACKET_HEADER_SIZE 12
+#define SC_DEMUXER_MAX_PACKET_BYTES (16 * 1024 * 1024)
 
 #define SC_PACKET_FLAG_CONFIG    (UINT64_C(1) << 62)
 #define SC_PACKET_FLAG_KEY_FRAME (UINT64_C(1) << 61)
@@ -143,7 +144,7 @@ sc_demuxer_recv_packet(struct sc_demuxer *demuxer, const uint8_t *header,
     assert(!sc_demuxer_is_session(header));
     uint64_t pts_flags = sc_read64be(header);
     uint32_t len = sc_read32be(&header[8]);
-    if (!len || len > INT_MAX) {
+    if (!len || len > SC_DEMUXER_MAX_PACKET_BYTES) {
         LOGE("Invalid packet length: %" PRIu32, len);
         return SC_DEMUXER_PACKET_PROTOCOL_ERROR;
     }

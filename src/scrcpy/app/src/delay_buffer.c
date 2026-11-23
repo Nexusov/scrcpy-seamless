@@ -2,12 +2,128 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include <libavcodec/avcodec.h>
 
 #include "util/log.h"
 
 /** Downcast frame_sink to sc_delay_buffer */
 #define DOWNCAST(SINK) container_of(SINK, struct sc_delay_buffer, frame_sink)
+
+static bool
+sc_delay_buffer_charge_add(size_t *charge, size_t bytes) {
+
+    if (bytes > SC_DELAY_BUFFER_MAX_RETAINED_BYTES - *charge) {
+        return false;
+    }
+
+    *charge += bytes;
+    return true;
+}
+
+static bool
+sc_delay_buffer_charge_buffer(size_t *charge, const AVBufferRef *buffer) {
+    return !buffer || (sc_delay_buffer_charge_add(charge, sizeof(*buffer))
+        && sc_delay_buffer_charge_add(charge, buffer->size));
+}
+
+static bool
+sc_delay_buffer_charge_dictionary(size_t *charge, const AVDictionary *dictionary) {
+    const AVDictionaryEntry *entry = NULL;
+
+    while ((entry = av_dict_get(dictionary, "", entry, AV_DICT_IGNORE_SUFFIX))) {
+
+        if (!sc_delay_buffer_charge_add(charge, sizeof(*entry))
+                || !sc_delay_buffer_charge_add(charge, strlen(entry->key) + 1)
+                || !sc_delay_buffer_charge_add(charge, strlen(entry->value) + 1)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/** Charge complete visible buffers even when multiple references alias them. */
+static bool
+sc_delay_buffer_frame_charge(const AVFrame *frame, size_t *charge) {
+    *charge = sizeof(struct sc_delayed_packet) + sizeof(AVFrame);
+
+    // Production decoder frames are reference-counted; never guess copy sizes.
+    if (!frame->buf[0] || frame->nb_extended_buf < 0 || frame->nb_side_data < 0) {
+        return false;
+    }
+
+    for (unsigned index = 0; index < AV_NUM_DATA_POINTERS; ++index) {
+
+        if (!sc_delay_buffer_charge_buffer(charge, frame->buf[index])) {
+            return false;
+        }
+    }
+
+    for (int index = 0; index < frame->nb_extended_buf; ++index) {
+
+        if (!sc_delay_buffer_charge_add(charge, sizeof(AVBufferRef *))
+                || !sc_delay_buffer_charge_buffer(charge,
+                                                   frame->extended_buf[index])) {
+            return false;
+        }
+    }
+
+    for (int index = 0; index < frame->nb_side_data; ++index) {
+        const AVFrameSideData *side = frame->side_data[index];
+
+        if (!sc_delay_buffer_charge_add(charge, sizeof(*side) + sizeof(side))
+                || !(side->buf ? sc_delay_buffer_charge_buffer(charge, side->buf)
+                    : sc_delay_buffer_charge_add(charge, side->size))
+                || !sc_delay_buffer_charge_dictionary(charge, side->metadata)) {
+            return false;
+        }
+    }
+
+    if (frame->extended_data != frame->data
+            && !sc_delay_buffer_charge_add(charge,
+                (size_t) frame->ch_layout.nb_channels * sizeof(uint8_t *))) {
+        return false;
+    }
+
+    return sc_delay_buffer_charge_buffer(charge, frame->opaque_ref)
+        && sc_delay_buffer_charge_buffer(charge, frame->hw_frames_ctx)
+        && sc_delay_buffer_charge_dictionary(charge, frame->metadata);
+}
+
+static bool
+sc_delay_buffer_reserve(struct sc_delay_buffer *db, size_t charge) {
+    sc_mutex_lock(&db->mutex);
+
+    if (db->stopped) {
+        sc_mutex_unlock(&db->mutex);
+        return false;
+    }
+
+    if (db->retained_items == SC_DELAY_BUFFER_MAX_RETAINED_ITEMS
+            || charge > SC_DELAY_BUFFER_MAX_RETAINED_BYTES - db->retained_bytes) {
+        db->stopped = true;
+        sc_cond_signal(&db->queue_cond);
+        sc_cond_signal(&db->wait_cond);
+        sc_mutex_unlock(&db->mutex);
+        LOGE("Delay buffer retained-memory limit reached");
+        return false;
+    }
+
+    ++db->retained_items;
+    db->retained_bytes += charge;
+    sc_mutex_unlock(&db->mutex);
+    return true;
+}
+
+static void
+sc_delay_buffer_release_charge(struct sc_delay_buffer *db, size_t charge) {
+    sc_mutex_lock(&db->mutex);
+    assert(db->retained_items && db->retained_bytes >= charge);
+    --db->retained_items;
+    db->retained_bytes -= charge;
+    sc_mutex_unlock(&db->mutex);
+}
 
 static bool
 sc_delayed_packet_init_frame(struct sc_delayed_packet *dpacket,
@@ -43,6 +159,13 @@ sc_delayed_packet_destroy(struct sc_delayed_packet *dpacket) {
         av_frame_unref(dpacket->frame);
         av_frame_free(&dpacket->frame);
     }
+}
+
+static void
+sc_delay_buffer_release(struct sc_delay_buffer *db,
+                         struct sc_delayed_packet *packet) {
+    sc_delayed_packet_destroy(packet);
+    sc_delay_buffer_release_charge(db, packet->charge);
 }
 
 static int
@@ -87,7 +210,7 @@ run_buffering(void *data) {
             sc_mutex_unlock(&db->mutex);
 
             if (stopped) {
-                sc_delayed_packet_destroy(&dpacket);
+                sc_delay_buffer_release(db, &dpacket);
                 goto stopped;
             }
 
@@ -104,7 +227,7 @@ run_buffering(void *data) {
                                                     &dpacket.session);
         }
 
-        sc_delayed_packet_destroy(&dpacket);
+        sc_delay_buffer_release(db, &dpacket);
         if (!ok) {
             LOGE("Delayed packet could not be pushed, stopping");
             sc_mutex_lock(&db->mutex);
@@ -116,12 +239,14 @@ run_buffering(void *data) {
     }
 
 stopped:
+    sc_mutex_lock(&db->mutex);
     assert(db->stopped);
+    sc_mutex_unlock(&db->mutex);
 
     // Flush queue
     while (!sc_vecdeque_is_empty(&db->queue)) {
-        struct sc_delayed_packet *dpacket = sc_vecdeque_popref(&db->queue);
-        sc_delayed_packet_destroy(dpacket);
+        struct sc_delayed_packet dpacket = sc_vecdeque_pop(&db->queue);
+        sc_delay_buffer_release(db, &dpacket);
     }
 
     LOGD("Buffering thread ended");
@@ -155,6 +280,7 @@ sc_delay_buffer_frame_sink_open(struct sc_frame_sink *sink,
     sc_clock_init(&db->clock);
     sc_vecdeque_init(&db->queue);
     db->stopped = false;
+    db->retained_items = db->retained_bytes = 0;
 
     if (!sc_frame_source_sinks_open(&db->frame_source, ctx, session)) {
         goto error_destroy_wait_cond;
@@ -192,6 +318,7 @@ sc_delay_buffer_frame_sink_close(struct sc_frame_sink *sink) {
     sc_mutex_unlock(&db->mutex);
 
     sc_thread_join(&db->thread, NULL);
+    assert(!db->retained_items && !db->retained_bytes);
 
     // Join settles popped work and queue draining before backing storage release.
     sc_vecdeque_destroy(&db->queue);
@@ -207,18 +334,33 @@ sc_delay_buffer_frame_sink_push(struct sc_frame_sink *sink,
                                 const AVFrame *frame) {
     struct sc_delay_buffer *db = DOWNCAST(sink);
 
+    size_t charge;
+
+    if (!sc_delay_buffer_frame_charge(frame, &charge)) {
+        // Oversized/unaccountable input also closes admission, without a ref.
+        sc_delay_buffer_reserve(db, SC_DELAY_BUFFER_MAX_RETAINED_BYTES + 1);
+        return false;
+    }
+
+    if (!sc_delay_buffer_reserve(db, charge)) {
+        return false;
+    }
+
     // Prepare ownership before publication; a failed init cannot leave a slot.
     struct sc_delayed_packet candidate;
 
     if (!sc_delayed_packet_init_frame(&candidate, frame)) {
+        sc_delay_buffer_release_charge(db, charge);
         return false;
     }
+
+    candidate.charge = charge;
 
     sc_mutex_lock(&db->mutex);
 
     if (db->stopped) {
         sc_mutex_unlock(&db->mutex);
-        sc_delayed_packet_destroy(&candidate);
+        sc_delay_buffer_release(db, &candidate);
         return false;
     }
 
@@ -226,7 +368,7 @@ sc_delay_buffer_frame_sink_push(struct sc_frame_sink *sink,
         sc_vecdeque_push_uninitialized(&db->queue);
     if (!dpacket) {
         sc_mutex_unlock(&db->mutex);
-        sc_delayed_packet_destroy(&candidate);
+        sc_delay_buffer_release(db, &candidate);
         LOG_OOM();
         return false;
     }
@@ -252,11 +394,17 @@ static bool
 sc_delay_buffer_frame_sink_push_session(struct sc_frame_sink *sink,
                                       const struct sc_stream_session *session) {
     struct sc_delay_buffer *db = DOWNCAST(sink);
+    const size_t charge = sizeof(struct sc_delayed_packet);
+
+    if (!sc_delay_buffer_reserve(db, charge)) {
+        return false;
+    }
 
     sc_mutex_lock(&db->mutex);
 
     if (db->stopped) {
         sc_mutex_unlock(&db->mutex);
+        sc_delay_buffer_release_charge(db, charge);
         return false;
     }
 
@@ -264,11 +412,13 @@ sc_delay_buffer_frame_sink_push_session(struct sc_frame_sink *sink,
         sc_vecdeque_push_uninitialized(&db->queue);
     if (!dpacket) {
         sc_mutex_unlock(&db->mutex);
+        sc_delay_buffer_release_charge(db, charge);
         LOG_OOM();
         return false;
     }
 
     sc_delayed_packet_init_session(dpacket, session);
+    dpacket->charge = charge;
 
 #ifdef SC_BUFFERING_DEBUG
     dpacket->push_date = sc_tick_now();

@@ -33,6 +33,7 @@ static AVIOContext *test_alloc_io(unsigned char *buffer, int buffer_size,
                                   int64_t (*seek)(void *, int64_t, int));
 static void test_free_io(AVIOContext **context);
 static int test_write_packet(AVFormatContext *context, AVPacket *packet);
+static int test_packet_ref(AVPacket *destination, const AVPacket *source);
 static size_t test_write_bytes(const void *buffer, size_t size, size_t count,
                                 FILE *file);
 
@@ -47,6 +48,7 @@ static size_t test_write_bytes(const void *buffer, size_t size, size_t count,
 #define avio_context_free test_free_io
 #define av_interleaved_write_frame test_write_packet
 #define fwrite test_write_bytes
+#define av_packet_ref test_packet_ref
 #include "../src/recorder.c"
 #undef avformat_alloc_context
 #undef avformat_new_stream
@@ -58,6 +60,7 @@ static size_t test_write_bytes(const void *buffer, size_t size, size_t count,
 #undef avio_context_free
 #undef av_interleaved_write_frame
 #undef fwrite
+#undef av_packet_ref
 
 static SDL_Semaphore *output_waiting;
 static SDL_Semaphore *output_release;
@@ -86,6 +89,40 @@ static bool fail_file_close;
 static struct sc_recorder *initial_wait_recorder;
 static SDL_Semaphore *initial_config_waiting;
 static unsigned header_calls;
+static bool gate_packet_write;
+static SDL_Semaphore *packet_write_waiting;
+static SDL_Semaphore *packet_write_release;
+static struct sc_recorder *reservation_probe;
+static bool gate_candidate_reference;
+static bool fail_candidate_reference;
+static SDL_Semaphore *candidate_waiting;
+static SDL_Semaphore *candidate_release;
+
+static int
+test_packet_ref(AVPacket *destination, const AVPacket *source) {
+
+    if (reservation_probe) {
+        // Reference creation is outside the queue lock, after reservation.
+        sc_mutex_lock(&reservation_probe->mutex);
+        size_t queued = sc_vecdeque_size(&reservation_probe->video_queue)
+            + sc_vecdeque_size(&reservation_probe->audio_queue);
+        assert(reservation_probe->retained_packets > queued);
+        assert(reservation_probe->retained_bytes <= SC_RECORDER_MAX_RETAINED_BYTES);
+        sc_mutex_unlock(&reservation_probe->mutex);
+    }
+
+    if (gate_candidate_reference) {
+        gate_candidate_reference = false;
+        SDL_SignalSemaphore(candidate_waiting);
+        SDL_WaitSemaphore(candidate_release);
+
+        if (fail_candidate_reference) {
+            return AVERROR(ENOMEM);
+        }
+    }
+
+    return av_packet_ref(destination, source);
+}
 
 static AVFormatContext *
 test_alloc_context(void) {
@@ -179,6 +216,12 @@ test_write_bytes(const void *buffer, size_t size, size_t count, FILE *file) {
 static int
 test_write_packet(AVFormatContext *context, AVPacket *packet) {
     enum AVMediaType type = context->streams[packet->stream_index]->codecpar->codec_type;
+
+    if (gate_packet_write) {
+        gate_packet_write = false;
+        SDL_SignalSemaphore(packet_write_waiting);
+        SDL_WaitSemaphore(packet_write_release);
+    }
 
     if ((type == AVMEDIA_TYPE_AUDIO && fail_audio_write)
             || (type == AVMEDIA_TYPE_VIDEO && fail_video_write)) {
@@ -812,6 +855,243 @@ test_cancel_before_media(bool close_failure) {
     assert(!remove(filename));
 }
 
+/** Keep the real worker inside header output while packet admission fills. */
+static void
+test_retained_packet_limit(bool video, bool bytes) {
+    const unsigned retained_limit = 4096;
+    struct sc_recorder recorder;
+    const char *filename = video ? "bounded-recorder.mkv" : "bounded-recorder.wav";
+
+    if (video) {
+        assert(sc_recorder_init(&recorder, filename, SC_RECORD_FORMAT_MKV,
+                                true, false, SC_ORIENTATION_0, &callbacks, NULL));
+        sc_recorder_set_exclusive_output(&recorder);
+    } else {
+        test_init_exclusive(&recorder, filename);
+    }
+    gate_header = true;
+    header_waiting = SDL_CreateSemaphore(0);
+    header_release = SDL_CreateSemaphore(0);
+    assert(header_waiting && header_release);
+    assert(sc_recorder_start(&recorder));
+
+    if (video) {
+        AVCodecContext *context = avcodec_alloc_context3(NULL);
+        assert(context);
+        context->codec_id = AV_CODEC_ID_MJPEG;
+        context->codec_type = AVMEDIA_TYPE_VIDEO;
+        context->width = 64;
+        context->height = 32;
+        context->pix_fmt = AV_PIX_FMT_YUVJ420P;
+        assert(recorder.video_packet_sink.ops->open(&recorder.video_packet_sink,
+                                                   context, NULL));
+        avcodec_free_context(&context);
+        AVPacket *config = test_video_packet(true);
+        assert(recorder.video_packet_sink.ops->push(&recorder.video_packet_sink,
+                                                   config));
+        av_packet_free(&config);
+    } else {
+        open_audio(&recorder);
+    }
+
+    SDL_WaitSemaphore(header_waiting);
+    AVPacket *packet = video ? test_video_packet(false) : test_audio_packet();
+    AVBufferRef *probe = NULL;
+
+    if (bytes) {
+        av_buffer_unref(&packet->buf);
+        packet->buf = av_buffer_alloc(2 * 1024 * 1024);
+        assert(packet->buf);
+        packet->data = packet->buf->data;
+        // A small visible slice must still retain/charge its whole backing.
+        packet->size = 8;
+        packet->opaque_ref = av_buffer_alloc(1024 * 1024);
+        assert(packet->opaque_ref);
+        assert(av_packet_new_side_data(packet, AV_PKT_DATA_SKIP_SAMPLES, 1024));
+        probe = av_buffer_ref(packet->buf);
+        assert(probe);
+    }
+
+    struct sc_packet_sink *sink = video ? &recorder.video_packet_sink
+                                        : &recorder.audio_packet_sink;
+    unsigned admitted = video ? 1 : 0; // the popped video config is still owned
+    reservation_probe = &recorder;
+
+    while (admitted < retained_limit && sink->ops->push(sink, packet)) {
+        ++admitted;
+    }
+
+    bool overflow = sink->ops->push(sink, packet);
+    reservation_probe = NULL;
+    printf("recorder retained probe: %u admissions including %u in-flight config; overflow=%d\n",
+           admitted, video, overflow);
+    fflush(stdout);
+    assert(!overflow);
+
+    if (bytes) {
+        assert(admitted < retained_limit);
+        assert(av_buffer_get_ref_count(probe) == (int) admitted + 2);
+    } else {
+        assert(admitted == retained_limit);
+    }
+
+    sc_mutex_lock(&recorder.mutex);
+    assert(recorder.retained_packets == admitted);
+    assert(recorder.retained_bytes <= SC_RECORDER_MAX_RETAINED_BYTES);
+    assert(recorder.admission_failed);
+    sc_mutex_unlock(&recorder.mutex);
+    av_packet_free(&packet);
+    SDL_SignalSemaphore(header_release);
+    sc_recorder_stop(&recorder);
+    sc_recorder_join(&recorder);
+    assert(sc_recorder_get_result(&recorder) == SC_RECORDER_RESULT_FAILED);
+    assert(!ended_success);
+    assert(!recorder.retained_packets && !recorder.retained_bytes);
+
+    if (probe) {
+        assert(av_buffer_get_ref_count(probe) == 1);
+        av_buffer_unref(&probe);
+    }
+
+    sc_recorder_destroy(&recorder);
+    gate_header = false;
+    SDL_DestroySemaphore(header_waiting);
+    SDL_DestroySemaphore(header_release);
+    assert(!remove(filename));
+}
+
+/** Two popped video packets remain charged while the previous write blocks. */
+static void
+test_retained_video_lookahead(void) {
+    struct sc_recorder recorder;
+    const char *filename = "bounded-lookahead.mkv";
+    assert(sc_recorder_init(&recorder, filename, SC_RECORD_FORMAT_MKV,
+                            true, false, SC_ORIENTATION_0, &callbacks, NULL));
+    sc_recorder_set_exclusive_output(&recorder);
+    packet_write_waiting = SDL_CreateSemaphore(0);
+    packet_write_release = SDL_CreateSemaphore(0);
+    assert(packet_write_waiting && packet_write_release);
+    gate_packet_write = true;
+    assert(sc_recorder_start(&recorder));
+    AVCodecContext *context = avcodec_alloc_context3(NULL);
+    assert(context);
+    context->codec_id = AV_CODEC_ID_MJPEG;
+    context->codec_type = AVMEDIA_TYPE_VIDEO;
+    context->width = 64;
+    context->height = 32;
+    context->pix_fmt = AV_PIX_FMT_YUVJ420P;
+    assert(recorder.video_packet_sink.ops->open(&recorder.video_packet_sink,
+                                               context, NULL));
+    avcodec_free_context(&context);
+    AVPacket *config = test_video_packet(true);
+    AVPacket *frame = test_video_packet(false);
+    AVBufferRef *probe = av_buffer_ref(frame->buf);
+    assert(probe);
+    struct sc_packet_sink *sink = &recorder.video_packet_sink;
+    assert(sink->ops->push(sink, config));
+    av_packet_free(&config);
+    assert(sink->ops->push(sink, frame));
+    frame->pts = frame->dts = 1000;
+    assert(sink->ops->push(sink, frame));
+    SDL_WaitSemaphore(packet_write_waiting);
+    sc_mutex_lock(&recorder.mutex);
+    assert(recorder.retained_packets == 2);
+    assert(sc_vecdeque_is_empty(&recorder.video_queue));
+    sc_mutex_unlock(&recorder.mutex);
+
+    for (unsigned index = 2; index < SC_RECORDER_MAX_RETAINED_PACKETS; ++index) {
+        assert(sink->ops->push(sink, frame));
+    }
+
+    assert(!sink->ops->push(sink, frame));
+    av_packet_free(&frame);
+    SDL_SignalSemaphore(packet_write_release);
+    sc_recorder_stop(&recorder);
+    sc_recorder_join(&recorder);
+    assert(sc_recorder_get_result(&recorder) == SC_RECORDER_RESULT_FAILED);
+    assert(!recorder.retained_packets && !recorder.retained_bytes);
+    assert(av_buffer_get_ref_count(probe) == 1);
+    av_buffer_unref(&probe);
+    sc_recorder_destroy(&recorder);
+    SDL_DestroySemaphore(packet_write_waiting);
+    SDL_DestroySemaphore(packet_write_release);
+    assert(!remove(filename));
+}
+
+struct pending_recording_push {
+    struct sc_recorder *recorder;
+    AVPacket *packet;
+    bool accepted;
+};
+
+static int
+push_pending_recording(void *userdata) {
+    struct pending_recording_push *push = userdata;
+    struct sc_packet_sink *sink = &push->recorder->audio_packet_sink;
+    push->accepted = sink->ops->push(sink, push->packet);
+    return 0;
+}
+
+/** A reserved candidate may fail after the worker successfully closes output. */
+static void
+test_late_candidate_result(bool fail_reference) {
+    struct sc_recorder recorder;
+    const char *filename = "late-candidate.wav";
+    test_init_exclusive(&recorder, filename);
+    gate_header = true;
+    header_waiting = SDL_CreateSemaphore(0);
+    header_release = SDL_CreateSemaphore(0);
+    candidate_waiting = SDL_CreateSemaphore(0);
+    candidate_release = SDL_CreateSemaphore(0);
+    assert(header_waiting && header_release && candidate_waiting && candidate_release);
+    assert(sc_recorder_start(&recorder));
+    open_audio(&recorder);
+    SDL_WaitSemaphore(header_waiting);
+    AVPacket *packet = test_audio_packet();
+    struct pending_recording_push push = {.recorder = &recorder, .packet = packet};
+    gate_candidate_reference = true;
+    fail_candidate_reference = fail_reference;
+    sc_thread producer;
+    assert(sc_thread_create(&producer, push_pending_recording, "late-rec-push", &push));
+    SDL_WaitSemaphore(candidate_waiting);
+    sc_recorder_stop(&recorder);
+    SDL_SignalSemaphore(header_release);
+    sc_recorder_join(&recorder);
+    assert(ended_success); // truthful earlier worker completion, not final receipt
+    sc_mutex_lock(&recorder.mutex);
+    assert(recorder.retained_packets == 1);
+    assert(sc_vecdeque_is_empty(&recorder.audio_queue));
+    sc_mutex_unlock(&recorder.mutex);
+    SDL_SignalSemaphore(candidate_release);
+    sc_thread_join(&producer, NULL);
+    assert(!push.accepted);
+
+    if (!fail_reference) {
+        AVPacket unavailable = {.size = -1};
+        // An unadmitted call after Stop is only a retirement rejection.
+        assert(!recorder.audio_packet_sink.ops->push(&recorder.audio_packet_sink,
+                                                    &unavailable));
+        assert(!recorder.admission_failed);
+    }
+    enum sc_recorder_result result = sc_recorder_get_result(&recorder);
+    printf("late recording candidate: failure=%d worker_callback_success=%d final=%u\n",
+           fail_reference, ended_success, result);
+    fflush(stdout);
+    assert(result == (fail_reference ? SC_RECORDER_RESULT_FAILED
+                                     : SC_RECORDER_RESULT_SUCCEEDED));
+    assert(!recorder.retained_packets && !recorder.retained_bytes);
+    assert(av_buffer_get_ref_count(packet->buf) == 1);
+    av_packet_free(&packet);
+    sc_recorder_destroy(&recorder);
+    gate_header = false;
+    fail_candidate_reference = false;
+    SDL_DestroySemaphore(header_waiting);
+    SDL_DestroySemaphore(header_release);
+    SDL_DestroySemaphore(candidate_waiting);
+    SDL_DestroySemaphore(candidate_release);
+    assert(!remove(filename));
+}
+
 int
 main(int argument_count, char **arguments) {
     assert(SDL_Init(0));
@@ -828,7 +1108,17 @@ main(int argument_count, char **arguments) {
     assert(!mkdir(directory, 0700));
     assert(!chdir(directory));
 #endif
-    if (argument_count == 2 && !strcmp(arguments[1], "--audio-readiness")) {
+    if (argument_count == 2 && !strcmp(arguments[1], "--late-candidate")) {
+        test_late_candidate_result(true);
+        test_late_candidate_result(false);
+    } else if (argument_count == 2 && !strcmp(arguments[1], "--limits")) {
+        test_retained_packet_limit(false, false);
+        test_retained_packet_limit(true, false);
+        test_retained_packet_limit(false, true);
+        test_retained_video_lookahead();
+        test_late_candidate_result(true);
+        test_late_candidate_result(false);
+    } else if (argument_count == 2 && !strcmp(arguments[1], "--audio-readiness")) {
         test_optional_audio_readiness();
     } else if (argument_count == 2 && !strcmp(arguments[1], "--previous-ref")) {
         test_recording_failure(RECORDING_AUDIO_PACKET_FAILURE);
@@ -848,6 +1138,12 @@ main(int argument_count, char **arguments) {
         }
         test_cancel_before_media(false);
         test_cancel_before_media(true);
+        test_retained_packet_limit(false, false);
+        test_retained_packet_limit(true, false);
+        test_retained_packet_limit(false, true);
+        test_retained_video_lookahead();
+        test_late_candidate_result(true);
+        test_late_candidate_result(false);
     }
 #ifdef _WIN32
     assert(!_chdir(previous_directory));

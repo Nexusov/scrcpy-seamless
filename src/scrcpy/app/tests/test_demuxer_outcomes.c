@@ -15,6 +15,8 @@ enum test_case {
     SINK_OPEN_REJECTED, PAYLOAD_SHORT, PAYLOAD_ZERO, HEADER_SHORT,
     LATE_DIMENSIONS_ZERO, AUDIO_SESSION, VALID_PACKET, SINK_PUSH_REJECTED,
     METADATA_REJECTED, PACKET_ALLOCATION_FAILED, CODEC_OPEN_FAILED,
+    PAYLOAD_OVER_LIMIT,
+    PAYLOAD_AT_LIMIT, PAYLOAD_UINT32_MAX,
 };
 
 static enum test_case scenario;
@@ -27,6 +29,7 @@ static unsigned disables;
 static unsigned packets;
 static unsigned metadata_updates;
 static unsigned completions;
+static unsigned packet_allocations;
 static enum sc_demuxer_status observed_status;
 static AVPacket *retained_packet;
 
@@ -47,6 +50,7 @@ static int test_open_codec(AVCodecContext *context, const AVCodec *codec,
 
 static int
 test_new_packet(AVPacket *packet, int size) {
+    ++packet_allocations;
     return scenario == PACKET_ALLOCATION_FAILED ? AVERROR(ENOMEM)
                                                 : av_new_packet(packet, size);
 }
@@ -151,6 +155,7 @@ test_outcome(enum test_case selected, enum sc_demuxer_status expected) {
     stream_position = 0;
     stream_length = 4;
     opens = closes = disables = packets = metadata_updates = completions = 0;
+    packet_allocations = 0;
     memset(stream, 0, sizeof(stream));
     sc_write32be(stream, selected == AUDIO_SESSION ? UINT32_C(0x00726177) : UINT32_C(0x68323634));
 
@@ -171,6 +176,12 @@ test_outcome(enum test_case selected, enum sc_demuxer_status expected) {
             append_packet(3, false);
         } else if (selected == PAYLOAD_ZERO) {
             append_packet(0, true);
+        } else if (selected == PAYLOAD_OVER_LIMIT) {
+            append_packet(16 * 1024 * 1024 + 1, false);
+        } else if (selected == PAYLOAD_AT_LIMIT) {
+            append_packet(16 * 1024 * 1024, false);
+        } else if (selected == PAYLOAD_UINT32_MAX) {
+            append_packet(UINT32_MAX, false);
         } else if (selected == HEADER_SHORT) {
             stream[stream_length++] = 0;
         } else if (selected == LATE_DIMENSIONS_ZERO) {
@@ -203,6 +214,14 @@ test_outcome(enum test_case selected, enum sc_demuxer_status expected) {
     }
 
     assert(observed_status == expected);
+
+    if (selected == PAYLOAD_OVER_LIMIT || selected == PAYLOAD_UINT32_MAX) {
+        assert(!packet_allocations);
+    }
+
+    if (selected == PAYLOAD_AT_LIMIT) {
+        assert(packet_allocations == 1);
+    }
     assert(disables <= 1 && closes <= 1 && !(disables && closes));
     assert((opens && selected != SINK_OPEN_REJECTED) ? closes == 1 : disables == 1);
 
@@ -217,7 +236,13 @@ test_outcome(enum test_case selected, enum sc_demuxer_status expected) {
 }
 
 int
-main(void) {
+main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--limits")) {
+        test_outcome(PAYLOAD_OVER_LIMIT, SC_DEMUXER_STATUS_PROTOCOL_ERROR);
+        test_outcome(PAYLOAD_AT_LIMIT, SC_DEMUXER_STATUS_EOS);
+        test_outcome(PAYLOAD_UINT32_MAX, SC_DEMUXER_STATUS_PROTOCOL_ERROR);
+        return 0;
+    }
     const enum sc_demuxer_status expected[] = {
         SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_PROTOCOL_ERROR, SC_DEMUXER_STATUS_DISABLED,
         SC_DEMUXER_STATUS_ERROR, SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_PROTOCOL_ERROR,
@@ -225,12 +250,14 @@ main(void) {
         SC_DEMUXER_STATUS_PROTOCOL_ERROR, SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_PROTOCOL_ERROR,
         SC_DEMUXER_STATUS_PROTOCOL_ERROR, SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_SINK_ERROR,
         SC_DEMUXER_STATUS_SINK_ERROR, SC_DEMUXER_STATUS_ERROR, SC_DEMUXER_STATUS_ERROR,
+        SC_DEMUXER_STATUS_PROTOCOL_ERROR,
+        SC_DEMUXER_STATUS_EOS, SC_DEMUXER_STATUS_PROTOCOL_ERROR,
     };
 
     for (unsigned index = 0; index < ARRAY_LEN(expected); ++index) {
         test_outcome((enum test_case) index, expected[index]);
     }
 
-    puts("demuxer outcomes: 18 real worker/source/FFmpeg-reference cases");
+    puts("demuxer outcomes: 21 real worker/source/FFmpeg-reference cases");
     return 0;
 }

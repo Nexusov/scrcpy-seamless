@@ -14,7 +14,15 @@
 #include "util/thread.h"
 #include "util/vecdeque.h"
 
-struct sc_recorder_queue SC_VECDEQUE(AVPacket *);
+#define SC_RECORDER_MAX_RETAINED_PACKETS 4096
+#define SC_RECORDER_MAX_RETAINED_BYTES ((size_t) 64 * 1024 * 1024)
+
+struct sc_recorder_packet {
+    AVPacket *packet;
+    size_t charge;
+};
+
+struct sc_recorder_queue SC_VECDEQUE(struct sc_recorder_packet);
 
 struct sc_recorder_stream {
     int index;
@@ -58,6 +66,10 @@ struct sc_recorder {
     sc_cond cond;
     // set on sc_recorder_stop(), packet_sink close or recording failure
     bool stopped;
+    bool admission_failed;
+    // Includes admission candidates, popped header packets and video lookahead.
+    size_t retained_packets;
+    size_t retained_bytes;
     struct sc_recorder_queue video_queue;
     struct sc_recorder_queue audio_queue;
 
@@ -97,7 +109,8 @@ sc_recorder_set_exclusive_output(struct sc_recorder *recorder);
 bool
 sc_recorder_output_opened(const struct sc_recorder *recorder);
 
-/* Read only after the worker joins; Stop intent does not overwrite this fact. */
+/* Read after every publisher and the worker settle; Stop intent does not
+ * overwrite this fact, including an admitted candidate's late failure. */
 enum sc_recorder_result
 sc_recorder_get_result(const struct sc_recorder *recorder);
 

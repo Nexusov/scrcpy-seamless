@@ -157,3 +157,71 @@ Those module/configuration runs are distinct from the source-identified
 production native, bidirectional codec, real-process/parent-death, normal managed
 and hosted lanes. Each later lane must record its actual source and executed
 results; neither compilation nor an older successful snapshot substitutes for it.
+
+## Bounded media retention
+
+Delay and recording queues have separate fixed admission budgets. They do not
+borrow the dispatcher's one-MiB payload allowance:
+
+| Owner | Retained item ceiling | Retained byte charge ceiling |
+| --- | --- | --- |
+| Delay buffer | 256 frames/session-metadata entries | 512 MiB |
+| Recorder, video and audio combined | 4096 packets | 64 MiB |
+
+Admission reserves the item and its byte charge before acquiring a new FFmpeg
+reference. The charge remains until this queue/worker releases that reference,
+including a
+pending allocation/reference candidate, popped downstream callback, popped
+recording header and video lookahead packet. A popped entry is not free quota.
+FIFO/session ordering, first-frame ASAP predecessor ordering and ordinary delay
+timing remain unchanged. Metadata is admitted in the same bounded FIFO; it is
+not silently replaced or dropped to satisfy the limit.
+
+Frame accounting includes complete public AVBufferRef sizes, extended buffers,
+side data, opaque/hardware-context references, frame/envelope structures and
+copied metadata strings. Decoder output must be reference-counted; the delay
+buffer rejects an unaccountable non-reference-counted input instead of guessing
+the allocation that av_frame_ref would make. Packet accounting includes its
+complete backing reference (or the required non-reference-counted copy), side
+data, opaque reference and packet/envelope structures. Aliases may be charged
+more than once deliberately. Arithmetic checks available budget before addition.
+Supported software producers expose their owned buffer's full retained size in
+AVBufferRef.size. An artificially narrowed reference does not reveal a larger
+opaque allocation, nor does a hardware-context wrapper reveal its GPU pool.
+Queue backing is also bounded by the item ceiling; these byte charges are not
+allocator, codec, muxer, GPU-pool or total-process memory measurements. In
+particular, packet ownership transferred to a muxer is outside this queue's
+retained-reference budget.
+
+Overflow closes that owner's admission and returns failure through the existing
+sink/demux/owner path. Extreme buffering duration, frame backing or packet rates
+may therefore fail explicitly instead of growing indefinitely. The recorder
+retains admission failure and cannot report a successful final recording after
+overflow. Unadmitted calls rejected only because Stop already closed admission
+remain retirement rejections. Payload destruction and external sink callbacks
+run outside the queue/accounting mutex; reference reservations are released only
+after their corresponding owned reference is actually released.
+
+The recorder's final result requires both worker and all publishers to settle.
+A candidate admitted before Stop can fail reference acquisition after the worker
+has closed its output. Its retained failure then overrides the final receipt,
+without rewriting the earlier callback observation. A successful late reference
+rejected only by Stop does not become a recording failure. Session ownership
+already joins publishers before retaining this joined recorder result.
+
+Demux ingress rejects an announced payload above 16 MiB before av_new_packet or
+payload read. Zero and invalid lengths remain protocol errors. The exact limit
+is accepted; a short allowed payload remains transport EOS. This limits the
+announced packet allocation, not FFmpeg decoder state or every derived packet;
+the existing config/media merger can retain a bounded config and combine it
+with a later bounded payload.
+
+Production-linked limit regressions first demonstrated acceptance of the 257th
+delay item while a real downstream callback was blocked, acceptance of the
+4097th recording packet while the real output header was blocked, and an
+oversized demux payload reaching the allocation/read path. Corrected tests use
+real FFmpeg references, gated actual workers, complete aliased backing and side
+data, popped headers and video lookahead. A separate controlled late-candidate
+regression retained the distinction between earlier worker success and final
+recording failure. These are deterministic local observations, not a hardware
+failure claim or a complete process-memory certification.
