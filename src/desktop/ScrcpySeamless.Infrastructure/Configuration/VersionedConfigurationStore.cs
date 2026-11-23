@@ -75,11 +75,16 @@ public sealed class VersionedConfigurationStore
 
         try
         {
-            bytes = await File.ReadAllBytesAsync(configurationFile, cancellationToken).ConfigureAwait(false);
+            bytes = await ConfigurationDocument.ReadAsync(configurationFile, cancellationToken).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {
             return new ConfigurationReadResult(ConfigurationReadStatus.Missing, null, null, []);
+        }
+        catch (InvalidDataException)
+        {
+            return new ConfigurationReadResult(ConfigurationReadStatus.Invalid, null, null,
+                [new ValidationIssue(CoreErrorCode.InvalidConfiguration, "$")]);
         }
 
         string revision = RevisionOf(bytes);
@@ -120,6 +125,13 @@ public sealed class VersionedConfigurationStore
         }
 
         byte[] newBytes = JsonSerializer.SerializeToUtf8Bytes(configuration, SerializationOptions);
+
+        if (newBytes.Length > ConfigurationDocument.MaximumBytes)
+        {
+            return new ConfigurationCommitResult(ConfigurationCommitStatus.InvalidConfiguration, null,
+                [new ValidationIssue(CoreErrorCode.InvalidConfiguration, "$")]);
+        }
+
         string newRevision = RevisionOf(newBytes);
         Directory.CreateDirectory(Path.GetDirectoryName(configurationFile)!);
         using Mutex mutex = new(initiallyOwned: false, mutexName);
@@ -142,9 +154,18 @@ public sealed class VersionedConfigurationStore
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string? currentRevision = File.Exists(configurationFile)
-                ? RevisionOf(File.ReadAllBytes(configurationFile))
-                : null;
+            string? currentRevision;
+
+            try
+            {
+                currentRevision = File.Exists(configurationFile)
+                    ? RevisionOf(ConfigurationDocument.Read(configurationFile))
+                    : null;
+            }
+            catch (InvalidDataException)
+            {
+                return new ConfigurationCommitResult(ConfigurationCommitStatus.RevisionConflict, null, []);
+            }
 
             if (!string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal))
             {

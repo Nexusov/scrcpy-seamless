@@ -13,6 +13,10 @@ $ErrorActionPreference = 'Stop'
 $zipPath = [IO.Path]::GetFullPath($ArchivePath)
 $checksumPath = "$zipPath.sha256"
 $zipTimestamp = [DateTimeOffset]::new(1980, 1, 1, 0, 0, 0, [TimeSpan]::Zero)
+$maxArchiveBytes = 512MB
+$maxExpandedBytes = 512MB
+$maxEntryBytes = 128MB
+$maxEntries = 1024
 
 if ([IO.Path]::GetExtension($zipPath) -cne '.zip') {
     throw 'Choose a .zip archive destination.'
@@ -30,17 +34,34 @@ function Assert-PortableZip {
     $scratch = Join-Path ([IO.Path]::GetTempPath()) ('scrcpy portable extraction ' + [guid]::NewGuid().ToString('N'))
 
     try {
-        if ((Get-PortableHash $Path) -cne $ExpectedHash) {
+        if ($stream.Length -gt $maxArchiveBytes) {
+            throw 'Portable ZIP exceeds the archive size limit.'
+        }
+
+        $actualHash = (Get-FileHash -InputStream $stream -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -cne $ExpectedHash) {
             throw 'Portable ZIP SHA-256 mismatch.'
         }
 
+        $stream.Position = 0
         $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Read, $true)
 
         try {
+            if ($archive.Entries.Count -gt $maxEntries) {
+                throw 'Portable ZIP exceeds the entry count limit.'
+            }
+
             $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
             $previous = ''
+            $expandedBytes = 0L
 
             foreach ($entry in $archive.Entries) {
+                if ($entry.Length -lt 0 -or $entry.Length -gt $maxEntryBytes -or
+                    $entry.Length -gt ($maxExpandedBytes - $expandedBytes)) {
+                    throw 'Portable ZIP exceeds the extraction size limits.'
+                }
+
+                $expandedBytes += $entry.Length
                 $name = $entry.FullName
                 Assert-PortableName $name
 
@@ -62,14 +83,49 @@ function Assert-PortableZip {
 
                 $previous = $name
             }
+
+            Assert-PlainPortablePath $scratch
+            [IO.Directory]::CreateDirectory($scratch) | Out-Null
+            $buffer = [byte[]]::new(64KB)
+
+            foreach ($entry in $archive.Entries) {
+                $destination = Join-Path $scratch $entry.FullName
+                [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
+                $inputStream = $entry.Open()
+
+                try {
+                    $outputStream = [IO.File]::Open($destination, [IO.FileMode]::CreateNew)
+
+                    try {
+                        $remaining = $entry.Length
+
+                        while ($remaining -gt 0) {
+                            $read = $inputStream.Read($buffer, 0, [int][Math]::Min($buffer.Length, $remaining))
+                            if ($read -eq 0) {
+                                throw 'Portable ZIP entry is shorter than declared.'
+                            }
+
+                            $outputStream.Write($buffer, 0, $read)
+                            $remaining -= $read
+                        }
+
+                        if ($inputStream.ReadByte() -ne -1) {
+                            throw 'Portable ZIP entry is longer than declared.'
+                        }
+                    }
+                    finally {
+                        $outputStream.Dispose()
+                    }
+                }
+                finally {
+                    $inputStream.Dispose()
+                }
+            }
         }
         finally {
             $archive.Dispose()
         }
 
-        Assert-PlainPortablePath $scratch
-        [IO.Directory]::CreateDirectory($scratch) | Out-Null
-        [IO.Compression.ZipFile]::ExtractToDirectory($Path, $scratch)
         $files = @(Assert-PortableContents -Directory $scratch -SourceSha $SourceSha)
 
         if (-not $names.SetEquals([string[]]$files)) {
@@ -87,7 +143,27 @@ function Assert-PortableZip {
 }
 
 if ($VerifyOnly) {
-    $expected = [IO.File]::ReadAllText($checksumPath)
+    $sidecar = [IO.File]::OpenRead($checksumPath)
+
+    try {
+        $sidecarBytes = [byte[]]::new(512)
+        $length = 0
+        while ($length -lt $sidecarBytes.Length) {
+            $read = $sidecar.Read($sidecarBytes, $length, $sidecarBytes.Length - $length)
+            if ($read -eq 0) {
+                break
+            }
+            $length += $read
+        }
+        if ($sidecar.ReadByte() -ne -1) {
+            throw 'Portable ZIP SHA-256 sidecar exceeds the size limit.'
+        }
+
+        $expected = [Text.Encoding]::ASCII.GetString($sidecarBytes, 0, $length)
+    }
+    finally {
+        $sidecar.Dispose()
+    }
     $pattern = '\A([a-f0-9]{64})  ' + [regex]::Escape([IO.Path]::GetFileName($zipPath)) + '\r?\n\z'
 
     if ($expected -cnotmatch $pattern) {

@@ -8,6 +8,24 @@ namespace ScrcpySeamless.Infrastructure.Tests.Configuration;
 /// <summary>Tests the real atomic filesystem boundary only inside isolated temp directories.</summary>
 public sealed class VersionedConfigurationStoreTests
 {
+    [Fact]
+    public async Task OversizedDocumentIsInvalidAndCannotBeReplacedAsMissing()
+    {
+        using TemporaryDirectory directory = new();
+        string path = Path.Combine(directory.Path, "configuration.v2.json");
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        VersionedConfigurationStore store = new(path);
+        await File.WriteAllTextAsync(path, "{}".PadRight(ConfigurationDocument.MaximumBytes + 1), cancellationToken);
+
+        ConfigurationReadResult read = await store.ReadAsync(cancellationToken);
+        ConfigurationCommitResult commit = store.Commit(null, MigrateFixture(), cancellationToken);
+
+        Assert.Equal(ConfigurationReadStatus.Invalid, read.Status);
+        Assert.Equal(ConfigurationCommitStatus.RevisionConflict, commit.Status);
+        Assert.Equal(ConfigurationDocument.MaximumBytes + 1, new FileInfo(path).Length);
+        Assert.False(File.Exists(path + ".bak"));
+    }
+
     /// <summary>Portable and installed locations derive from explicit roots.</summary>
     [Fact]
     public void ApplicationDataModesHaveIndependentRoots()

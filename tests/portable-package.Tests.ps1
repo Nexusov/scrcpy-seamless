@@ -224,6 +224,17 @@ public sealed class PortableArchiveFixture {}
         & $packager -SourceSha $source -ArchivePath $invalid -VerifyOnly
     }
 
+    [IO.File]::Delete($invalid)
+    New-ZipWithNames -Path $invalid -Names @(1..1025 | ForEach-Object { 'fixture-{0:D4}.txt' -f $_ })
+    Assert-Rejected -Message 'entry count limit' -Action {
+        & $packager -SourceSha $source -ArchivePath $invalid -VerifyOnly
+    }
+
+    Set-Content -LiteralPath "$testZip.sha256" -Value ('a' * 513)
+    Assert-Rejected -Message 'sidecar exceeds the size limit' -Action {
+        & $packager -SourceSha $source -ArchivePath $testZip -VerifyOnly
+    }
+
     Set-Content -LiteralPath "$testZip.sha256" -Value ("$('a' * 64)  " + [IO.Path]::GetFileName($testZip))
     Assert-Rejected -Message 'ZIP SHA-256 mismatch' -Action {
         & $packager -SourceSha $source -ArchivePath $testZip -VerifyOnly

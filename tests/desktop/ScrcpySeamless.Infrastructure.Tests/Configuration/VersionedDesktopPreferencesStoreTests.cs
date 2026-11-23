@@ -7,6 +7,24 @@ namespace ScrcpySeamless.Infrastructure.Tests.Configuration;
 /// <summary>Exercises the separate Desktop preferences document through real temporary files.</summary>
 public sealed class VersionedDesktopPreferencesStoreTests
 {
+    [Fact]
+    public async Task OversizedExistingPreferencesArePreserved()
+    {
+        using TemporaryDirectory directory = new();
+        string path = Path.Combine(directory.Path, "desktop-preferences.json");
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        VersionedDesktopPreferencesStore store = new(path);
+        await File.WriteAllTextAsync(path, "{}".PadRight(ConfigurationDocument.MaximumBytes + 1), cancellationToken);
+
+        DesktopPreferencesReadResult read = await store.ReadAsync(cancellationToken);
+        DesktopPreferencesCommitResult commit = store.Commit(null, new DesktopPreferences(), cancellationToken);
+
+        Assert.Equal(DesktopPreferencesReadStatus.Invalid, read.Status);
+        Assert.Equal(DesktopPreferencesCommitStatus.InvalidExistingDocument, commit.Status);
+        Assert.Equal(ConfigurationDocument.MaximumBytes + 1, new FileInfo(path).Length);
+        Assert.False(File.Exists(path + ".bak"));
+    }
+
     /// <summary>Missing preferences use safe defaults without creating a directory or document.</summary>
     [Fact]
     public async Task MissingPreferencesRemainInMemoryOnly()
