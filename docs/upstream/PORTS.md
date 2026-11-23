@@ -21,7 +21,7 @@ adopted by this early fix audit. They require separate Phase 9 or dependency
 provenance decisions. The reviewed 1.x imported runtime remains pinned until
 an explicit compatibility/provenance transition is tested.
 
-## Autonomous selective texture ports — 2026-11-23
+## Autonomous selective texture ports вЂ” 2026-11-23
 
 The latest stable release inspected through the official GitHub API is
 [v5.0.1](https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1), published
@@ -57,7 +57,7 @@ No physical OpenGL/display/device validation is claimed. The full stable audit
 and remaining recorder/input/server/dependency findings remain in the local
 autonomous evidence; these texture ports do not close those separate items.
 
-## Recorder packet and queue ownership ports — 2026-11-23
+## Recorder packet and queue ownership ports вЂ” 2026-11-23
 
 Adapted upstream [573efa03c6d826d4e61fa34f35e0c3ed51ed7d0b](https://github.com/Genymobile/scrcpy/commit/573efa03c6d826d4e61fa34f35e0c3ed51ed7d0b)
 (`app/src/recorder.c`): release a newly referenced AVPacket if video/audio queue
@@ -88,7 +88,7 @@ product failure. No file/device/ADB operation or hardware recording validation
 is established. Broader recording/reconnect semantics and other audit findings
 remain separate work.
 
-## Initial SDL gamepad instance IDs — 2026-11-23
+## Initial SDL gamepad instance IDs вЂ” 2026-11-23
 
 Adapted upstream [907aba2d792020b72e4f8ce337f7191744237487](https://github.com/Genymobile/scrcpy/commit/907aba2d792020b72e4f8ce337f7191744237487)
 from `app/src/scrcpy.c` into the extracted `src/scrcpy/app/src/session.c`:
@@ -102,7 +102,7 @@ the exact array-release assertion. Before the one-line production correction,
 the targeted owner case failed on the first event's incorrect ID. This is a
 synthetic enumeration/event regression, not physical gamepad or UHID evidence.
 
-## Explicit texture mipmaps option — 2026-11-23
+## Explicit texture mipmaps option вЂ” 2026-11-23
 
 Adapted upstream [b5cfe182817d8b2bd9b3d2e254c4eb12512a65d3](https://github.com/Genymobile/scrcpy/commit/b5cfe182817d8b2bd9b3d2e254c4eb12512a65d3)
 (`app/src/screen.c`) into `src/scrcpy/app/src/screen.c`: video textures enable
@@ -114,7 +114,7 @@ observed mipmaps enabled for video despite the disabled option. Existing
 presentation ownership, frame references and initialization rollback checks are
 retained. Controlled window/texture effects do not establish GPU behavior.
 
-## Physical keyboard layout and AltGr ports � 2026-11-23
+## Physical keyboard layout and AltGr ports — 2026-11-23
 
 Adapted upstream [b80edbc71c9e5bfb9aefd140b90af45337b4dbdb](https://github.com/Genymobile/scrcpy/commit/b80edbc71c9e5bfb9aefd140b90af45337b4dbdb)
 and [949d952d1843787d56155fd220cf984afd05f5dc](https://github.com/Genymobile/scrcpy/commit/949d952d1843787d56155fd220cf984afd05f5dc)
@@ -136,7 +136,7 @@ and pre-presentation/detached blocking, alongside its earlier input routes.
 Synthetic SDL/input traits establish no physical keyboard-layout, clipboard,
 UHID/AOA or platform-backend pass.
 
-## Playback capture mixing-rule correction — 2026-11-23
+## Playback capture mixing-rule correction вЂ” 2026-11-23
 
 Adapted upstream [8b05a6163c789f27da0ced27bec466f12f813b2e](https://github.com/Genymobile/scrcpy/commit/8b05a6163c789f27da0ced27bec466f12f813b2e)
 and [e71cdb8782f524d8ec4deaa1b1e4930c728acab0](https://github.com/Genymobile/scrcpy/commit/e71cdb8782f524d8ec4deaa1b1e4930c728acab0)
