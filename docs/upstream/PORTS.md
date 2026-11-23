@@ -101,3 +101,15 @@ filters one non-gamepad, observes the two actual queued SDL events and retains
 the exact array-release assertion. Before the one-line production correction,
 the targeted owner case failed on the first event's incorrect ID. This is a
 synthetic enumeration/event regression, not physical gamepad or UHID evidence.
+
+## Explicit texture mipmaps option — 2026-11-23
+
+Adapted upstream [b5cfe182817d8b2bd9b3d2e254c4eb12512a65d3](https://github.com/Genymobile/scrcpy/commit/b5cfe182817d8b2bd9b3d2e254c4eb12512a65d3)
+(`app/src/screen.c`) into `src/scrcpy/app/src/screen.c`: video textures enable
+mipmaps only when the explicit option also permits them. Original project and
+author: Genymobile/scrcpy, Romain Vimont, Apache-2.0; notices remain unchanged.
+The production-linked presentation fixture checks all four video/option
+combinations at the actual texture-initialization boundary. Its pre-fix red
+observed mipmaps enabled for video despite the disabled option. Existing
+presentation ownership, frame references and initialization rollback checks are
+retained. Controlled window/texture effects do not establish GPU behavior.

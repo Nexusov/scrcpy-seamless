@@ -42,6 +42,7 @@ static struct {
     bool fail_window;
     bool fail_renderer;
     bool fail_texture_init;
+    bool texture_mipmaps;
     bool fail_text_input;
     bool fail_texture_update;
     bool fail_render;
@@ -542,7 +543,7 @@ bool
 sc_texture_init(struct sc_texture *texture, SDL_Renderer *renderer,
                  bool mipmaps) {
     assert(renderer == owned_renderer);
-    (void) mipmaps;
+    effects.texture_mipmaps = mipmaps;
 
     if (effects.fail_texture_init) {
         return false;
@@ -1588,10 +1589,28 @@ test_disconnect_start_failure(void) {
     puts("screen: failed helper start has no join, destruction or blocking wait");
 }
 
+/** The video and explicit option gates must both permit texture mipmaps. */
+static void
+test_mipmap_option(void) {
+    for (unsigned mode = 0; mode < 4; ++mode) {
+        reset_effects();
+        struct screen_context context;
+        bool video = mode & 2;
+        bool mipmaps = mode & 1;
+        prepare_context(&context, video, false);
+        context.params.mipmaps = mipmaps;
+        assert(sc_screen_init(&context.screen, &context.params));
+        assert(effects.texture_mipmaps == (video && mipmaps));
+        destroy_context(&context);
+    }
+    puts("screen: video and explicit mipmaps option both gate texture init");
+}
+
 /** Run deterministic production-linked presentation cases with real FFmpeg refs. */
 int
 main(void) {
     assert(SDL_Init(SDL_INIT_EVENTS));
+    test_mipmap_option();
     test_failed_ready_frame_resize();
     test_render_prerequisites();
     test_presentation_gate();
