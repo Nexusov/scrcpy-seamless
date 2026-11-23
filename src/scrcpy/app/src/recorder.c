@@ -627,6 +627,7 @@ sc_recorder_video_packet_sink_push(struct sc_packet_sink *sink,
     if (!ok) {
         LOG_OOM();
         sc_mutex_unlock(&recorder->mutex);
+        av_packet_free(&rec);
         return false;
     }
 
@@ -717,6 +718,7 @@ sc_recorder_audio_packet_sink_push(struct sc_packet_sink *sink,
     if (!ok) {
         LOG_OOM();
         sc_mutex_unlock(&recorder->mutex);
+        av_packet_free(&rec);
         return false;
     }
 
@@ -853,6 +855,8 @@ sc_recorder_join(struct sc_recorder *recorder) {
 
 void
 sc_recorder_destroy(struct sc_recorder *recorder) {
+    sc_vecdeque_destroy(&recorder->video_queue);
+    sc_vecdeque_destroy(&recorder->audio_queue);
     sc_cond_destroy(&recorder->cond);
     sc_mutex_destroy(&recorder->mutex);
     free(recorder->filename);

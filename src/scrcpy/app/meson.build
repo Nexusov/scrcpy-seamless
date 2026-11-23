@@ -321,6 +321,12 @@ if get_option('buildtype') == 'debug'
         ['test_recovery_adapter', [
             'tests/test_recovery_adapter.c', 'src/recovery_adapter.c',
         ]],
+        ['test_recorder_lifetime', [
+            'tests/test_recorder_lifetime.c', 'src/options.c',
+            'src/util/str.c', 'src/util/strbuf.c', 'src/util/memory.c',
+            'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+            'src/compat.c',
+        ]],
         ['test_session_sink_graph', [
             'tests/test_session_sink_graph.c', 'src/decoder.c',
             'src/trait/packet_source.c', 'src/trait/frame_source.c',

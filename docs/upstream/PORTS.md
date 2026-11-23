@@ -56,3 +56,34 @@ attempt from invalidating fixture storage while recording the ownership breach.
 No physical OpenGL/display/device validation is claimed. The full stable audit
 and remaining recorder/input/server/dependency findings remain in the local
 autonomous evidence; these texture ports do not close those separate items.
+
+## Recorder packet and queue ownership ports — 2026-11-23
+
+Adapted upstream [573efa03c6d826d4e61fa34f35e0c3ed51ed7d0b](https://github.com/Genymobile/scrcpy/commit/573efa03c6d826d4e61fa34f35e0c3ed51ed7d0b)
+(`app/src/recorder.c`): release a newly referenced AVPacket if video/audio queue
+admission fails. The release occurs after unlocking, so failure does not retain
+the payload or execute its destructor under the recorder mutex. Also adapted
+the recorder portion of [46c3d43a957b8ec86752fc6c93b5749b2c23ede7](https://github.com/Genymobile/scrcpy/commit/46c3d43a957b8ec86752fc6c93b5749b2c23ede7):
+destroy both queue backing allocations in final recorder destruction, after the
+existing worker join has cleared packet contents. The already implemented
+file-pusher/delay portions were not repeated. No segmentation or recorder
+outcome/startup policy was changed by these four production lines.
+
+Original project and author are Genymobile/scrcpy and Romain Vimont; Apache-2.0
+rights and selected-file inspection are the same as the pinned stable audit
+above. Destination is the existing `src/scrcpy/app/src/recorder.c`; notices and
+dependency versions remain unchanged. Tests are project-local fixtures linking
+the actual recorder implementation, not a copied lifecycle model.
+
+Three distinct behavioral reds were retained before the fix: rejected video
+and rejected audio left two actual AVBuffer references instead of the caller's
+one, and actual worker stop/join left both queue backing allocations unreleased
+by final destruction. The corrected five-case fixture verifies both rejected
+admissions, real worker payload settlement plus backing release, successful init
+without worker acquisition, and failed thread start without a bogus join. Real
+FFmpeg packet references/final buffer callbacks and a real worker are used;
+allocation admission and AVIO/header output are controlled external effects.
+An intentionally rejected output header is not a successful recording or a
+product failure. No file/device/ADB operation or hardware recording validation
+is established. Broader recording/reconnect semantics and other audit findings
+remain separate work.
