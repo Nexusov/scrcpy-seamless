@@ -113,3 +113,25 @@ combinations at the actual texture-initialization boundary. Its pre-fix red
 observed mipmaps enabled for video despite the disabled option. Existing
 presentation ownership, frame references and initialization rollback checks are
 retained. Controlled window/texture effects do not establish GPU behavior.
+
+## Physical keyboard layout and AltGr ports — 2026-11-23
+
+Adapted upstream [b80edbc71c9e5bfb9aefd140b90af45337b4dbdb](https://github.com/Genymobile/scrcpy/commit/b80edbc71c9e5bfb9aefd140b90af45337b4dbdb)
+and [949d952d1843787d56155fd220cf984afd05f5dc](https://github.com/Genymobile/scrcpy/commit/949d952d1843787d56155fd220cf984afd05f5dc)
+from `app/src/input_manager.c` and `app/src/shortcut_mod.h` into the matching
+`src/scrcpy/app/src/` modules. Genymobile/scrcpy; original authors Vishnu070803
+and Romain Vimont; Apache-2.0, existing notices retained.
+
+A known physical scancode now reaches the existing key processor even if the
+layout's virtual keycode is unknown. Unknown physical scancodes are still
+rejected. SDL MODE modifiers/key releases are normalized consistently as
+Right-Alt in device-key delivery and shortcut text suppression. Configured
+shortcut choices, presentation readiness and generation detach remain intact.
+
+Two pre-fix production-linked reds are retained: the known physical key was
+dropped, and text was wrongly delivered while MODE represented the configured
+Right-Alt shortcut modifier. The existing input-binding target now checks those
+cases, normalized key modifiers, modifier release, unknown-scancode rejection
+and pre-presentation/detached blocking, alongside its earlier input routes.
+Synthetic SDL/input traits establish no physical keyboard-layout, clipboard,
+UHID/AOA or platform-backend pass.
