@@ -5,7 +5,10 @@ only the interaction patterns needed for the first Desktop UI foundation. The
 broader competitive feature audit remains in Phase 10. An upstream project
 name or repository URL is not reuse authorization.
 
-## Candidate sources
+## Candidate sources at Phase 5A
+
+The [Phase 10 feature matrix](COMPETITIVE_FEATURE_MATRIX.md) records the later
+review of the remaining references and the final scope decisions.
 
 | Project | Repository | Inspected commit/tag | License at inspected revision | Audit state |
 | --- | --- | --- | --- | --- |

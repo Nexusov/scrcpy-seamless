@@ -52,10 +52,9 @@ Update each row with source-specific results as its remaining work is closed.
 | Distribution and dependency hygiene (P9/P12) | Serviced graphics/shaping packages, pinned imports, package notices/SBOM/checksums, private-reporting policy | Validate the final closure and hosted gate | Lock/provenance/notice and image/raster checks | Review candidate limitations and redistribution obligations |
 | Final candidate and handoff (P12/P13) | Canonical staging/verification and [joint manual procedure](../../development/portable-rc-acceptance.md) | Build, inspect and run checks against exact candidate bytes. Correlate final local/hosted results. | Full source lanes and packaged no-device test, exact archive inventory and SHA-256 | Joint artifact-specific manual acceptance, then separate publication decision |
 
-The competitive feature matrix is still an unpopulated audit scaffold; it is
-not evidence of additional selected competitor features. Existing product
-requirements above must be implemented, while larger additions require an
-actual supported decision. Embedded mirror, full translations/runtime language
+The [competitive feature matrix](../../research/COMPETITIVE_FEATURE_MATRIX.md)
+records pinned references and the 2.0 scope decisions. Existing product
+requirements above govern the implementation. Embedded mirror, full translations/runtime language
 switching, new official desktop platforms, plugin marketplace, HTTP automation,
 updater, CMake migration and mandatory Native AOT remain outside this 2.0 task.
 The adopted master charter's hash and accepted decisions remain recorded in the

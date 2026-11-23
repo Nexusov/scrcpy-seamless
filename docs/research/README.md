@@ -1,8 +1,7 @@
 # Research index
 
-These documents are research scaffolds. Candidate projects, features, and
-licenses have not been audited merely because they appear here. Record an exact
-inspected commit or tag and source links before drawing conclusions.
+The audits record scoped evidence and decisions at pinned revisions. For new
+claims, record the exact inspected commit or tag and supporting source.
 
 - [UI reference audit](UI_REFERENCE_AUDIT.md): source and UX evidence for
   external frontends.
