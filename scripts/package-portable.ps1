@@ -26,6 +26,7 @@ function Assert-PortableZip {
 
     Assert-PlainPortablePath $Path
     $stream = [IO.File]::OpenRead($Path)
+    $nonFileAttributes = [int]([IO.FileAttributes]::ReparsePoint -bor [IO.FileAttributes]::Directory)
     $scratch = Join-Path ([IO.Path]::GetTempPath()) ('scrcpy portable extraction ' + [guid]::NewGuid().ToString('N'))
 
     try {
@@ -50,7 +51,7 @@ function Assert-PortableZip {
                 $fileType = ($entry.ExternalAttributes -shr 16) -band 0xf000
 
                 if ($fileType -notin @(0, 0x8000) -or
-                    ($entry.ExternalAttributes -band [int][IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    ($entry.ExternalAttributes -band $nonFileAttributes) -ne 0) {
                     throw "Non-regular portable ZIP entry: $name"
                 }
 

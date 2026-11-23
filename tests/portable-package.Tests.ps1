@@ -138,7 +138,7 @@ public sealed class PortableArchiveFixture {}
     $rid = '.NETCoreApp,Version=v10.0/win-x64'
     Set-Json (Join-Path $stage 'ScrcpySeamless.Desktop.deps.json') @{
         runtimeTarget = @{ name = $rid }
-        targets = @{ $rid = @{ "Synthetic/$version" = @{ runtime = $assets } } }
+        targets = @{ $rid = @{ "Synthetic/$version" = @{ runtime = $assets; native = @{ 'libFixture.pdb' = @{} } } } }
         libraries = @{ "Synthetic/$version" = @{ type = 'project' } }
     }
     Set-Json (Join-Path $stage 'build-provenance.json') @{
@@ -146,7 +146,7 @@ public sealed class PortableArchiveFixture {}
         NativeFingerprint = 'a' * 64; ServerFingerprint = 'b' * 64
     }
 
-    $binaryComponents = foreach ($name in @($assets.Keys) + @($files.Keys | ForEach-Object { "runtime/$_" })) {
+    $binaryComponents = foreach ($name in @('ScrcpySeamless.Desktop.exe') + @($assets.Keys) + @($files.Keys | ForEach-Object { "runtime/$_" })) {
         @{ type = 'file'; name = $name; hashes = @(@{ alg = 'SHA-256'; content = Get-Hash (Join-Path $stage $name) }) }
     }
 

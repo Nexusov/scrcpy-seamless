@@ -221,7 +221,7 @@ function Assert-PortableContents {
         throw 'Portable build provenance, Desktop metadata or SBOM mismatch.'
     }
 
-    $binaryNames = @($assets.Name | Select-Object -Unique) +
+    $binaryNames = @("$portableProject.exe") + @($assets.Name | Select-Object -Unique) +
         @($portableRuntimeNames | ForEach-Object { "runtime/$_" })
     $binaryEntries = @($sbom.components | Where-Object type -CEQ 'file')
 

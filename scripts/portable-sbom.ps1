@@ -107,6 +107,49 @@ function Write-PortableSbom {
         $components.Add((Get-PortableManagedLicense @arguments))
     }
 
+    $nativeComponents = @(
+        @{ name = 'scrcpy Seamless native client'; version = $Version; license = 'Apache-2.0'; notice = 'LICENSE' },
+        @{ name = 'scrcpy Android server'; version = $Version; license = 'Apache-2.0'; notice = 'LICENSE' },
+        @{ name = 'Android Platform Tools'; version = '34.0.5-10900879'; notice = 'licenses/Android-Platform-Tools-NOTICE.txt' },
+        @{ name = 'SDL'; version = '3.4.8'; license = 'Zlib'; notice = 'licenses/SDL-LICENSE.txt' },
+        @{ name = 'FFmpeg'; version = '8.1.1'; license = 'LGPL-2.1-or-later'; notice = 'licenses/FFmpeg-LGPL-2.1.txt' },
+        @{ name = 'dav1d'; version = '1.5.3'; license = 'BSD-2-Clause'; notice = 'licenses/dav1d-COPYING.txt' },
+        @{ name = 'zlib'; version = '1.3.1'; license = 'Zlib'; notice = 'licenses/zlib-LICENSE.txt' },
+        @{ name = 'yyjson'; version = '0.12.0'; license = 'MIT'; notice = 'licenses/yyjson-LICENSE.txt' },
+        @{ name = 'GCC runtime'; notice = 'licenses/GCC-RUNTIME-EXCEPTION.txt' },
+        @{ name = 'MinGW-w64 runtime'; notice = 'licenses/MinGW-w64-runtime-COPYING.txt' }
+    )
+
+    foreach ($native in $nativeComponents) {
+        $component = [ordered]@{
+            type = 'library'
+            name = $native.name
+            properties = @(@{ name = 'seamless:native-notice'; value = $native.notice })
+        }
+
+        if ($native.ContainsKey('version')) {
+            $component.version = $native.version
+        } else {
+            $component.properties += @{ name = 'seamless:version-status'; value = 'Exact embedded runtime revision unavailable' }
+        }
+
+        if ($native.ContainsKey('license')) {
+            $component.licenses = @(@{ expression = $native.license })
+        } else {
+            $component.properties += @{ name = 'seamless:license-status'; value = 'See the retained component notices' }
+        }
+
+        $components.Add($component)
+    }
+
+    $desktopAppHost = "$portableProject.exe"
+    $components.Add([ordered]@{
+        type = 'file'
+        'bom-ref' = "file:$desktopAppHost"
+        name = $desktopAppHost
+        hashes = @(@{ alg = 'SHA-256'; content = (Get-PortableHash (Join-Path $Directory $desktopAppHost)) })
+    })
+
     foreach ($file in @($Assets | Group-Object Name)) {
         $properties = @($file.Group | ForEach-Object { @{ name = 'seamless:owner'; value = $_.Library } })
         $components.Add([ordered]@{
