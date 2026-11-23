@@ -1,5 +1,17 @@
 # Desktop/native machine runtime
 
+## Canonical portable composition
+
+The 2.0 application starts in portable mode when no storage selector is given.
+Portable and installed modes resolve only the adjacent `runtime` directory;
+an explicit development root may select its isolated runtime. Validation still
+precedes all device effects, and missing or incompatible inputs leave launch
+unavailable. Working-directory search, PATH-native lookup and a legacy process
+fallback are not allowed. Preview never resolves a runtime or persistent root.
+The canonical source-built package must carry the compatible runtime manifest,
+full inventories and source/build evidence; no-argument startup is not proof
+of a successful device handshake.
+
 The [v1 wire contract](../../spec/desktop-native/PROTOCOL.md) defines message
 syntax and meaning. Phase 6B provides the owned process route; Phase 6C selects
 `MachineNativeHost` in normal device-enabled Desktop composition when the

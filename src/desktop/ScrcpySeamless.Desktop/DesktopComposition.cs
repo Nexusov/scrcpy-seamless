@@ -71,7 +71,7 @@ public sealed record DesktopLaunchOptions(
             legacyDirectory is not null && !Path.IsPathFullyQualified(legacyDirectory) ||
             runtimeDirectory is not null && !Path.IsPathFullyQualified(runtimeDirectory);
         bool invalidPreview = preview && (selectedModes != 0 || legacyDirectory is not null || profilesPage);
-        bool invalidNormal = !preview && (selectedModes != 1 || scenarioId is not null || optionSearch is not null ||
+        bool invalidNormal = !preview && (selectedModes > 1 || scenarioId is not null || optionSearch is not null ||
             expandedDetails || scaleArgument is not null || theme != AppTheme.System);
 
         if (invalidArgument || repeatedSelection || !validScale || invalidPaths || invalidPreview || invalidNormal ||
@@ -84,7 +84,8 @@ public sealed record DesktopLaunchOptions(
         }
 
         DesktopStorageMode storageMode = portable ? DesktopStorageMode.Portable : installed ? DesktopStorageMode.Installed :
-            developmentDirectory is not null ? DesktopStorageMode.Development : DesktopStorageMode.None;
+            developmentDirectory is not null ? DesktopStorageMode.Development :
+            preview ? DesktopStorageMode.None : DesktopStorageMode.Portable;
         return new DesktopLaunchOptions(preview, theme, scenarioId, settingsPage, optionSearch, expandedDetails,
             uiScale, storageMode, developmentDirectory, legacyDirectory, profilesPage, runtimeDirectory);
     }

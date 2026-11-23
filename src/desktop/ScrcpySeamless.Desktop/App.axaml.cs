@@ -44,8 +44,8 @@ public partial class App : Application
                     Height = 180,
                     Content = new TextBlock
                     {
-                        Text = "Select --preview, --portable, --installed, or one absolute --dev-data-dir=<path>. " +
-                            "Do not combine storage modes.",
+                        Text = "Start normally for portable mode, or select --preview, --installed, " +
+                            "or one absolute --dev-data-dir=<path>. Do not combine storage modes.",
                         TextWrapping = TextWrapping.Wrap,
                         Margin = new Thickness(24),
                     },

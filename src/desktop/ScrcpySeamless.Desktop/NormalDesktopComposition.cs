@@ -282,9 +282,11 @@ public static class NormalDesktopFactory
         DeviceSessionViewModel? deviceSession = null;
         SessionsWorkspaceViewModel? sessions = null;
 
-        if (options.DeviceRuntimeDirectory is not null)
+        string? runtimeDirectory = ResolveDeviceRuntimeDirectory(options, AppContext.BaseDirectory);
+
+        if (runtimeDirectory is not null)
         {
-            RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(options.DeviceRuntimeDirectory);
+            RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(runtimeDirectory);
             bool enableOpenScreenMdnsCompatibility = runtime.Bundle is { } validatedBundle &&
                 BundledAdbCompatibility.RequiresOpenScreenMdns(validatedBundle.Manifest.Files["adb.exe"]);
             // Only a validated machine-capable bundle can supply the normal device-enabled host.
@@ -316,6 +318,23 @@ public static class NormalDesktopFactory
 
         return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences,
             devices, deviceSession, paths, text, sessions);
+    }
+
+    /// <summary>Uses the package runtime for normal modes and only an explicit runtime for DEV.</summary>
+    internal static string? ResolveDeviceRuntimeDirectory(DesktopLaunchOptions options, string applicationDirectory)
+    {
+        if (options.Preview)
+        {
+            return null;
+        }
+
+        if (options.StorageMode == DesktopStorageMode.Development)
+        {
+            return options.DeviceRuntimeDirectory;
+        }
+
+        return options.StorageMode is DesktopStorageMode.Portable or DesktopStorageMode.Installed
+            ? Path.Combine(applicationDirectory, "runtime") : null;
     }
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>

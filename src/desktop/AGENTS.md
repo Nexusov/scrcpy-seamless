@@ -1,5 +1,11 @@
 # Desktop scaffold agent guide
 
+Normal no-argument startup defaults to portable storage and validates only the
+adjacent package runtime. Installed mode also uses that runtime; DEV keeps its
+explicit opt-in runtime selection and isolated root. Preview never resolves
+persistent adapters. Do not search the working directory/PATH for a runtime or
+substitute the legacy host when the machine bundle is missing/incompatible.
+
 Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds the
 owned `MachineNativeHost` and typed Core interactive-session observations.
 Phase 6C selects it for a compatible explicit device-enabled DEV runtime;
