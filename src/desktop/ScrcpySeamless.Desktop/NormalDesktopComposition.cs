@@ -17,6 +17,7 @@ public sealed class NormalDesktopComposition
     private bool closeSaveActive;
     private bool exitReserved;
     private bool liveShutdownPending;
+    private readonly DeviceSessionViewModel? initialDeviceSession;
 
     public NormalDesktopComposition(
         ShellViewModel shell,
@@ -27,7 +28,8 @@ public sealed class NormalDesktopComposition
         DevicesViewModel devices,
         DeviceSessionViewModel? deviceSession,
         ApplicationDataPaths dataPaths,
-        PresentationText text)
+        PresentationText text,
+        SessionsWorkspaceViewModel? sessions = null)
     {
         Shell = shell;
         Settings = settings;
@@ -35,7 +37,8 @@ public sealed class NormalDesktopComposition
         Configuration = configuration;
         Preferences = preferences;
         Devices = devices;
-        DeviceSession = deviceSession;
+        initialDeviceSession = deviceSession;
+        Sessions = sessions;
         DataPaths = dataPaths;
         this.text = text;
         Configuration.AttachCloseSaveGuard(() => closeSaveActive || exitReserved);
@@ -49,18 +52,19 @@ public sealed class NormalDesktopComposition
     public ConfigurationWorkspaceViewModel Configuration { get; }
     public DesktopPreferencesViewModel Preferences { get; }
     public DevicesViewModel Devices { get; }
-    public DeviceSessionViewModel? DeviceSession { get; }
+    public DeviceSessionViewModel? DeviceSession => Sessions is null ? initialDeviceSession : Sessions.SelectedSession;
+    public SessionsWorkspaceViewModel? Sessions { get; }
     public ApplicationDataPaths DataPaths { get; }
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
     public bool IsCloseSaveActive => closeSaveActive || exitReserved;
     public bool IsLiveShutdownPending => liveShutdownPending;
-    public bool HasLiveOperations => DeviceSession is not null;
+    public bool HasLiveOperations => Sessions is not null || initialDeviceSession is not null;
 
     /// <summary>Stops the owned native child and settles explicit ADB operations after exit acceptance.</summary>
     public async Task<bool> ShutdownLiveAsync()
     {
-        if (DeviceSession is null)
+        if (DeviceSession is null && Sessions is null)
         {
             return true;
         }
@@ -69,12 +73,20 @@ public sealed class NormalDesktopComposition
         Configuration.RefreshCloseSaveState();
         Preferences.RefreshCloseSaveState();
         Shell.RefreshThemeEditState();
-        bool stopped = await DeviceSession.ShutdownAsync();
+        bool stopped = Sessions is not null
+            ? await Sessions.ShutdownAsync() : await DeviceSession!.ShutdownAsync();
 
         if (!stopped)
         {
             liveShutdownPending = false;
-            DeviceSession.ResumeAfterFailedShutdown();
+            if (Sessions is not null)
+            {
+                Sessions.ResumeAfterFailedShutdown();
+            }
+            else
+            {
+                DeviceSession!.ResumeAfterFailedShutdown();
+            }
             exitReserved = false;
             Configuration.RefreshCloseSaveState();
             Preferences.RefreshCloseSaveState();
@@ -268,6 +280,7 @@ public static class NormalDesktopFactory
         }
 
         DeviceSessionViewModel? deviceSession = null;
+        SessionsWorkspaceViewModel? sessions = null;
 
         if (options.DeviceRuntimeDirectory is not null)
         {
@@ -279,10 +292,13 @@ public static class NormalDesktopFactory
                 ? new MachineNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
                     bundle.AdbExecutablePath, enableOpenScreenMdnsCompatibility)
                 : null;
-            deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
-                runtime, nativeHost, action => Dispatcher.UIThread.Post(action),
-                options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null);
-            devices.AttachSessionActions(deviceSession);
+            sessions = new SessionsWorkspaceViewModel(() => new DeviceSessionViewModel(devices, profiles,
+                configuration, store, runtime, nativeHost, action => Dispatcher.UIThread.Post(action),
+                options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null),
+                devices.SelectSessionActions, text);
+            deviceSession = sessions.SelectedSession;
+            shell.AttachSessionWorkspaces(sessions, new DiagnosticsWorkspaceViewModel(sessions, text));
+            devices.AttachSessionsWorkspace(sessions, shell.ShowProfilesCommand);
 
             if (runtime.Bundle is { } readyBundle)
             {
@@ -299,7 +315,7 @@ public static class NormalDesktopFactory
         }
 
         return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences,
-            devices, deviceSession, paths, text);
+            devices, deviceSession, paths, text, sessions);
     }
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>

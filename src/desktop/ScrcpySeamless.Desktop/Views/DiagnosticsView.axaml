@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.DiagnosticsView"
+             x:DataType="vm:DiagnosticsWorkspaceViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="{DynamicResource PageInset}" Spacing="{DynamicResource SectionGap}">
+      <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap" />
+      <Button Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}" HorizontalAlignment="Left"
+              AutomationProperties.AutomationId="diagnostics.refresh" />
+      <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:SessionDiagnosticRow">
+            <Border Classes="card" Margin="0,0,0,12">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="sectionTitle" Text="{Binding Label}" />
+                <ItemsControl ItemsSource="{Binding Facts}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StatusMetric">
+                      <WrapPanel ItemSpacing="8" LineSpacing="4">
+                        <TextBlock Text="{Binding Label}" />
+                        <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
+                      </WrapPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

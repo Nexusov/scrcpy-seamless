@@ -174,6 +174,12 @@ public sealed partial class DevicesViewModel
         : null;
     public DeviceSessionViewModel? SessionActions { get; private set; }
     public bool HasSessionActions => SessionActions is not null;
+    public SessionsWorkspaceViewModel? SessionsWorkspace { get; private set; }
+    public bool HasSessionsWorkspace => SessionsWorkspace is not null;
+    public ICommand? SetupProfilesCommand { get; private set; }
+    public string GuidedSetupTitle => text.Get("setup.title");
+    public string GuidedSetupDescription => text.Get("setup.description");
+    public string SetupProfilesLabel => text.Get("setup.profiles");
     public bool CanRefresh => IsLiveEnabled && !IsDiscovering && !IsPairing && !IsConnecting;
     public bool CanCancelRefresh => IsLiveEnabled && IsDiscovering;
     public bool CanCancelPair => IsLiveEnabled && IsPairing;
@@ -208,6 +214,27 @@ public sealed partial class DevicesViewModel
         SessionActions = actions;
         OnPropertyChanged(nameof(SessionActions));
         OnPropertyChanged(nameof(HasSessionActions));
+    }
+
+    internal void SelectSessionActions(DeviceSessionViewModel? actions)
+    {
+        if (IsPreview)
+        {
+            throw new InvalidOperationException("Preview cannot attach live session ownership.");
+        }
+
+        SessionActions = actions;
+        OnPropertyChanged(nameof(SessionActions));
+        OnPropertyChanged(nameof(HasSessionActions));
+    }
+
+    internal void AttachSessionsWorkspace(SessionsWorkspaceViewModel workspace, ICommand showProfiles)
+    {
+        SessionsWorkspace = workspace;
+        SetupProfilesCommand = showProfiles;
+        OnPropertyChanged(nameof(SessionsWorkspace));
+        OnPropertyChanged(nameof(HasSessionsWorkspace));
+        OnPropertyChanged(nameof(SetupProfilesCommand));
     }
 
     /// <summary>Exposes a fresh, explicit transport choice for launch preflight.</summary>

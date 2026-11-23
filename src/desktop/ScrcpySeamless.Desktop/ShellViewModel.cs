@@ -11,6 +11,8 @@ public sealed class ShellViewModel : ObservableViewModel
     private object currentPage;
     private ThemeChoice selectedTheme;
     private readonly object? profiles;
+    private SessionsWorkspaceViewModel? sessions;
+    private DiagnosticsWorkspaceViewModel? diagnostics;
 
     public ShellViewModel(
         DevicesViewModel devices,
@@ -44,6 +46,8 @@ public sealed class ShellViewModel : ObservableViewModel
         ShowDevicesCommand = new ActionCommand(ShowDevices);
         ShowSettingsCommand = new ActionCommand(ShowSettings);
         ShowProfilesCommand = new ActionCommand(ShowProfiles);
+        ShowSessionsCommand = new ActionCommand(ShowSessions);
+        ShowDiagnosticsCommand = new ActionCommand(ShowDiagnostics);
     }
 
     public DevicesViewModel Devices { get; }
@@ -51,6 +55,10 @@ public sealed class ShellViewModel : ObservableViewModel
     public bool IsPreview { get; }
     public bool IsProfilesAvailable => profiles is not null;
     public bool IsProfilesUnavailable => profiles is null;
+    public bool IsSessionsAvailable => sessions is not null;
+    public bool IsSessionsUnavailable => sessions is null;
+    public bool IsDiagnosticsAvailable => diagnostics is not null;
+    public bool IsDiagnosticsUnavailable => diagnostics is null;
     public string ProductName { get; }
     public string ProductSubtitle { get; }
     public string ModeLabel { get; }
@@ -90,9 +98,13 @@ public sealed class ShellViewModel : ObservableViewModel
     public bool IsDevicesSelected => ReferenceEquals(CurrentPage, Devices);
     public bool IsSettingsSelected => ReferenceEquals(CurrentPage, Settings);
     public bool IsProfilesSelected => profiles is not null && ReferenceEquals(CurrentPage, profiles);
+    public bool IsSessionsSelected => sessions is not null && ReferenceEquals(CurrentPage, sessions);
+    public bool IsDiagnosticsSelected => diagnostics is not null && ReferenceEquals(CurrentPage, diagnostics);
     public ICommand ShowDevicesCommand { get; }
     public ICommand ShowSettingsCommand { get; }
     public ICommand ShowProfilesCommand { get; }
+    public ICommand ShowSessionsCommand { get; }
+    public ICommand ShowDiagnosticsCommand { get; }
 
     public object CurrentPage
     {
@@ -107,6 +119,8 @@ public sealed class ShellViewModel : ObservableViewModel
             OnPropertyChanged(nameof(IsDevicesSelected));
             OnPropertyChanged(nameof(IsSettingsSelected));
             OnPropertyChanged(nameof(IsProfilesSelected));
+            OnPropertyChanged(nameof(IsSessionsSelected));
+            OnPropertyChanged(nameof(IsDiagnosticsSelected));
         }
     }
 
@@ -115,6 +129,33 @@ public sealed class ShellViewModel : ObservableViewModel
 
     /// <summary>Navigates to the implemented Settings preview.</summary>
     public void ShowSettings() => CurrentPage = Settings;
+
+    public void AttachSessionWorkspaces(SessionsWorkspaceViewModel workspace, DiagnosticsWorkspaceViewModel observations)
+    {
+        sessions = workspace;
+        diagnostics = observations;
+        OnPropertyChanged(nameof(IsSessionsAvailable));
+        OnPropertyChanged(nameof(IsSessionsUnavailable));
+        OnPropertyChanged(nameof(IsDiagnosticsAvailable));
+        OnPropertyChanged(nameof(IsDiagnosticsUnavailable));
+    }
+
+    public void ShowSessions()
+    {
+        if (sessions is not null)
+        {
+            CurrentPage = sessions;
+        }
+    }
+
+    public void ShowDiagnostics()
+    {
+        if (diagnostics is not null)
+        {
+            diagnostics.Refresh();
+            CurrentPage = diagnostics;
+        }
+    }
 
     /// <summary>Opens saved profiles only when the local configuration editor is available.</summary>
     public void ShowProfiles()

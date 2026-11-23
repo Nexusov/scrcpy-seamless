@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.SessionsView"
+             x:DataType="vm:SessionsWorkspaceViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="{DynamicResource PageInset}" Spacing="{DynamicResource SectionGap}">
+      <TextBlock Classes="pageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap" />
+      <WrapPanel ItemSpacing="8" LineSpacing="8">
+        <Button Content="{Binding NewLabel}" Command="{Binding NewSessionCommand}" IsEnabled="{Binding CanAdd}"
+                AutomationProperties.AutomationId="sessions.new" />
+        <Button Content="{Binding RemoveLabel}" Command="{Binding RemoveSessionCommand}" IsEnabled="{Binding CanRemove}"
+                AutomationProperties.AutomationId="sessions.remove" />
+      </WrapPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+      <ComboBox ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
+                AutomationProperties.AutomationId="sessions.selection">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:DeviceSessionViewModel"><TextBlock Text="{Binding SessionLabel}" /></DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <ContentControl Content="{Binding SelectedSession}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -20,6 +20,8 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
     public NativeLifecycleEventType? EventType { get; private set; }
     public NativeLifecycleReason Reason { get; private set; }
     public NativeVideoEvidence Video { get; private set; } = NativeVideoEvidence.Unknown;
+    public NativeChannelEvidence Audio { get; private set; } = NativeChannelEvidence.Unknown;
+    public NativeChannelEvidence Control { get; private set; } = NativeChannelEvidence.Unknown;
     public IReadOnlyList<NativeLifecycleObservation> RecentObservations => recentObservations.ToArray();
 
     /// <summary>Applies an ordered native observation without promoting an obsolete attempt.</summary>
@@ -54,6 +56,7 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
 
                 activeAttempt = observation.ConnectionAttemptId;
                 Video = NativeVideoEvidence.NotReady;
+                Audio = Control = NativeChannelEvidence.Unknown;
                 break;
             case NativeLifecycleEventType.Reconnecting:
                 // Native emits one scheduled transition before each replacement attempt.
@@ -76,6 +79,7 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
                 activeAttempt = observation.ConnectionAttemptId;
                 reconnectScheduled = false;
                 Video = NativeVideoEvidence.NotReady;
+                Audio = Control = NativeChannelEvidence.Unknown;
                 break;
             case NativeLifecycleEventType.StreamStarted:
             case NativeLifecycleEventType.StreamResumed:
@@ -97,7 +101,29 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
                 }
 
                 Video = NativeVideoEvidence.NotReady;
+                Audio = Control = NativeChannelEvidence.NotReady;
                 reconnectScheduled = false;
+                break;
+            case NativeLifecycleEventType.CapabilityDegraded:
+                if (previousAttempt || activeAttempt is { } degradedAttempt &&
+                    observation.ConnectionAttemptId is { } reportedAttempt && reportedAttempt != degradedAttempt)
+                {
+                    return true;
+                }
+
+                switch (observation.Subsystem)
+                {
+                    case NativeLifecycleSubsystem.Video:
+                        Video = NativeVideoEvidence.NotReady;
+                        break;
+                    case NativeLifecycleSubsystem.Audio:
+                        Audio = NativeChannelEvidence.NotReady;
+                        break;
+                    case NativeLifecycleSubsystem.Control:
+                        Control = NativeChannelEvidence.NotReady;
+                        break;
+                }
+
                 break;
             case NativeLifecycleEventType.ReconnectScheduled:
                 bool unrelatedSchedule = observation.ConnectionAttemptId is { } scheduledAttempt &&
@@ -114,6 +140,7 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
             case NativeLifecycleEventType.SessionStopped:
             case NativeLifecycleEventType.FatalError:
                 Video = NativeVideoEvidence.NotReady;
+                Audio = Control = NativeChannelEvidence.NotReady;
                 break;
         }
 
@@ -125,3 +152,4 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
 
 /// <summary>Separates unknown video from a frame observed at the native presentation seam.</summary>
 internal enum NativeVideoEvidence { Unknown, NotReady, ObservedFrame }
+internal enum NativeChannelEvidence { Unknown, NotReady }

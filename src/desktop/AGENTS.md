@@ -5,6 +5,11 @@ owned `MachineNativeHost` and typed Core interactive-session observations.
 Phase 6C selects it for a compatible explicit device-enabled DEV runtime;
 the separate legacy launcher/package stays available. One Desktop owner must
 drain the bounded lifecycle stream regardless of the visible page.
+The concurrent Sessions workspace retains at most eight independent child
+entries. Selection and navigation never transfer ownership; keep one lifecycle
+consumer per child and its profile reservation until exact cleanup settles.
+Control-center shutdown settles every owned entry, including failed cleanup
+and late acquisition. Diagnostics reads those owners' bounded snapshots only.
 The explicit DEV evidence action reads an immutable allowlisted snapshot from
 that owner; never add a second lifecycle reader or serialize live configuration,
 exceptions or process objects. Retain typed completion/cleanup before release.

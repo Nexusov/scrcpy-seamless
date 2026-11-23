@@ -7,6 +7,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using ScrcpySeamless.Core.Application.Activation;
+using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Infrastructure.Activation;
 using ControlCenterActivationKind = ScrcpySeamless.Core.Application.Activation.ActivationKind;
@@ -158,8 +159,10 @@ public partial class App : Application
                 {
                     try
                     {
-                        await Dispatcher.UIThread.InvokeAsync(
-                            () => deviceSession.FocusSessionAsync(sessionId, cancellationToken));
+                        Task<NativeFocusOutcome> focus = await Dispatcher.UIThread.InvokeAsync<Task<NativeFocusOutcome>>(
+                            () => composition.Sessions?.FocusSessionAsync(sessionId, cancellationToken)
+                                ?? deviceSession.FocusSessionAsync(sessionId, cancellationToken));
+                        await focus;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {

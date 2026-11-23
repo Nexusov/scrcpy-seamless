@@ -29,7 +29,12 @@
                   Content="{Binding DevicesLabel}" Command="{Binding ShowDevicesCommand}"
                   AutomationProperties.AutomationId="nav.devices"
                   AutomationProperties.Name="{Binding DevicesLabel}" />
+          <Button Name="SessionsNavigation" Classes="nav" Classes.active="{Binding IsSessionsSelected}"
+                  Content="{Binding SessionsLabel}" Command="{Binding ShowSessionsCommand}"
+                  IsVisible="{Binding IsSessionsAvailable}"
+                  AutomationProperties.AutomationId="nav.sessions" AutomationProperties.Name="{Binding SessionsLabel}" />
           <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  IsVisible="{Binding IsSessionsUnavailable}"
                   AutomationProperties.HelpText="{Binding UnavailableHint}"
                   AutomationProperties.AutomationId="nav.sessions">
             <TextBlock Text="{Binding SessionsLabel}" Classes="muted" Opacity="0.75" />
@@ -49,7 +54,12 @@
                   Content="{Binding SettingsLabel}" Command="{Binding ShowSettingsCommand}"
                   AutomationProperties.AutomationId="nav.settings"
                   AutomationProperties.Name="{Binding SettingsLabel}" />
+          <Button Name="DiagnosticsNavigation" Classes="nav" Classes.active="{Binding IsDiagnosticsSelected}"
+                  Content="{Binding DiagnosticsLabel}" Command="{Binding ShowDiagnosticsCommand}"
+                  IsVisible="{Binding IsDiagnosticsAvailable}"
+                  AutomationProperties.AutomationId="nav.diagnostics" AutomationProperties.Name="{Binding DiagnosticsLabel}" />
           <Border Padding="{DynamicResource NavPadding}" ToolTip.Tip="{Binding UnavailableHint}"
+                  IsVisible="{Binding IsDiagnosticsUnavailable}"
                   AutomationProperties.HelpText="{Binding UnavailableHint}"
                   AutomationProperties.AutomationId="nav.diagnostics">
             <TextBlock Text="{Binding DiagnosticsLabel}" Classes="muted" Opacity="0.75" />

@@ -1294,3 +1294,49 @@ launcher, observer and their tests are unchanged by Phase 3; do not weaken
 their timing assertions. The hosted `test` job and other PR #4 checks passed
 before integration. The local timing limitation remains part of the handoff
 evidence.
+
+## P10 bounded concurrent workspace implementation contract
+
+The control center owns a bounded collection of at most eight per-child
+`DeviceSessionViewModel` entries through `SessionsWorkspaceViewModel`. Selection
+changes presentation only. Each child retains the existing single lifecycle
+consumer, committed launch snapshot, late-child cleanup and typed evidence.
+`ControlCenterSessions` reserves one SessionId/ProfileId before host creation;
+failed/cancelled launch releases only after its possible late child settles,
+and cleanup failure retains the reservation. VM ownership-gate operations do
+not hold the registry lock across process/I/O or UI callbacks. The registry
+never calls into a VM while holding its lock.
+
+Exact-session activation searches the owned entries by SessionId. Closing the
+control center settles all entries independently before device-operation
+cleanup; a failure keeps the workspace available with ownership retained.
+Idle entries may be removed explicitly; an owned or starting entry cannot be
+removed. The Devices launch pane remains a selection facade over these same
+owners rather than creating a second lifetime consumer.
+
+Sessions and Diagnostics become real destinations using the existing design
+and bounded observations. Guided empty-state actions navigate existing
+Devices/Profile setup and reuse their draft/Apply/Cancel contracts; they do not
+pair, refresh ADB or mutate configuration implicitly. Video/audio/control facts
+remain independent: a presented video frame does not establish audible audio
+or usable control. Explicit subsystem degradation marks that channel unavailable;
+unknown stays unknown. No new protocol observation or raw diagnostic export is
+invented. Preview composition constructs no live owner, native host or ADB.
+
+Verification targets simultaneous synthetic children, per-profile reservation,
+late cancelled acquisition, exact Focus/Stop, off-page lifecycle/degradation,
+shutdown cleanup failure and bounded entry admission. Existing single-child,
+committed-snapshot, preview and configuration suites remain applicable. This
+slice does not implement native shortcut remapping or release checking and
+does not establish hardware/multi-monitor/screen-reader acceptance.
+
+The Group 1 implementation passed 150 Desktop headless tests at normal test
+concurrency. Its focused owner/channel/view lane passed 44 tests, including two
+simultaneous synthetic children, exact-session Focus, retained cleanup failure,
+cancelled late acquisition, all-entry shutdown, entry limits, realized Sessions
+and Diagnostics bindings, preview isolation and off-page channel degradation.
+The added fixture initially assumed a single failed disposal prevented a later
+successful cleanup; that one failing fixture was replaced by a controlled
+persistent disposal gate. This was a test assumption correction, not a product
+cleanup defect or a historical CI diagnosis. Full managed-solution validation
+belongs to the owning completion gate, separately from this Desktop run.
