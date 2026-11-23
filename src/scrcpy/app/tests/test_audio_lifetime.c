@@ -380,6 +380,7 @@ test_partial_open_failures(void) {
         fixture_init(&fixture, stage);
         struct sc_frame_sink *sink = &fixture.player.frame_sink;
         assert(!sink->ops->open(sink, fixture.context, NULL));
+        assert(!fixture.player.playback_started);
         assert(fixture.resamplers_acquired
                == (stage != FAIL_RESAMPLER_ALLOC));
         assert(fixture.mutexes_acquired == (stage >= FAIL_RING_ALLOC));
@@ -400,6 +401,53 @@ close_player(void *userdata) {
     return 0;
 }
 
+static AVFrame *
+make_audio_frame(unsigned samples) {
+    AVFrame *frame = av_frame_alloc();
+    assert(frame);
+    frame->sample_rate = TEST_SAMPLE_RATE;
+    frame->format = SC_AV_SAMPLE_FMT;
+    frame->nb_samples = samples;
+    frame->pts = 0;
+#ifdef SCRCPY_LAVU_HAS_CHLAYOUT
+    av_channel_layout_default(&frame->ch_layout, TEST_CHANNELS);
+#else
+    frame->channel_layout = AV_CH_LAYOUT_STEREO;
+#endif
+    assert(!av_frame_get_buffer(frame, 0));
+    memset(frame->data[0], 0, samples * TEST_CHANNELS * sizeof(float));
+    return frame;
+}
+
+/** Establish deterministic lifetime counts with the real regulator and no callback. */
+static void
+test_regulator_metrics(void) {
+    enum {
+        TARGET_SAMPLES = TEST_FRAME_SAMPLES * 2,
+        INPUT_SAMPLES = TEST_FRAME_SAMPLES * 4,
+    };
+    struct audio_fixture fixture;
+    fixture_init(&fixture, FAIL_NONE);
+    struct sc_audio_regulator *ar = &fixture.player.audioreg;
+    assert(sc_audio_regulator_init(ar, TEST_CHANNELS * sizeof(float),
+                                   fixture.context, TARGET_SAMPLES));
+    float output[INPUT_SAMPLES * TEST_CHANNELS];
+    sc_audio_regulator_pull(ar, (uint8_t *) output, INPUT_SAMPLES);
+    assert(!ar->underflow_samples);
+
+    AVFrame *frame = make_audio_frame(INPUT_SAMPLES);
+    assert(sc_audio_regulator_push(ar, frame));
+    av_frame_free(&frame);
+    assert(ar->pcm_peak_samples == INPUT_SAMPLES);
+    assert(ar->overflow_samples_dropped == TEST_FRAME_SAMPLES);
+
+    sc_audio_regulator_pull(ar, (uint8_t *) output, INPUT_SAMPLES);
+    assert(ar->underflow_samples == TEST_FRAME_SAMPLES);
+
+    sc_audio_regulator_destroy(ar);
+    fixture_destroy(&fixture);
+}
+
 /** Prove real stream destruction settles a currently executing callback. */
 static void
 test_callback_settlement(void) {
@@ -413,20 +461,7 @@ test_callback_settlement(void) {
                                     TEST_GATE_TIMEOUT_MS));
     assert(atomic_load(&fixture.callback_active));
 
-    AVFrame *frame = av_frame_alloc();
-    assert(frame);
-    frame->sample_rate = TEST_SAMPLE_RATE;
-    frame->format = SC_AV_SAMPLE_FMT;
-    frame->nb_samples = TEST_FRAME_SAMPLES;
-    frame->pts = 0;
-#ifdef SCRCPY_LAVU_HAS_CHLAYOUT
-    av_channel_layout_default(&frame->ch_layout, TEST_CHANNELS);
-#else
-    frame->channel_layout = AV_CH_LAYOUT_STEREO;
-#endif
-    assert(!av_frame_get_buffer(frame, 0));
-    memset(frame->data[0], 0,
-           TEST_FRAME_SAMPLES * TEST_CHANNELS * sizeof(float));
+    AVFrame *frame = make_audio_frame(TEST_FRAME_SAMPLES);
     assert(sink->ops->push(sink, frame));
     av_frame_free(&frame);
 
@@ -440,6 +475,8 @@ test_callback_settlement(void) {
     SDL_SignalSemaphore(fixture.callback_release);
     sc_thread_join(&closer, NULL);
     assert(atomic_load(&fixture.callback_calls));
+    assert(fixture.player.playback_started && fixture.player.samples_submitted);
+    assert(fixture.player.audioreg.pcm_peak_samples == TEST_FRAME_SAMPLES);
     assert(fixture.regulators_released == 1);
     assert(fixture.rings_released == 1);
     assert(fixture.output_buffers_released == 1);
@@ -469,9 +506,10 @@ main(void) {
     printf("audio lifetime: SDL %d (%s), isolated driver %s\n", SDL_GetVersion(),
            SDL_GetRevision(), SDL_GetCurrentAudioDriver());
     test_partial_open_failures();
+    test_regulator_metrics();
     test_callback_settlement();
     test_normal_close();
     SDL_Quit();
-    puts("audio lifetime: nine partial-open failures, callback settlement, normal close passed");
+    puts("audio lifetime: nine partial-open failures, regulator metrics, callback settlement, normal close passed");
     return 0;
 }

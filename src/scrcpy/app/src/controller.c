@@ -58,6 +58,7 @@ sc_controller_init(struct sc_controller *controller, sc_socket control_socket,
 
     controller->control_socket = control_socket;
     controller->stopped = false;
+    controller->messages_written = 0;
 
     controller->resize_display.width = 0;
     controller->resize_display.height = 0;
@@ -162,6 +163,7 @@ process_msg(struct sc_controller *controller,
         return false;
     }
 
+    ++controller->messages_written;
     return true;
 }
 

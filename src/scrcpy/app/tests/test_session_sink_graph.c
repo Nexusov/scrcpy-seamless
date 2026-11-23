@@ -152,13 +152,75 @@ test_graph(int failing_frame, bool failing_packet) {
     avcodec_free_context(&context);
 }
 
-/** Verify successful and partial graph opens each have exactly one close owner. */
+static bool
+open_audio_frame(struct sc_frame_sink *sink, const AVCodecContext *context,
+                 const struct sc_stream_session *metadata) {
+    (void) sink;
+    assert(context->codec_type == AVMEDIA_TYPE_AUDIO && !metadata);
+    return true;
+}
+
+static void
+close_audio_frame(struct sc_frame_sink *sink) {
+    (void) sink;
+}
+
+static bool
+push_audio_frame(struct sc_frame_sink *sink, const AVFrame *frame) {
+    (void) sink;
+    assert(frame->nb_samples == 1);
+    return true;
+}
+
+static void
+test_decoded_frames_count(void) {
+    const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_PCM_S16LE);
+    assert(codec);
+    AVCodecContext *context = avcodec_alloc_context3(codec);
+    assert(context);
+    context->sample_rate = 48000;
+#ifdef SCRCPY_LAVU_HAS_CHLAYOUT
+    av_channel_layout_default(&context->ch_layout, 1);
+#else
+    context->channels = 1;
+    context->channel_layout = AV_CH_LAYOUT_MONO;
+#endif
+    assert(!avcodec_open2(context, codec, NULL));
+
+    struct sc_decoder decoder;
+    sc_decoder_init(&decoder, "decoded-frame-test");
+    static const struct sc_frame_sink_ops frame_operations = {
+        .open = open_audio_frame,
+        .close = close_audio_frame,
+        .push = push_audio_frame,
+    };
+    struct sc_frame_sink frame_sink = {.ops = &frame_operations};
+    sc_frame_source_add_sink(&decoder.frame_source, &frame_sink);
+    struct sc_packet_sink *sink = &decoder.packet_sink;
+    assert(sink->ops->open(sink, context, NULL));
+    AVPacket *packet = av_packet_alloc();
+    assert(packet);
+    assert(!av_new_packet(packet, sizeof(int16_t)));
+    memset(packet->data, 0, packet->size);
+    assert(sink->ops->push(sink, packet));
+    assert(!decoder.frames_decoded);
+    packet->pts = 0;
+    assert(sink->ops->push(sink, packet));
+    assert(decoder.frames_decoded == 1);
+
+    sink->ops->close(sink);
+    av_packet_free(&packet);
+    avcodec_free_context(&context);
+}
+
+/** Verify the actual decoder and graph open/close ownership. */
 int
 main(void) {
     test_graph(0, false);
     test_graph(1, false);
     test_graph(-1, true);
     test_graph(-1, false);
-    puts("session sink graph: 4 actual decoder/packet/frame cascade cases passed");
+    test_decoded_frames_count();
+    puts("session sink graph: four cascade cases and PCM decode accounting passed");
     return 0;
 }

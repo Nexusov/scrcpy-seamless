@@ -222,6 +222,8 @@ test_outcome(enum test_case selected, enum sc_demuxer_status expected) {
     if (selected == PAYLOAD_AT_LIMIT) {
         assert(packet_allocations == 1);
     }
+    assert(demuxer.packets_read == (selected == VALID_PACKET
+                                 || selected == SINK_PUSH_REJECTED));
     assert(disables <= 1 && closes <= 1 && !(disables && closes));
     assert((opens && selected != SINK_OPEN_REJECTED) ? closes == 1 : disables == 1);
 

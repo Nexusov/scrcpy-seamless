@@ -46,6 +46,11 @@ struct sc_audio_regulator {
     // Number of silence samples inserted since the last received packet
     atomic_uint_least32_t underflow;
 
+    // Lifetime counters read after the stream and its producer settle.
+    uint64_t underflow_samples; // SDL callback only
+    uint64_t overflow_samples_dropped; // producer only
+    uint32_t pcm_peak_samples; // producer observations before trimming
+
     // Number of silence samples inserted since the last log
     uint32_t underflow_report;
 

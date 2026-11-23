@@ -925,6 +925,43 @@ sc_session_join(struct sc_session *session) {
     LOGD("Session generation=%" PRIu64_ " joined", session->generation);
 }
 
+struct sc_session_metrics
+sc_session_get_metrics(const struct sc_session *session) {
+    assert(session->joined && !session->resources_released);
+    struct sc_session_metrics metrics = {.generation = session->generation};
+
+    if (session->audio_demuxer_started) {
+        metrics.available |= SC_SESSION_METRIC_AUDIO_PACKETS;
+        metrics.audio_packets_read = session->audio_demuxer.packets_read;
+
+        if (session->audio_decoder.packet_sink.ops) {
+            metrics.available |= SC_SESSION_METRIC_AUDIO_DECODE;
+            metrics.audio_frames_decoded = session->audio_decoder.frames_decoded;
+        }
+
+        if (session->audio_player.playback_started) {
+            const struct sc_audio_regulator *ar = &session->audio_player.audioreg;
+            metrics.available |= SC_SESSION_METRIC_AUDIO_PLAYBACK;
+            metrics.audio_samples_submitted = session->audio_player.samples_submitted;
+            metrics.audio_underflow_samples = ar->underflow_samples;
+            metrics.audio_overflow_samples_dropped = ar->overflow_samples_dropped;
+            metrics.audio_pcm_peak_samples = ar->pcm_peak_samples;
+        }
+    }
+
+    if (session->video_demuxer_started && session->video_decoder.packet_sink.ops) {
+        metrics.available |= SC_SESSION_METRIC_VIDEO_DECODE;
+        metrics.video_frames_decoded = session->video_decoder.frames_decoded;
+    }
+
+    if (session->controller_started) {
+        metrics.available |= SC_SESSION_METRIC_CONTROL_WRITES;
+        metrics.control_messages_written = session->controller.messages_written;
+    }
+
+    return metrics;
+}
+
 bool
 sc_session_recording_output_opened(const struct sc_session *session) {
     assert(session->joined);

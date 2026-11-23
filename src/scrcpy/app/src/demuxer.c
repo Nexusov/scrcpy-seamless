@@ -347,6 +347,7 @@ run_demuxer(void *data) {
                     : SC_DEMUXER_STATUS_ERROR;
                 break;
             }
+            ++demuxer->packets_read;
 
             if (must_merge_config_packet) {
                 // Prepend any config packet to the next media packet
@@ -395,6 +396,7 @@ sc_demuxer_init(struct sc_demuxer *demuxer, const char *name, sc_socket socket,
 
     demuxer->name = name; // statically allocated
     demuxer->socket = socket;
+    demuxer->packets_read = 0;
     sc_packet_source_init(&demuxer->packet_source);
 
     assert(cbs && cbs->on_ended);

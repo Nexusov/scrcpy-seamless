@@ -24,7 +24,7 @@ static void *device_payload_allocate(size_t size);
 #include "../src/controller.c"
 
 enum control_case {
-    SENDER_IO, SENDER_LOCAL, SENDER_STOP,
+    SENDER_IO, SENDER_LOCAL, SENDER_STOP, SENDER_PARTIAL_AFTER_SUCCESS,
     RECEIVER_EOF, RECEIVER_IO, RECEIVER_MALFORMED,
     RECEIVER_OOM, RECEIVER_FRAGMENTED, RECEIVER_FULL_BUFFER,
 };
@@ -44,8 +44,14 @@ ssize_t
 net_send_all(sc_socket socket, const void *bytes, size_t length) {
     (void) socket;
     (void) bytes;
-    assert(scenario == SENDER_IO && length);
+    assert((scenario == SENDER_IO || scenario == SENDER_PARTIAL_AFTER_SUCCESS)
+           && length > 1);
     ++send_calls;
+
+    if (scenario == SENDER_PARTIAL_AFTER_SUCCESS) {
+        return send_calls == 1 ? (ssize_t) length : (ssize_t) length - 1;
+    }
+
     return -1;
 }
 
@@ -139,15 +145,22 @@ test_sender(enum control_case selected) {
             ? (enum sc_control_msg_type) 0xff : SC_CONTROL_MSG_TYPE_BACK_OR_SCREEN_ON};
         bool admitted = sc_controller_push_msg(&controller, &message);
         assert(admitted);
+
+        if (selected == SENDER_PARTIAL_AFTER_SUCCESS) {
+            assert(sc_controller_push_msg(&controller, &message));
+        }
     }
 
     bool started = sc_thread_create(&controller.thread, run_controller, "sender-test", &controller);
     assert(started);
     sc_thread_join(&controller.thread, NULL);
     assert(completions == 1);
-    assert(observed_status == (selected == SENDER_IO ? SC_CONTROL_STATUS_TRANSPORT_LOST
+    bool transport_lost = selected == SENDER_IO || selected == SENDER_PARTIAL_AFTER_SUCCESS;
+    assert(observed_status == (transport_lost ? SC_CONTROL_STATUS_TRANSPORT_LOST
         : selected == SENDER_LOCAL ? SC_CONTROL_STATUS_LOCAL_ERROR : SC_CONTROL_STATUS_STOPPED));
-    assert(send_calls == (selected == SENDER_IO));
+    unsigned expected_sends = selected == SENDER_PARTIAL_AFTER_SUCCESS ? 2 : transport_lost;
+    assert(send_calls == expected_sends);
+    assert(controller.messages_written == (selected == SENDER_PARTIAL_AFTER_SUCCESS));
     sc_controller_destroy(&controller);
 }
 
@@ -177,7 +190,8 @@ main(int argc, char *argv[]) {
         return 0;
     }
 
-    for (unsigned selected = SENDER_IO; selected <= SENDER_STOP; ++selected) {
+    for (unsigned selected = SENDER_IO; selected <= SENDER_PARTIAL_AFTER_SUCCESS;
+         ++selected) {
         test_sender((enum control_case) selected);
     }
 
@@ -185,6 +199,6 @@ main(int argc, char *argv[]) {
         test_receiver((enum control_case) selected);
     }
 
-    puts("control outcomes: three sender and six receiver production-worker cases");
+    puts("control outcomes: four sender and six receiver production-worker cases");
     return 0;
 }

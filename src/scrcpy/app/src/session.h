@@ -17,6 +17,28 @@
 struct sc_screen;
 struct sc_session;
 
+enum sc_session_metric {
+    SC_SESSION_METRIC_AUDIO_PACKETS = 1u << 0,
+    SC_SESSION_METRIC_AUDIO_DECODE = 1u << 1,
+    SC_SESSION_METRIC_AUDIO_PLAYBACK = 1u << 2,
+    SC_SESSION_METRIC_VIDEO_DECODE = 1u << 3,
+    SC_SESSION_METRIC_CONTROL_WRITES = 1u << 4,
+};
+
+struct sc_session_metrics {
+    uint64_t generation;
+    unsigned available; // bitmask of sc_session_metric values
+    uint64_t audio_packets_read;
+    uint64_t audio_frames_decoded;
+    // Samples are PCM sample frames across channels, including submitted silence.
+    uint64_t audio_samples_submitted;
+    uint64_t audio_underflow_samples;
+    uint64_t audio_overflow_samples_dropped;
+    uint32_t audio_pcm_peak_samples; // highest producer observation before trim
+    uint64_t video_frames_decoded;
+    uint64_t control_messages_written;
+};
+
 /* Stable address from create until request-stop/join/destroy have settled. */
 struct sc_session *
 sc_session_create(const struct scrcpy_options *options,
@@ -58,6 +80,10 @@ sc_session_request_stop(struct sc_session *session);
 
 void
 sc_session_join(struct sc_session *session);
+
+/* Read generation totals after all workers and audio callbacks have settled. */
+struct sc_session_metrics
+sc_session_get_metrics(const struct sc_session *session);
 
 /* Exact joined recorder receipt, captured before releasing external resources. */
 bool

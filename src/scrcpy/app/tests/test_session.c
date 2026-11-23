@@ -1118,6 +1118,8 @@ test_create_failures(void) {
     assert(dispatcher.last_generation == first_generation);
     sc_session_request_stop(first);
     sc_session_join(first);
+    struct sc_session_metrics metrics = sc_session_get_metrics(first);
+    assert(metrics.generation == first_generation && !metrics.available);
     sc_session_destroy(first);
     test_destroy_dispatcher(&dispatcher);
 }
@@ -1270,6 +1272,11 @@ test_generation_replacements(void) {
         sc_session_request_stop(session);
         sc_session_join(session);
         sc_session_join(session);
+        struct sc_session_metrics metrics = sc_session_get_metrics(session);
+        assert(metrics.generation == generation);
+        assert(metrics.available == (SC_SESSION_METRIC_AUDIO_PACKETS
+                                   | SC_SESSION_METRIC_CONTROL_WRITES));
+        assert(!metrics.audio_packets_read && !metrics.control_messages_written);
         sc_session_destroy(session);
         assert(!tracked_owner);
         assert(tracked_owner_releases == generation_index + 1);

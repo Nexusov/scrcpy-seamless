@@ -35,6 +35,7 @@ sc_audio_player_stream_callback(void *userdata, SDL_AudioStream *stream,
             LOGW("Audio stream error: %s", SDL_GetError());
             return;
         }
+        ap->samples_submitted += out_samples;
     }
 }
 
@@ -131,6 +132,7 @@ sc_audio_player_frame_sink_open(struct sc_frame_sink *sink,
         return false;
     }
 
+    ap->playback_started = true;
     return true;
 }
 
@@ -155,6 +157,8 @@ sc_audio_player_init(struct sc_audio_player *ap, sc_tick target_buffering,
                      sc_tick output_buffer_duration) {
     ap->target_buffering_delay = target_buffering;
     ap->output_buffer_duration = output_buffer_duration;
+    ap->playback_started = false;
+    ap->samples_submitted = 0;
 
     static const struct sc_frame_sink_ops ops = {
         .open = sc_audio_player_frame_sink_open,

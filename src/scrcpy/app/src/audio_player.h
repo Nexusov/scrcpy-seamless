@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <SDL3/SDL_audio.h>
 
 #include "audio_regulator.h"
@@ -27,6 +29,8 @@ struct sc_audio_player {
 
     SDL_AudioStream *stream;
     SDL_AudioDeviceID device; // owned by the audio stream
+    bool playback_started; // enclosing demux worker only until join
+    uint64_t samples_submitted; // SDL callback only until stream destruction
     struct sc_audio_regulator audioreg;
 };
 

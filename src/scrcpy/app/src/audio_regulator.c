@@ -112,6 +112,7 @@ sc_audio_regulator_pull(struct sc_audio_regulator *ar, uint8_t *out,
             // Inserting additional samples immediately increases buffering
             atomic_fetch_add_explicit(&ar->underflow, silence,
                                       memory_order_relaxed);
+            ar->underflow_samples += silence;
         }
     }
 
@@ -200,7 +201,9 @@ sc_audio_regulator_push(struct sc_audio_regulator *ar, const AVFrame *frame) {
         // Very very unlikely: a single resampled frame should never
         // exceed the audio buffer size (or something is very wrong).
         // Ignore the first bytes in swr_buf to avoid memory corruption anyway.
-        swr_buf += TO_BYTES(samples - cap);
+        uint32_t dropped = samples - cap;
+        ar->overflow_samples_dropped += dropped;
+        swr_buf += TO_BYTES(dropped);
         samples = cap;
     }
 
@@ -256,6 +259,8 @@ sc_audio_regulator_push(struct sc_audio_regulator *ar, const AVFrame *frame) {
     }
 
     uint32_t can_read = sc_audiobuf_can_read(&ar->buf);
+    ar->pcm_peak_samples = MAX(ar->pcm_peak_samples, can_read);
+
     if (can_read > max_buffered_samples) {
         uint32_t skip_samples = 0;
 
@@ -283,6 +288,7 @@ sc_audio_regulator_push(struct sc_audio_regulator *ar, const AVFrame *frame) {
         }
     }
 
+    ar->overflow_samples_dropped += skipped_samples;
     atomic_store_explicit(&ar->received, true, memory_order_relaxed);
     if (!played) {
         // Nothing more to do
@@ -431,6 +437,9 @@ sc_audio_regulator_init(struct sc_audio_regulator *ar, size_t sample_size,
     atomic_init(&ar->played, false);
     atomic_init(&ar->received, false);
     atomic_init(&ar->underflow, 0);
+    ar->underflow_samples = 0;
+    ar->overflow_samples_dropped = 0;
+    ar->pcm_peak_samples = 0;
     ar->underflow_report = 0;
     ar->compensation_active = false;
     ar->next_expected_pts = 0;

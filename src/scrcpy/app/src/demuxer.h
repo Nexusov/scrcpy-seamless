@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "trait/packet_source.h"
 #include "util/net.h"
@@ -16,6 +17,7 @@ struct sc_demuxer {
 
     sc_socket socket;
     sc_thread thread;
+    uint64_t packets_read; // demux worker only until join
 
     const struct sc_demuxer_callbacks *cbs;
     void *cbs_userdata;

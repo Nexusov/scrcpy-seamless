@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "control_msg.h"
 #include "control_status.h"
@@ -21,6 +22,7 @@ struct sc_controller {
     sc_mutex mutex;
     sc_cond msg_cond;
     bool stopped;
+    uint64_t messages_written; // writer only until join
 
     struct sc_control_msg_queue queue;
 
