@@ -336,3 +336,66 @@ Admission is separate from later downstream acceptance. Worker join precedes
 queue release and sink close; the upstream producer still owns publication/close
 serialization. This does not bound the existing growable delay queue or validate
 hardware latency. See the [ordering correction](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction).
+
+## Explicit local JSONL diagnostics
+
+Diagnostics provides a user-initiated Save action over the existing detached,
+single-consumer session projections. This exporter is separate from the DEV
+Copy evidence format above: it excludes source/profile/device/path values and
+raw session, attempt and process identifiers. Session and attempt correlations
+are export-local ordinals, reset for every export. Resource text, commands,
+stderr, clipboard content, exception text and error payloads are never inputs
+to the serializer. The existing Copy action and its historical snapshots are
+unchanged.
+
+[`DiagnosticExportFormatter`](../../src/desktop/ScrcpySeamless.Desktop/Presentation/DiagnosticExportFormatter.cs)
+defines append-only JSONL format version 1. Every line is one JSON object with
+a `Record` discriminator: one `Export` header, at most eight `Session` summaries
+and at most 64 `Lifecycle` rows per summary. The total bound is 521 records,
+512 KiB UTF-8 and six JSON container levels. A fixed-capacity output buffer
+rejects the complete export rather than returning a truncated document. Keep
+existing field meaning/type stable; compatible new fields may be appended.
+Incompatible semantics require a new format version. There is no background
+log, rotation service or automatic export; every saved file is an explicit
+new bounded snapshot.
+
+Only actual projection counts are aggregated: total observed, retained and
+omitted events, retained channel-event counts and retained attempt count.
+Sequences and native monotonic microseconds are invariant decimal strings;
+UTC values preserve the observed instant and available precision. Per-event
+intervals and retained span require nondecreasing native monotonic samples.
+Loss-to-resume intervals run from the first pending **retained** TransportLost
+to the next retained StreamResumed; another loss before a resume does not reset
+the start. These intervals are not complete outage measurements when earlier
+history was omitted. Non-monotonic samples remain exported, with derived
+durations unavailable.
+
+Native generation, queue/process/native-retained memory metrics, video-frame
+and audio packet/sample/underflow counters, audible readiness, process exit
+code, wire Stop acknowledgement and foreground-permission return remain
+explicitly `null`/`NotRecorded`. Channel lifecycle events do not establish
+packet counts, decoded frames, audible readiness or physical transport truth.
+Terminal reason, initiating cleanup intent, managed cleanup outcome and actual
+exact-child observations remain distinct typed fields.
+
+[`LocalDiagnosticWriter`](../../src/desktop/ScrcpySeamless.Infrastructure/Diagnostics/LocalDiagnosticWriter.cs)
+uses atomic `FileMode.CreateNew`, never an existence-check admission or
+overwrite. Windows device namespaces, alternate-stream selectors, invalid
+components and lossy trailing-dot/space names are rejected before opening;
+both the original selection and normalized path are checked. Non-local
+providers without provable CreateNew semantics are unsupported. The UI never
+renders the selected absolute destination or raw I/O exception.
+
+Cancellation does not prove that no file was created. A failed/cancelled new
+file is retained with a typed partial-output receipt; its name is not deleted
+after releasing ownership, and an existing destination is never replaced.
+Successful write/flush/dispose is a managed I/O result, not a crash-durability
+or signature claim. The composition awaits picker/write settlement through
+`DiagnosticExportViewModel.CloseAsync()` before releasing adapters. An actual
+completed save remains Saved even if a later cancellation was requested.
+
+Synthetic filesystem/stream, immutable-format/privacy and headless UI tests
+exercise the real formatter and writer, including CreateNew races, injected
+write/flush/dispose failures, cancellation, actual NTFS stream rejection and
+retained-only timing. These checks do not supply missing hardware/audio/backend
+measurements or close the historical geometry/activation observations.

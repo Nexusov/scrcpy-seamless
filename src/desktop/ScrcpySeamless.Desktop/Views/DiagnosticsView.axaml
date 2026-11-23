@@ -11,6 +11,9 @@
       <Border IsVisible="{Binding HasReleaseChecks}">
         <views:ReleaseCheckView DataContext="{Binding Releases}" />
       </Border>
+      <Border IsVisible="{Binding HasExport}">
+        <views:DiagnosticExportView DataContext="{Binding Export}" />
+      </Border>
       <Button Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}" HorizontalAlignment="Left"
               AutomationProperties.AutomationId="diagnostics.refresh" />
       <ItemsControl ItemsSource="{Binding Rows}">

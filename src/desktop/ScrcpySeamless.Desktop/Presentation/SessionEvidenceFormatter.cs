@@ -117,7 +117,7 @@ public static class SessionEvidenceFormatter
     }
 
     /// <summary>Rejects malformed semantic values and cross-session records before serialization.</summary>
-    private static void Validate(SessionEvidenceSnapshot snapshot, int maximumBytes)
+    internal static void Validate(SessionEvidenceSnapshot snapshot, int maximumBytes)
     {
         bool invalidBounds = maximumBytes <= 0 || maximumBytes > MaximumOutputBytes ||
             snapshot.Events.Count > MaximumLifecycleEvents || snapshot.TotalObserved < (ulong)snapshot.Events.Count;

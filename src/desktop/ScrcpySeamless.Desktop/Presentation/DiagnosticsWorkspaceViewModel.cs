@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using ScrcpySeamless.Core.Application.Diagnostics;
 
 namespace ScrcpySeamless.Desktop.Presentation;
 
@@ -13,11 +14,12 @@ public sealed class DiagnosticsWorkspaceViewModel : ObservableViewModel
     private readonly ObservableCollection<SessionDiagnosticRow> rows = [];
 
     public DiagnosticsWorkspaceViewModel(SessionsWorkspaceViewModel? sessions, PresentationText text,
-        ReleaseCheckViewModel? releases = null)
+        ReleaseCheckViewModel? releases = null, DiagnosticExportViewModel? export = null)
     {
         this.sessions = sessions;
         this.text = text;
         Releases = releases;
+        Export = export;
         Rows = new ReadOnlyObservableCollection<SessionDiagnosticRow>(rows);
         RefreshCommand = new ActionCommand(Refresh);
     }
@@ -25,10 +27,27 @@ public sealed class DiagnosticsWorkspaceViewModel : ObservableViewModel
     public ReadOnlyObservableCollection<SessionDiagnosticRow> Rows { get; }
     public ReleaseCheckViewModel? Releases { get; }
     public bool HasReleaseChecks => Releases is not null;
+    public DiagnosticExportViewModel? Export { get; private set; }
+    public bool HasExport => Export is not null;
     public ICommand RefreshCommand { get; }
     public string Title => text.Get("diagnostics.title");
     public string Description => text.Get("diagnostics.description");
     public string RefreshLabel => text.Get("diagnostics.refresh");
+
+    /// <summary>Explicit detached capture over the existing projections, without another lifecycle reader.</summary>
+    public IReadOnlyList<SessionEvidenceSnapshot> CaptureSnapshots() =>
+        sessions is null ? [] : Array.AsReadOnly(sessions.Entries.Select(entry => entry.CaptureSessionEvidence()).ToArray());
+
+    public void AttachExport(ILocalDiagnosticWriter writer, Func<CancellationToken, Task<string?>> chooseNewDestination)
+    {
+        if (Export is not null)
+        {
+            throw new InvalidOperationException("The diagnostic exporter is already attached.");
+        }
+        Export = new(CaptureSnapshots, writer, chooseNewDestination, text);
+        OnPropertyChanged(nameof(Export));
+        OnPropertyChanged(nameof(HasExport));
+    }
 
     public void Refresh()
     {

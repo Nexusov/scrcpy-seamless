@@ -4,12 +4,14 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Input.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using ScrcpySeamless.Core.Application.Activation;
 using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Infrastructure.Activation;
+using ScrcpySeamless.Infrastructure.Diagnostics;
 using ScrcpySeamless.Infrastructure.Updates;
 using ControlCenterActivationKind = ScrcpySeamless.Core.Application.Activation.ActivationKind;
 
@@ -138,6 +140,9 @@ public partial class App : Application
                             }
                         });
                     window = new MainWindow(composition.Shell);
+                    var diagnostics = composition.Shell.Diagnostics;
+                    diagnostics?.AttachExport(new LocalDiagnosticWriter(),
+                        cancellationToken => SelectDiagnosticDestinationAsync(window, cancellationToken));
 
                     try
                     {
@@ -160,9 +165,19 @@ public partial class App : Application
                         {
                             try
                             {
-                                if (composition.Releases is { } releases)
+                                try
                                 {
-                                    await releases.CloseAsync();
+                                    if (diagnostics?.Export is { } export)
+                                    {
+                                        await export.CloseAsync();
+                                    }
+                                }
+                                finally
+                                {
+                                    if (composition.Releases is { } releases)
+                                    {
+                                        await releases.CloseAsync();
+                                    }
                                 }
                             }
                             finally
@@ -207,6 +222,29 @@ public partial class App : Application
             {
                 loading.Close();
             }
+        }
+    }
+
+    private static async Task<string?> SelectDiagnosticDestinationAsync(Window window, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IStorageFile? selected = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save session diagnostics to a new file",
+            SuggestedFileName = "scrcpy-seamless-diagnostics.jsonl",
+            DefaultExtension = "jsonl",
+            FileTypeChoices = [new FilePickerFileType("JSON Lines") { Patterns = ["*.jsonl"] }],
+        });
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (selected is null)
+        {
+            return null;
+        }
+
+        using (selected)
+        {
+            return selected.TryGetLocalPath() ?? throw new NotSupportedException("Select a local file.");
         }
     }
 

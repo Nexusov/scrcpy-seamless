@@ -105,6 +105,7 @@ public sealed class ShellViewModel : ObservableViewModel
     public ICommand ShowProfilesCommand { get; }
     public ICommand ShowSessionsCommand { get; }
     public ICommand ShowDiagnosticsCommand { get; }
+    internal DiagnosticsWorkspaceViewModel? Diagnostics => diagnostics;
 
     public object CurrentPage
     {
