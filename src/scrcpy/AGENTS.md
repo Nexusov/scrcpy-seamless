@@ -62,6 +62,11 @@ worker shutdown must observe actual SDL_THREAD_COMPLETE before reaping; neither
 a timeout nor cancellation authorizes freeing live storage. The synchronous
 owner APIs remain for direct module tests; normal mirroring uses worker stages.
 Do not relocate live synchronization storage.
+P7.5 application orchestration lives in `app/src/app.c`; `scrcpy.c` is only an
+entry shim. The recovery adapter captures invocation inputs once and passes
+explicit selectors/connect intent to server parameters. The server must not
+read reconnect policy from environment. Keep one scoped event source and one
+current owner; no second reconnect loop or cross-generation restart label.
 `session_notifications.h` retains at most connected plus first terminal without
 allocation. Its exact application/generation SDL wakes preserve ordinary FIFO
 against Quit; only observed wakes or settled failed wakes may be consumed.

@@ -27,8 +27,29 @@ assertion; this is an isolated old-orchestration experiment, not a pristine
 historical full build or hardware failure. A separate actual regression red
 showed late Quit masking an earlier terminal failure; the corrected path keeps
 that failure while cancelling a pending retry. The worker's 100 controlled jobs
-are not P7.6's required 100 complete generation replacements. Source review,+conditional builds and synthetic tests do not establish physical backend or
+are not P7.6's required 100 complete generation replacements. Source review,
+conditional builds and synthetic tests do not establish physical backend or
 complete lifetime certification; coordinator/consolidated matrices remain work.
+
+P7.5 cutover now places application orchestration in `app.c`, with `scrcpy.c`
+as an entry compatibility shim. One application owner interprets connecting,
+streaming, retirement, waiting and stopped states; a single scoped event source
+feeds connection/stream handling. The cross-generation restart label is removed.
+The recovery adapter captures legacy environment input once at the application
+boundary and supplies explicit initial/retry selectors and connect intent to
+the server. The server no longer reads reconnect or ANDROID_SERIAL policy.
+This preserves existing selection, retry delay and compatibility restrictions;
+Phase 8 must replace those restrictions only alongside tested new behavior.
+
+Fresh default debug validation passed 35/35 checks including five pure adapter
+groups, four actual application/list/target-wiring cases, and initial owner plus
+100 graph replacements under one real dispatcher. Every lifecycle checks exact
+acquisition/release, started/joined work, owner frees, monotonic generations and
+zero dispatcher ownership. A separate USB-enabled run passed 37/37 checks,
+including ACK/OTG. After those full runs, six wrapper forward declarations removed
+fixture compiler warnings; an exact retirement-target rebuild and 1/1 run passed. This is not 100 application-loop/network recovery
+cycles or physical media proof. The earlier P7.4 production/conformance/process
+snapshot results remain tied to that snapshot, not this newer cutover.
 
 Historical status: migration direction approved; P7.1 and P7.2 accepted for engineering
 integration through PR #15 and PR #16. P7.3 is authorized on its own branch;

@@ -1,5 +1,7 @@
 src = [
     'src/main.c',
+    'src/app.c',
+    'src/recovery_adapter.c',
     'src/adb/adb.c',
     'src/adb/adb_device.c',
     'src/adb/adb_parser.c',
@@ -301,6 +303,9 @@ if get_option('buildtype') == 'debug'
     endif
 
     tests = [
+        ['test_recovery_adapter', [
+            'tests/test_recovery_adapter.c', 'src/recovery_adapter.c',
+        ]],
         ['test_session_sink_graph', [
             'tests/test_session_sink_graph.c', 'src/decoder.c',
             'src/trait/packet_source.c', 'src/trait/frame_source.c',

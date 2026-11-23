@@ -33,6 +33,14 @@ bool __real_sc_thread_create(sc_thread *thread, sc_thread_fn function,
                              const char *name, void *userdata);
 void __real_sc_thread_join(sc_thread *thread, int *status);
 
+bool __wrap_sc_mutex_init(sc_mutex *mutex);
+void __wrap_sc_mutex_destroy(sc_mutex *mutex);
+bool __wrap_sc_cond_init(sc_cond *condition);
+void __wrap_sc_cond_destroy(sc_cond *condition);
+bool __wrap_sc_thread_create(sc_thread *thread, sc_thread_fn function,
+                             const char *name, void *userdata);
+void __wrap_sc_thread_join(sc_thread *thread, int *status);
+
 bool
 __wrap_sc_mutex_init(sc_mutex *mutex) {
     return failure != TEST_FAILURE_MUTEX && __real_sc_mutex_init(mutex);

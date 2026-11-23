@@ -170,6 +170,7 @@ enum failure_stage {
     QUIT_BEFORE_TERMINAL,
     TERMINAL_BEFORE_QUIT,
     RETIREMENT_MAIN_CALLBACK,
+    LIST_CONNECTION_FAILURE,
     JOYSTICK_OWNERSHIP,
     DUPLICATE_CONTROLLER_COMPLETION,
 };
@@ -220,6 +221,13 @@ struct retirement_probe {
 };
 
 static struct retirement_probe *retirement_probe;
+static const struct sc_server_params *expected_server_params;
+static unsigned server_param_checks;
+
+enum {
+    TEST_GENERATION_REPLACEMENTS = 100,
+    TEST_GENERATION_COUNT = TEST_GENERATION_REPLACEMENTS + 1,
+};
 
 void __real_SDL_free(void *pointer);
 void *__real_calloc(size_t count, size_t size);
@@ -307,7 +315,27 @@ __wrap_sc_server_init(struct sc_server *server,
                        const struct sc_server_params *params,
                        const struct sc_server_callbacks *callbacks,
                        void *userdata) {
-    (void) params;
+    if (expected_server_params) {
+        const struct sc_server_params *expected = expected_server_params;
+        assert((params->req_serial == NULL) == (expected->req_serial == NULL));
+
+        if (expected->req_serial) {
+            assert(!strcmp(params->req_serial, expected->req_serial));
+        }
+
+        assert((params->tcpip_dst == NULL) == (expected->tcpip_dst == NULL));
+
+        if (expected->tcpip_dst) {
+            assert(!strcmp(params->tcpip_dst, expected->tcpip_dst));
+        }
+
+        assert(params->connect_requested_serial == expected->connect_requested_serial);
+        assert(params->select_usb == expected->select_usb);
+        assert(params->select_tcpip == expected->select_tcpip);
+        assert(params->tcpip == expected->tcpip);
+        assert(params->list == expected->list);
+        ++server_param_checks;
+    }
 
     if (current_failure == FAIL_SERVER_INIT) {
         return false;
@@ -331,6 +359,11 @@ __wrap_sc_server_start(struct sc_server *server) {
         return false;
     }
     ++resources[RESOURCE_SERVER].started;
+
+    if (current_failure == LIST_CONNECTION_FAILURE) {
+        server->cbs->on_connection_failed(server, server->cbs_userdata);
+        return true;
+    }
 
     if (current_failure == QUIT_BEFORE_READY) {
         SDL_Event quit = {.type = SDL_EVENT_QUIT};
@@ -1100,6 +1133,154 @@ test_application_startup_stop(enum failure_stage failure) {
     SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
 }
 
+/** Keep synthetic selector changes inside this test process and restore them. */
+static void
+test_set_environment(const char *name, const char *value) {
+#ifdef _WIN32
+    int changed = _putenv_s(name, value ? value : "");
+#else
+    int changed = value ? setenv(name, value, 1) : unsetenv(name);
+#endif
+    assert(!changed);
+}
+
+/** Check list exits and resolved targets through the real app/server boundary. */
+static void
+test_application_list_routes(void) {
+    static const char explicit_serial[] = "fixture-explicit-route";
+    static const char tcpip_destination[] = "192.0.2.10:5555";
+    const char *reconnect = getenv("SCRCPY_RECONNECT_SERIAL");
+    const char *android = getenv("ANDROID_SERIAL");
+    char *saved_reconnect = reconnect ? strdup(reconnect) : NULL;
+    char *saved_android = android ? strdup(android) : NULL;
+    assert(!reconnect || saved_reconnect);
+    assert(!android || saved_android);
+    test_set_environment("SCRCPY_RECONNECT_SERIAL", NULL);
+    test_set_environment("ANDROID_SERIAL", "fixture-fallback-must-not-win");
+
+    static const struct sc_server_params routes[] = {
+        {.req_serial = explicit_serial},
+        {.select_usb = true},
+        {.tcpip = true, .tcpip_dst = tcpip_destination},
+        {.req_serial = explicit_serial}, // asynchronous list connection failure
+    };
+
+    for (unsigned index = 0; index < ARRAY_LEN(routes); ++index) {
+        bool connection_failure = index == ARRAY_LEN(routes) - 1;
+        current_failure = connection_failure ? LIST_CONNECTION_FAILURE : FAIL_NONE;
+        memset(resources, 0, sizeof(resources));
+        graph_start_attempts = 0;
+        machine_stop = false;
+        server_param_checks = 0;
+        struct scrcpy_options options = options_for_failure(FAIL_NONE);
+        options.list = SC_OPTION_LIST_ENCODERS;
+        options.serial = routes[index].req_serial;
+        options.select_usb = routes[index].select_usb;
+        options.tcpip = routes[index].tcpip;
+        options.tcpip_dst = routes[index].tcpip_dst;
+        struct sc_server_params expected = routes[index];
+        expected.list = options.list;
+        expected_server_params = &expected;
+        struct sc_dispatcher dispatcher;
+        bool initialized = sc_dispatcher_init(&dispatcher,
+                                               SC_EVENT_DISPATCHER_WAKEUP,
+                                               NULL, NULL);
+        assert(initialized);
+        enum scrcpy_exit_code result = scrcpy(&options, &dispatcher);
+        assert(result == (connection_failure ? SCRCPY_EXIT_FAILURE :
+                                               SCRCPY_EXIT_SUCCESS));
+        assert(server_param_checks == 1);
+        assert(!graph_start_attempts);
+        assert(resources[RESOURCE_SERVER].acquired == 1);
+        assert(resources[RESOURCE_SERVER].started == 1);
+        assert(resources[RESOURCE_SERVER].joined == 1);
+        assert(resources[RESOURCE_SERVER].destroyed == 1);
+
+        for (unsigned resource = 0; resource < RESOURCE_COUNT; ++resource) {
+            assert(resources[resource].acquired == resources[resource].destroyed);
+            assert(resources[resource].started == resources[resource].joined);
+        }
+
+        expected_server_params = NULL;
+        test_destroy_dispatcher(&dispatcher);
+    }
+
+    test_set_environment("ANDROID_SERIAL", saved_android);
+    test_set_environment("SCRCPY_RECONNECT_SERIAL", saved_reconnect);
+    free(saved_android);
+    free(saved_reconnect);
+    puts("Application list: 4 production coordinator/server-route cases passed");
+}
+
+/** Replace real generation owners under one dispatcher, without fake lifecycle. */
+static void
+test_generation_replacements(void) {
+    memset(resources, 0, sizeof(resources));
+    current_failure = FAIL_NONE;
+    machine_stop = false;
+    graph_start_attempts = 0;
+    expected_server_params = NULL;
+    tracked_owner_releases = 0;
+    struct scrcpy_options options = options_for_failure(FAIL_NONE);
+    options.video = true;
+    options.audio = true;
+    struct sc_dispatcher dispatcher;
+    bool initialized = sc_dispatcher_init(&dispatcher, SC_EVENT_DISPATCHER_WAKEUP,
+                                           NULL, NULL);
+    assert(initialized);
+    sc_dispatcher_generation previous_generation = 0;
+    bool screen_initialized = false;
+
+    for (unsigned generation_index = 0; generation_index < TEST_GENERATION_COUNT;
+            ++generation_index) {
+        assert(!tracked_owner);
+        track_owner_allocation = true;
+        struct sc_session *session = sc_session_create(&options, &dispatcher,
+                                                        NULL, &screen_initialized);
+        assert(session && tracked_owner == session);
+        sc_dispatcher_generation generation = dispatcher.generation;
+        assert(generation == previous_generation + 1);
+        previous_generation = generation;
+        struct sc_server_params params = {0};
+        bool server_started = sc_session_start_server(session, &params);
+        assert(server_started);
+        uint32_t outcome;
+        bool connected = take_connected(session, &dispatcher, &outcome);
+        assert(connected && outcome == SC_EVENT_SERVER_CONNECTED);
+        bool started = sc_session_start(session);
+        assert(started);
+        sc_session_request_stop(session);
+        sc_session_request_stop(session);
+        sc_session_join(session);
+        sc_session_join(session);
+        sc_session_destroy(session);
+        assert(!tracked_owner);
+        assert(tracked_owner_releases == generation_index + 1);
+        assert(!dispatcher.generation && !dispatcher.binding);
+
+        for (unsigned resource = 0; resource < RESOURCE_COUNT; ++resource) {
+            assert(resources[resource].acquired == resources[resource].destroyed);
+            assert(resources[resource].started == resources[resource].joined);
+        }
+
+        assert(resources[RESOURCE_SERVER].acquired == generation_index + 1);
+        assert(resources[RESOURCE_CONTROLLER].acquired == generation_index + 1);
+        assert(resources[RESOURCE_VIDEO].started == generation_index + 1);
+        assert(resources[RESOURCE_AUDIO].started == generation_index + 1);
+        struct sc_dispatcher_stats stats = sc_dispatcher_get_stats(&dispatcher);
+        assert(!stats.queued_count && !stats.retained_count);
+        assert(!stats.retained_payload_bytes && !stats.publishers);
+        current_controller = NULL;
+    }
+
+    assert(!screen_initialized);
+    assert(dispatcher.last_generation == TEST_GENERATION_COUNT);
+    test_destroy_dispatcher(&dispatcher);
+    printf("Generation lifetime: %u real owner graph replacements across %u "
+           "lifecycles passed under one dispatcher (not app-loop reconnect cycles)\n",
+           TEST_GENERATION_REPLACEMENTS, TEST_GENERATION_COUNT);
+}
+
 /** Run nonzero production-owner stage coverage without devices or visible UI. */
 int
 main(int argument_count, char **arguments) {
@@ -1114,12 +1295,16 @@ main(int argument_count, char **arguments) {
             test_create_failures();
         } else if (!strcmp(arguments[1], "--retirement-main-progress")) {
             test_application_retirement_progress();
+        } else if (!strcmp(arguments[1], "--list-routes")) {
+            test_application_list_routes();
+        } else if (!strcmp(arguments[1], "--generation-replacements")) {
+            test_generation_replacements();
         } else {
             enum failure_stage order = !strcmp(arguments[1], "--quit-before-ready")
                 ? QUIT_BEFORE_READY : QUIT_BEFORE_TERMINAL;
             test_application_outcome_order(order);
         }
-        puts("Session lifetime: 1 targeted production-path case passed");
+        puts("Session lifetime: targeted production-path selection passed");
         SDL_Quit();
         return 0;
     }
@@ -1148,6 +1333,8 @@ main(int argument_count, char **arguments) {
     test_application_startup_stop(STOP_BEFORE_CREATE);
     test_application_startup_stop(FAIL_CONTROLLER_START_AND_STOP);
     test_create_failures();
+    test_application_list_routes();
+    test_generation_replacements();
     SDL_Quit();
     printf("Session lifetime: %zu production-owner stage cases passed\n",
            ARRAY_LEN(cases) + 9);

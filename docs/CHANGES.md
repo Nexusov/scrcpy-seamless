@@ -1,5 +1,15 @@
 # Changes from scrcpy 4.0
 
+## Autonomous P7.5 coordinator and consolidated owner checks
+
+One application coordinator now owns connecting, streaming, retiring, waiting
+and stopped states. The entry shim delegates to it; the server receives explicit
+resolved target inputs from an invocation-captured recovery adapter. This step
+preserves characterized retry behavior while Phase 8 replaces policy. Production-
+linked checks cover list-route wiring, scoped notification consumption and
+101 real generation owners under one dispatcher; the latter is not 100 network
+reconnects or hardware evidence.
+
 ## Autonomous P7.4 retirement migration
 
 Normal mirroring reserves one bounded persistent retirement worker before any
