@@ -228,7 +228,7 @@ public partial class App : Application
     private static async Task<string?> SelectDiagnosticDestinationAsync(Window window, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        IStorageFile? selected = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        using IStorageFile? selected = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save session diagnostics to a new file",
             SuggestedFileName = "scrcpy-seamless-diagnostics.jsonl",
@@ -242,10 +242,7 @@ public partial class App : Application
             return null;
         }
 
-        using (selected)
-        {
-            return selected.TryGetLocalPath() ?? throw new NotSupportedException("Select a local file.");
-        }
+        return selected.TryGetLocalPath() ?? throw new NotSupportedException("Select a local file.");
     }
 
     private static async Task SettleActivationAsync(WindowsControlCenterActivation activation,

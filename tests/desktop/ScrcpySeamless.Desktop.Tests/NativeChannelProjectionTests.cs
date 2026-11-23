@@ -8,6 +8,31 @@ namespace ScrcpySeamless.Desktop.Tests;
 public sealed class NativeChannelProjectionTests
 {
     [Fact]
+    public void RetiredMetricsRemainEvidenceWithoutChangingReconnectStatus()
+    {
+        SessionId session = SessionId.New();
+        ConnectionAttemptId attempt = ConnectionAttemptId.New();
+        NativeLifecycleProjection projection = new(session);
+        projection.Apply(Observation(session, 1, NativeLifecycleEventType.Connecting, NativeLifecycleSubsystem.Connection, attempt));
+        projection.Apply(Observation(session, 2, NativeLifecycleEventType.TransportLost, NativeLifecycleSubsystem.Connection, attempt));
+        projection.Apply(Observation(session, 3, NativeLifecycleEventType.ReconnectScheduled, NativeLifecycleSubsystem.Connection) with
+        {
+            Reason = NativeLifecycleReason.TransportLost,
+        });
+        NativeLifecycleObservation metrics = Observation(session, 4, NativeLifecycleEventType.GenerationRetired,
+            NativeLifecycleSubsystem.Native, attempt) with { GenerationMetrics = new(1, 20) };
+
+        Assert.True(projection.Apply(metrics));
+
+        Assert.Equal(metrics, projection.RecentObservations[^1]);
+        Assert.Equal(4UL, projection.LastSequence);
+        Assert.Equal(4UL, projection.TotalObserved);
+        Assert.Equal(NativeLifecycleEventType.ReconnectScheduled, projection.EventType);
+        Assert.Equal(NativeLifecycleReason.TransportLost, projection.Reason);
+        Assert.Equal(NativeVideoEvidence.NotReady, projection.Video);
+    }
+
+    [Fact]
     public void PresentedVideoDoesNotPromoteAudioOrControlAndDegradationIsIndependent()
     {
         SessionId session = SessionId.New();

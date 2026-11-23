@@ -48,6 +48,9 @@ internal sealed class NativeLifecycleProjection(SessionId sessionId)
 
         switch (observation.EventType)
         {
+            case NativeLifecycleEventType.GenerationRetired:
+                // Retain measurements without changing the operational status.
+                return true;
             case NativeLifecycleEventType.Connecting:
                 if (activeAttempt is not null)
                 {

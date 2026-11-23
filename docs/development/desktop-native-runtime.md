@@ -398,6 +398,8 @@ add no queue, reader, periodic file or larger capacity. A later critical burst
 still has the existing finite backpressure policy. Sequence validation still
 includes a received optional frame even if it is omitted from the projection;
 projection totals count delivered observations, not every wire frame.
+Retirement measurements remain in diagnostic history without changing the
+current lifecycle status or channel evidence in Devices and Sessions.
 
 Retirement rows carry exact measured counters and nulls for absent counters.
 The legacy summary can report submitted PCM samples from its latest retained
