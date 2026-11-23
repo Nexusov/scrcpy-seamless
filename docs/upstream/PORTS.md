@@ -87,3 +87,17 @@ An intentionally rejected output header is not a successful recording or a
 product failure. No file/device/ADB operation or hardware recording validation
 is established. Broader recording/reconnect semantics and other audit findings
 remain separate work.
+
+## Initial SDL gamepad instance IDs — 2026-11-23
+
+Adapted upstream [907aba2d792020b72e4f8ce337f7191744237487](https://github.com/Genymobile/scrcpy/commit/907aba2d792020b72e4f8ce337f7191744237487)
+from `app/src/scrcpy.c` into the extracted `src/scrcpy/app/src/session.c`:
+SDL3 gamepad-added events carry the enumerated joystick instance ID, not the
+enumeration index. Genymobile/scrcpy, Romain Vimont, Apache-2.0; existing notices
+are preserved. The separate array-release correction is already present.
+
+The existing production-owner fixture now enumerates three non-contiguous IDs,
+filters one non-gamepad, observes the two actual queued SDL events and retains
+the exact array-release assertion. Before the one-line production correction,
+the targeted owner case failed on the first event's incorrect ID. This is a
+synthetic enumeration/event regression, not physical gamepad or UHID evidence.

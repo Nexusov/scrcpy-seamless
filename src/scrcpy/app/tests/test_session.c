@@ -206,6 +206,7 @@ static struct counts resources[RESOURCE_COUNT];
 static bool machine_stop;
 static unsigned graph_start_attempts;
 static SDL_JoystickID *joystick_allocation;
+static const SDL_JoystickID synthetic_joysticks[] = {17, 42, 1001};
 static unsigned joystick_releases;
 static struct sc_controller *current_controller;
 static struct sc_demuxer *current_video_demuxer;
@@ -462,18 +463,20 @@ __wrap_sc_machine_emit_lifecycle(const char *event, const char *subsystem,
 SDL_JoystickID *
 __wrap_SDL_GetJoysticks(int *count) {
     assert(current_failure == JOYSTICK_OWNERSHIP);
-    joystick_allocation = SDL_malloc(sizeof(*joystick_allocation));
+    joystick_allocation = SDL_malloc(sizeof(synthetic_joysticks));
     assert(joystick_allocation);
-    joystick_allocation[0] = 1;
-    *count = 1;
+    memcpy(joystick_allocation, synthetic_joysticks, sizeof(synthetic_joysticks));
+    *count = ARRAY_LEN(synthetic_joysticks);
     return joystick_allocation;
 }
 
 /** Keep synthetic enumeration independent from any physical gamepad backend. */
 bool
 __wrap_SDL_IsGamepad(SDL_JoystickID instance) {
-    assert(instance == 1);
-    return false;
+    assert(instance == synthetic_joysticks[0]
+        || instance == synthetic_joysticks[1]
+        || instance == synthetic_joysticks[2]);
+    return instance != synthetic_joysticks[1];
 }
 
 /** Observe exact enumeration release while retaining the actual allocator. */
@@ -981,6 +984,13 @@ test_failure_stage(enum failure_stage failure) {
     if (failure == JOYSTICK_OWNERSHIP) {
         assert(joystick_allocation);
         assert(joystick_releases == 1);
+        SDL_Event events[3];
+        int count = SDL_PeepEvents(events, ARRAY_LEN(events), SDL_GETEVENT,
+                                  SDL_EVENT_GAMEPAD_ADDED,
+                                  SDL_EVENT_GAMEPAD_ADDED);
+        assert(count == 2);
+        assert(events[0].gdevice.which == synthetic_joysticks[0]);
+        assert(events[1].gdevice.which == synthetic_joysticks[2]);
     }
 
     if (failure == STOP_AFTER_READY || failure == STOP_BEFORE_SERVER) {
