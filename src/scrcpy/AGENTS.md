@@ -72,6 +72,10 @@ worker shutdown must observe actual SDL_THREAD_COMPLETE before reaping; neither
 a timeout nor cancellation authorizes freeing live storage. The synchronous
 owner APIs remain for direct module tests; normal mirroring uses worker stages.
 Do not relocate live synchronization storage.
+Read generation counters only after joining their publishers and after the
+SDL stream has settled its audio callback. Export only through the negotiated
+best-effort machine observation. Absent counters stay absent. Keep this data
+separate from readiness, termination and memory-bound assertions.
 Phase 8 machine launches carry the immutable, bounded connection plan described
 in `../../spec/desktop-native/CONNECTION_PLAN.md`; never reconstruct it from
 Status text or private reconnect environment values. The pure connection manager

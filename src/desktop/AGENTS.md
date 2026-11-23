@@ -16,8 +16,8 @@ substitute the legacy host when the machine bundle is missing/incompatible.
 Normal startup waits asynchronously for activation, runtime validation and the
 initial configuration read before handing ownership to the visible shell. Keep
 the waiting startup window cancellable. Normal close settles activation and
-the explicit release check before disposing their adapters. The Diagnostics
-release command must remain manual. Historical managed launcher adapters are
+the explicit release check and diagnostic export before disposing their
+adapters. Both Diagnostics actions must remain manual. Historical managed launcher adapters are
 test fixtures only.
 
 Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds the
@@ -33,6 +33,9 @@ and late acquisition. Diagnostics reads those owners' bounded snapshots only.
 The explicit DEV evidence action reads an immutable allowlisted snapshot from
 that owner; never add a second lifecycle reader or serialize live configuration,
 exceptions or process objects. Retain typed completion/cleanup before release.
+JSONL export uses a separate allowlist with export-local identity ordinals and
+CreateNew semantics. Optional negotiated generation counters use the same
+bounded lifecycle projection. A missing measurement stays unavailable.
 Preview must remain side-effect free. Exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md and process policy in
 ../../docs/development/desktop-native-runtime.md.

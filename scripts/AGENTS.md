@@ -66,6 +66,8 @@ predate it without treating their unchanged artifacts as current-host compatible
 For 2.0, use stage-portable.ps1 and package-portable.ps1 with the
 [Windows x64 portable package guide](../docs/development/portable-packaging.md).
 Run tests/portable-package.Tests.ps1 for the offline archive regressions.
+Verify and extract the same archive stream using bounded entries/files. Record
+reviewed tool identities in provenance without copying local paths or logs.
 
 ## Provenance
 

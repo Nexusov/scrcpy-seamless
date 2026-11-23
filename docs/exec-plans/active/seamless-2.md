@@ -48,7 +48,7 @@ Update each row with source-specific results as its remaining work is closed.
 | Control center and product scope (P10) | Guided setup, concurrent sessions, separated channel evidence, 34-action shortcut editor and explicit release check | Final combined UI review | Headless workflows, release cancellation, runtime guard and actual shortcut dispatch | Two devices where available, native shortcut scope and Focus |
 | Localization and accessibility (P5/P10/P12) | Compiled bindings, resources, keyboard/automation and software raster fixtures | Final focused automated checks and explicit coverage limits | Headless bindings, layout and rendering | Screen reader and multi-monitor DPI |
 | Canonical portable path (P11) | No-argument Desktop, adjacent machine runtime, source Native and Android, generated package inventory. Legacy process adapters are test fixtures. | Final package from clean candidate and packaged process checks | ZIP extraction with spaces, no-device bootstrap/Stop/parent-death and legacy fixture coverage | Fresh portable root without a launcher |
-| Runtime hardening and diagnostics (P12) | Retained-work limits, packet leases through muxer interleaving, generation/ABI and codec properties | Complete local diagnostic export and final tooling/source review | Bounded worker/queue cases, trap-mode UBSan, compiler analysis, redaction and packaging checks | Media/audio evidence not observable in synthetic tests |
+| Runtime hardening and diagnostics (P12) | Retained-work limits, packet leases through muxer interleaving, bounded configuration and archive reads, explicit JSONL export with negotiated post-join generation counters | Final candidate validation and coverage review | Worker/queue and dummy PCM cases, trap-mode UBSan, compiler analysis, conformance, redaction and packaging checks | Audible output and hardware measurements on final bytes |
 | Distribution and dependency hygiene (P9/P12) | Serviced graphics/shaping packages, pinned imports, package notices/SBOM/checksums, private-reporting policy | Validate the final closure and hosted gate | Lock/provenance/notice and image/raster checks | Review candidate limitations and redistribution obligations |
 | Final candidate and handoff (P12/P13) | Canonical staging/verification and [joint manual procedure](../../development/portable-rc-acceptance.md) | Build, inspect and run checks against exact candidate bytes. Correlate final local/hosted results. | Full source lanes and packaged no-device test, exact archive inventory and SHA-256 | Joint artifact-specific manual acceptance, then separate publication decision |
 
@@ -68,8 +68,9 @@ no accepted or proposed records to apply at this starting point.
 Maintain resumable local state at ignored `work/2.0-autonomous/state.md` with
 current task, branch/HEAD, pending changes, source-specific checks/findings and
 the next concrete action. Do not put raw logs, secrets or device data in Git.
-The initial implementation focus is P7.4's asynchronous retirement boundary;
-the later rows remain open until their production paths and checks are complete.
+The current branch contains the retirement worker, application coordinator and
+connection manager. The matrix above separates implementation, candidate gates
+and joint/manual acceptance.
 
 ## Preserved P7.3 and integration status
 
@@ -1002,9 +1003,9 @@ and does not authorize later checkpoints.
 | P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
 | P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Accepted for engineering integration through PR #16 merge `799c5a31…`; artifact-specific buffered smoke and single geometry check remain bounded as recorded above. Historical geometry causality is unresolved. |
 | P7.3 | Accepted P7.2 and bounded implementation authorization | Explicit generation graph and complete scoped producer migration | Implemented source checkpoint pending independent review. Stable owner/stage cleanup, scoped value notifications, direct ACK release proof and actual SDL dummy callback settlement; synchronous joins and platform/backend limits remain. No new Desktop DEV package or hardware pass. |
-| P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
-| P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |
-| P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Proposed; not started |
+| P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Implemented on the autonomous branch |
+| P7.5 | P7.4 | One app coordinator; the later canonical cutover removes the private legacy recovery adapter | Implemented on the autonomous branch |
+| P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Controlled replacement lane implemented; final manual checks remain separate |
 
 Phase 8 retains new transport/retry/backoff/hysteresis/degradation and
 recording/headless/deadline policy; Phase 12 retains broad diagnostic export and
