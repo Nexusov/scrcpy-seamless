@@ -1,0 +1,8 @@
+# Independent canonical wire bytes; id<TAB>hex. No codec generates this file.
+clipboard	000000000441e282ac
+ack	01fedcba9876543210
+uhid-output	021234000300ff80
+clipboard-empty	0000000000
+ack-zero	010000000000000000
+ack-max	01ffffffffffffffff
+uhid-output-empty	0212340000

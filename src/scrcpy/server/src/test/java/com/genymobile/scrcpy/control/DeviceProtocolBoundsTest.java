@@ -6,6 +6,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 
 public class DeviceProtocolBoundsTest {
     @Test(expected = ControlProtocolException.class)
@@ -61,5 +62,14 @@ public class DeviceProtocolBoundsTest {
     @Test
     public void absentUhidPayloadDoesNotLeaveAnUnflushedPartialHeader() throws IOException {
         assertRejectedWithoutEmission(DeviceMessage.createUhidOutput(42, null));
+    }
+
+    @Test
+    public void unknownOutgoingTypeDoesNotPoisonTheNextFrame() throws ReflectiveOperationException, IOException {
+        DeviceMessage message = DeviceMessage.createAckClipboard(1);
+        Field type = DeviceMessage.class.getDeclaredField("type");
+        type.setAccessible(true);
+        type.setInt(message, 255);
+        assertRejectedWithoutEmission(message);
     }
 }

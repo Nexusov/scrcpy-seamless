@@ -74,6 +74,7 @@ src = [
     'src/util/sdl.c',
     'src/util/strbuf.c',
     'src/util/str.c',
+    'src/util/utf8.c',
     'src/util/term.c',
     'src/util/thread.c',
     'src/util/tick.c',
@@ -471,6 +472,7 @@ if get_option('buildtype') == 'debug'
         ['test_device_msg_deserialize', [
             'tests/test_device_msg_deserialize.c',
             'src/device_msg.c',
+            'src/util/utf8.c',
         ]],
         ['test_orientation', [
             'tests/test_orientation.c',
@@ -613,6 +615,7 @@ if get_option('buildtype') == 'debug'
         'src/receiver.c',
         'src/dispatcher.c',
         'src/device_msg.c',
+        'src/util/utf8.c',
         'src/util/acksync.c',
         'src/util/thread.c',
         'src/util/tick.c',
@@ -635,6 +638,13 @@ if get_option('buildtype') == 'debug'
        c_args: ['-DSC_TEST'])
     test('test_ipc_contract', ipc_test,
          args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
+
+    device_protocol_test = executable('test_device_protocol', [
+        'tests/test_device_protocol.c', 'src/control_msg.c', 'src/device_msg.c',
+        'src/util/str.c', 'src/util/strbuf.c', 'src/util/utf8.c',
+    ], include_directories: src_dir, dependencies: dependencies)
+    test('test_device_protocol', device_protocol_test,
+         args: ['--selftest', meson.project_source_root() / '../../spec/device-protocol/golden'])
 
     if host_machine.system() == 'windows'
         machine_exit_test = executable('test_machine_exit', [

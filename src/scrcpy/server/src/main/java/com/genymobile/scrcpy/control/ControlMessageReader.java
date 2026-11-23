@@ -7,7 +7,6 @@ import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 public class ControlMessageReader {
 
@@ -89,7 +88,7 @@ public class ControlMessageReader {
     private String parseString(int sizeBytes, int maxLength) throws IOException {
         assert sizeBytes > 0 && sizeBytes <= 4;
         byte[] data = parseByteArray(sizeBytes, maxLength);
-        return new String(data, StandardCharsets.UTF_8);
+        return DeviceProtocolText.decode(data);
     }
 
     private byte[] parseByteArray(int sizeBytes, int maxLength) throws IOException {

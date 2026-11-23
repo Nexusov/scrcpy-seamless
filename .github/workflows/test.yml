@@ -52,6 +52,15 @@ jobs:
         run: |
           $sdk = ./scripts/bootstrap-dotnet.ps1
           ./scripts/test-ipc-contract.ps1 -CompilerPath ./work/native/w64devkit/bin/gcc.exe -DotnetPath $sdk -ConnectionPlanHarnessPath ./work/native-tests/app/test_connection_plan.exe
+      - name: Verify native and Android device wire contracts in both languages
+        shell: powershell
+        run: |
+          ./scripts/bootstrap-server.ps1
+          ./scripts/test-device-protocol.ps1 `
+            -ConfigPath ./work/native/build.local.json `
+            -RuntimeDirectory ./work/native/scrcpy-release/scrcpy-win64-v4.0 `
+            -NativeBuildDirectory ./work/native-tests `
+            -ToolDirectory ./work/phase2/server
       - name: Exercise owned IPC and parent-death cleanup without ADB
         shell: powershell
         run: |

@@ -22,6 +22,13 @@ not replace the actual native handshake.
 
 Scope: `spec/`.
 
+The separate Android control-channel contract is `device-protocol/PROTOCOL.md`.
+Its independent literal/boundary/UTF-8 goldens feed actual C/Java codecs through
+`scripts/test-device-protocol.ps1`. Preserve unsigned bit patterns, strict
+NUL-free text versus binary UHID data, and both actual interop directions.
+Never regenerate expected bytes from a production serializer or equate this
+control-codec lane with media/device/runtime validation.
+
 Read the root `AGENTS.md` and [option development guide](../docs/development/options.md) before changing option metadata.
 
 `options/options.yaml` is canonical static CLI and option data. The SpecGen typed contract/validator implements structural interpretation, and `options/options.schema.json` is a generated artifact. The spec version is independent of product and persisted-configuration versions. Change the spec, not its generated native, Core, legacy launcher, schema, or Desktop resource outputs; then regenerate and verify them with the pinned .NET SDK:

@@ -1,12 +1,9 @@
 package com.genymobile.scrcpy.control;
 
-import com.genymobile.scrcpy.util.StringUtils;
-
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 
 public class DeviceMessageWriter {
 
@@ -23,6 +20,11 @@ public class DeviceMessageWriter {
     public void write(DeviceMessage msg) throws IOException {
         int type = msg.getType();
 
+        if (type != DeviceMessage.TYPE_CLIPBOARD && type != DeviceMessage.TYPE_ACK_CLIPBOARD && type != DeviceMessage.TYPE_UHID_OUTPUT) {
+            throw new ControlProtocolException("Unknown event type: " + type);
+        }
+        byte[] clipboard = type == DeviceMessage.TYPE_CLIPBOARD ? DeviceProtocolText.encode(msg.getText(), CLIPBOARD_TEXT_MAX_LENGTH) : null;
+
         if (type == DeviceMessage.TYPE_UHID_OUTPUT) {
             byte[] payload = msg.getData();
 
@@ -34,11 +36,8 @@ public class DeviceMessageWriter {
         dos.writeByte(type);
         switch (type) {
             case DeviceMessage.TYPE_CLIPBOARD:
-                String text = msg.getText();
-                byte[] raw = text.getBytes(StandardCharsets.UTF_8);
-                int len = StringUtils.getUtf8TruncationIndex(raw, CLIPBOARD_TEXT_MAX_LENGTH);
-                dos.writeInt(len);
-                dos.write(raw, 0, len);
+                dos.writeInt(clipboard.length);
+                dos.write(clipboard);
                 break;
             case DeviceMessage.TYPE_ACK_CLIPBOARD:
                 dos.writeLong(msg.getSequence());
