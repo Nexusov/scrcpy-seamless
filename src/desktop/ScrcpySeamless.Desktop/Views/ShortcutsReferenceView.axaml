@@ -3,7 +3,7 @@
              xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
              x:Class="ScrcpySeamless.Desktop.Views.ShortcutsReferenceView"
              x:DataType="vm:SettingsViewModel">
-  <!-- A reference only: rows have no click, key binding, process or device command. -->
+  <!-- Draft editing never delivers input to a device or changes a running session. -->
   <ScrollViewer Name="ShortcutReferenceScroll" HorizontalScrollBarVisibility="Disabled">
     <StackPanel Spacing="{DynamicResource SectionGap}">
       <StackPanel Spacing="5">
@@ -31,6 +31,35 @@
                   AutomationProperties.AutomationId="shortcuts.modifierOption"
                   AutomationProperties.Name="{Binding ShortcutReference.ModifierOptionLabel}" />
           <TextBlock Text="{Binding ShortcutReference.ReadOnlyNote}" Classes="muted" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+      <Border Classes="card" IsEnabled="{Binding IsOptionEditorAvailable}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding ShortcutEditor.Help}" TextWrapping="Wrap" />
+          <Button Content="{Binding ShortcutEditor.ResetLabel}" Command="{Binding ShortcutEditor.ResetCommand}"
+                  HorizontalAlignment="Left" AutomationProperties.AutomationId="shortcuts.resetNative" />
+          <TextBlock Text="{Binding ShortcutEditor.ValidationMessage}" IsVisible="{Binding ShortcutEditor.HasValidation}"
+                     TextWrapping="Wrap" AutomationProperties.AutomationId="shortcuts.validation" />
+          <ItemsControl ItemsSource="{Binding ShortcutEditor.Rows}" IsEnabled="{Binding ShortcutEditor.CanEdit}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:NativeShortcutEditorRow">
+                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Action}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DefaultGesture}" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Condition}" Classes="muted" TextWrapping="Wrap" />
+                    <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode, Mode=TwoWay}"
+                              AutomationProperties.AutomationId="{Binding ModeAutomationId}"
+                              AutomationProperties.Name="{Binding ModeAccessibleName}" />
+                    <TextBox Text="{Binding Gesture, Mode=TwoWay}" IsVisible="{Binding IsCustom}" MaxLength="32"
+                             PlaceholderText="MOD+H / F12"
+                             AutomationProperties.AutomationId="{Binding GestureAutomationId}"
+                             AutomationProperties.Name="{Binding GestureAccessibleName}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </Border>
       <ItemsControl ItemsSource="{Binding ShortcutReference.Groups}">

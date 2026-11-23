@@ -44,6 +44,7 @@ public sealed class DeviceRuntimeBundleTests
         Assert.Equal(ProtocolCompatibility.Major, claim.ProtocolMajor);
         Assert.Equal(ProtocolCompatibility.Minor, claim.ProtocolMinor);
         Assert.Equal(DeviceRuntimeBundle.RequiredConnectionPlanVersion, claim.ConnectionPlanVersion);
+        Assert.Equal(DeviceRuntimeBundle.RequiredShortcutBindingsVersion, claim.ShortcutBindingsVersion);
         Assert.Equal(ProtocolCompatibility.RequiredCapabilities, claim.Capabilities);
     }
 
@@ -67,13 +68,15 @@ public sealed class DeviceRuntimeBundleTests
     }
 
     /// <summary>Wire-compatible old bytes cannot accept the new connection-plan bootstrap argument.</summary>
-    [Fact]
-    public void OlderMachineClaimWithoutConnectionPlanIsIncompatible()
+    [Theory]
+    [InlineData("ConnectionPlanVersion")]
+    [InlineData("ShortcutBindingsVersion")]
+    public void OlderMachineClaimWithoutBootstrapIsIncompatible(string member)
     {
         using SyntheticBundle fixture = new();
         string manifestPath = Path.Combine(fixture.Directory, DeviceRuntimeBundle.ManifestFileName);
         JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
-        manifest["MachineContract"]!.AsObject().Remove("ConnectionPlanVersion");
+        manifest["MachineContract"]!.AsObject().Remove(member);
         byte[] original = Encoding.UTF8.GetBytes(manifest.ToJsonString());
         File.WriteAllBytes(manifestPath, original);
 
@@ -102,6 +105,8 @@ public sealed class DeviceRuntimeBundleTests
     [InlineData("Product", "\"another-product\"")]
     [InlineData("ProtocolMajor", "2")]
     [InlineData("ConnectionPlanVersion", "0")]
+    [InlineData("ShortcutBindingsVersion", "0")]
+    [InlineData("ShortcutBindingsVersion", "2")]
     [InlineData("ConnectionPlanVersion", "2")]
     [InlineData("Capabilities", "[\"focus-window\",\"stop\"]")]
     public void RejectsIncompatibleMachineClaim(string member, string replacementJson)
@@ -126,6 +131,10 @@ public sealed class DeviceRuntimeBundleTests
     [InlineData("ProtocolMajor", "-1")]
     [InlineData("Product", "null")]
     [InlineData("ConnectionPlanVersion", "null")]
+    [InlineData("ShortcutBindingsVersion", "null")]
+    [InlineData("ShortcutBindingsVersion", "\"1\"")]
+    [InlineData("ShortcutBindingsVersion", "-1")]
+    [InlineData("ShortcutBindingsVersion", "65536")]
     [InlineData("ConnectionPlanVersion", "\"1\"")]
     [InlineData("ConnectionPlanVersion", "-1")]
     [InlineData("ConnectionPlanVersion", "65536")]
@@ -265,6 +274,7 @@ public sealed class DeviceRuntimeBundleTests
                     ProtocolMajor = ProtocolCompatibility.Major,
                     ProtocolMinor = ProtocolCompatibility.Minor,
                     ConnectionPlanVersion = DeviceRuntimeBundle.RequiredConnectionPlanVersion,
+                    ShortcutBindingsVersion = DeviceRuntimeBundle.RequiredShortcutBindingsVersion,
                     Capabilities = ProtocolCompatibility.RequiredCapabilities.ToArray(),
                 },
             };

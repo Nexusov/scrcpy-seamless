@@ -12,6 +12,7 @@ internal static class OptionRuleRegistry
     private const string VirtualDisplayRule = "virtual-display-rules";
     private const string SessionOutputRule = "session-output-required";
     private const string MinSizeAlignmentRule = "min-size-alignment-power-of-two";
+    private const string NativeShortcutsRule = "native-shortcut-bindings";
 
     private static readonly IReadOnlyDictionary<string, Func<OptionContext, OptionDiagnostic?>> Validators =
         new Dictionary<string, Func<OptionContext, OptionDiagnostic?>>(StringComparer.Ordinal)
@@ -22,6 +23,9 @@ internal static class OptionRuleRegistry
             [VirtualDisplayRule] = ValidateVirtualDisplay,
             [SessionOutputRule] = ValidateSessionOutput,
             [MinSizeAlignmentRule] = ValidateMinSizeAlignment,
+            [NativeShortcutsRule] = context => NativeShortcutBindings.TryParse(
+                context.Text(NativeShortcutBindings.OptionId) ?? string.Empty, out _)
+                ? null : Violation(NativeShortcutBindings.OptionId, NativeShortcutsRule),
         };
 
     /// <summary>Runs each referenced rule once in stable catalogue order.</summary>

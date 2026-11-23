@@ -45,14 +45,14 @@ static void test_flag_help(void) {
 // Check the option declarations compiled into the native parser.
 static void test_generated_option_table(void) {
     enum {
-        EXPECTED_OPTIONS = 114,
-        EXPECTED_LONG_OPTIONS = 111,
+        EXPECTED_OPTIONS = 115,
+        EXPECTED_LONG_OPTIONS = 112,
         EXPECTED_SHORT_OPTIONS = 20,
         EXPECTED_OPTIONAL_ARGUMENTS = 3,
     };
 
     assert(sc_cli_option_count() == EXPECTED_OPTIONS);
-    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory) + 5);
+    assert(sc_cli_option_count() == ARRAY_LEN(phase3_cli_inventory) + 6);
 
     static const char *const internal_options[] = {
         "seamless-machine", "seamless-session-id",
@@ -63,12 +63,18 @@ static void test_generated_option_table(void) {
     size_t long_count = 0;
     size_t short_count = 0;
     size_t optional_count = 0;
+    size_t baseline_index = 0;
+    size_t internal_index = 0;
+    unsigned shortcut_count = 0;
     for (size_t index = 0; index < sc_cli_option_count(); ++index) {
         struct sc_cli_option_test_info option;
         assert(sc_cli_option_get_test_info(index, &option));
-        if (index < ARRAY_LEN(phase3_cli_inventory)) {
+        if (option.longopt && !strcmp(option.longopt, "shortcut-bindings")) {
+            assert(option.has_arg && !option.optional_arg && !option.shortopt && option.documented);
+            ++shortcut_count;
+        } else if (baseline_index < ARRAY_LEN(phase3_cli_inventory)) {
             const struct sc_cli_option_test_info *baseline =
-                &phase3_cli_inventory[index];
+                &phase3_cli_inventory[baseline_index++];
             assert(!!option.longopt == !!baseline->longopt);
             if (baseline->longopt) {
                 assert(!strcmp(option.longopt, baseline->longopt));
@@ -79,12 +85,12 @@ static void test_generated_option_table(void) {
             assert(option.documented == baseline->documented);
             assert(option.documented);
         } else {
-            size_t internal_index = index - ARRAY_LEN(phase3_cli_inventory);
             assert(!strcmp(option.longopt, internal_options[internal_index]));
             assert(!option.shortopt);
             assert(option.has_arg == (internal_index != 0));
             assert(!option.optional_arg);
             assert(!option.documented);
+            ++internal_index;
         }
         assert(option.longopt || option.shortopt);
         assert(!option.optional_arg || option.has_arg);
@@ -95,12 +101,15 @@ static void test_generated_option_table(void) {
         if (index == 0) {
             assert(!strcmp(option.longopt, "always-on-top"));
         }
-        if (index == ARRAY_LEN(phase3_cli_inventory) - 1) {
+        if (option.longopt && !strcmp(option.longopt, "flex-display")) {
             assert(!strcmp(option.longopt, "flex-display"));
             assert(option.shortopt == 'x');
         }
     }
 
+    assert(shortcut_count == 1);
+    assert(baseline_index == ARRAY_LEN(phase3_cli_inventory));
+    assert(internal_index == ARRAY_LEN(internal_options));
     assert(long_count == EXPECTED_LONG_OPTIONS);
     assert(short_count == EXPECTED_SHORT_OPTIONS);
     assert(optional_count == EXPECTED_OPTIONAL_ARGUMENTS);
@@ -182,6 +191,17 @@ static void test_generated_option_help(void) {
     assert(strstr(help, "--new-display"));
     assert(strstr(help, "--port=port[:port]"));
     assert(strstr(help, "-G"));
+
+    // Remove only the separately asserted new option; retain the entire legacy help fingerprint.
+    char *shortcut_start = strstr(help, "    --shortcut-bindings=json");
+    assert(shortcut_start);
+    char *shortcut_end = strstr(shortcut_start, "    --shortcut-mod=");
+    assert(shortcut_end && shortcut_end > shortcut_start);
+    char *description = strstr(shortcut_start, "Override focused mirror keyboard actions");
+    assert(description && description < shortcut_end);
+    char *global_note = strstr(shortcut_start, "global shortcuts.");
+    assert(global_note && global_note < shortcut_end);
+    memmove(shortcut_start, shortcut_end, strlen(shortcut_end) + 1);
 
     // Frozen rendered --help fingerprint from the unchanged Phase 3 CLI.
     const uint64_t phase3_help_fnv1a64 = UINT64_C(0x8da481d232d1d42d);
@@ -607,6 +627,23 @@ static void test_connection_plan_bootstrap(void) {
     assert(!accepted);
 }
 
+static void test_shortcut_bindings_option(void) {
+    struct scrcpy_cli_args args = {.opts = scrcpy_options_default};
+    char argument[] = "--shortcut-bindings={\"home\":\"F12\",\"back\":\"\"}";
+    char *argv[] = {"scrcpy", argument};
+    bool accepted = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    assert(accepted);
+    assert(args.opts.shortcut_bindings.actions[SC_SHORTCUT_ACTION_HOME].present);
+    assert(args.opts.shortcut_bindings.actions[SC_SHORTCUT_ACTION_HOME].gesture.key == SDLK_F12);
+    assert(args.opts.shortcut_bindings.actions[SC_SHORTCUT_ACTION_BACK].disabled);
+    memset(argument, 'x', strlen(argument));
+    assert(args.opts.shortcut_bindings.actions[SC_SHORTCUT_ACTION_HOME].gesture.key == SDLK_F12);
+    char *invalid[] = {"scrcpy", "--shortcut-bindings={\"home\":\"MOD+B\"}"};
+    args = (struct scrcpy_cli_args) {.opts = scrcpy_options_default};
+    accepted = scrcpy_parse_args(&args, ARRAY_LEN(invalid), invalid);
+    assert(!accepted);
+}
+
 static void test_parse_shortcut_mods(void) {
     uint8_t mods;
     bool ok;
@@ -655,6 +692,7 @@ int main(int argc, char *argv[]) {
     test_min_size_alignment_values();
     test_bit_rate_numeric_spelling();
     test_parse_shortcut_mods();
+    test_shortcut_bindings_option();
     test_connection_plan_bootstrap();
     return 0;
 }

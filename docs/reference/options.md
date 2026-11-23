@@ -91,6 +91,7 @@ This table lists the current scrcpy Seamless 2.0 static CLI metadata. Runtime an
 | <a id="option-serial"></a>`serial` | Technical | managed | required |
 | <a id="option-turn-screen-off"></a>`turn-screen-off` | Device | editable | none |
 | <a id="option-screen-off-timeout"></a>`screen-off-timeout` | Device | editable | required |
+| <a id="option-shortcut-bindings"></a>`shortcut-bindings` | Control | editable | required |
 | <a id="option-shortcut-mod"></a>`shortcut-mod` | Control | editable | required |
 | <a id="option-start-app"></a>`start-app` | Device | editable | required |
 | <a id="option-show-touches"></a>`show-touches` | Device | editable | none |

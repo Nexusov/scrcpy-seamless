@@ -115,7 +115,8 @@ function Assert-RuntimeManifest {
         $expectedCapabilities = @($expectedMachineContract.Capabilities)
         $actualCapabilities = @($machine.Capabilities)
         $planProperty = $machine.PSObject.Properties['ConnectionPlanVersion']
-        $expectedPropertyCount = if ($null -eq $planProperty) { 4 } else { 5 }
+        $shortcutProperty = $machine.PSObject.Properties['ShortcutBindingsVersion']
+        $expectedPropertyCount = 4 + [int]($null -ne $planProperty) + [int]($null -ne $shortcutProperty)
         $invalidMachine = $machine -isnot [pscustomobject] -or
             @($machine.PSObject.Properties).Count -ne $expectedPropertyCount -or
             $machine.Product -isnot [string] -or
@@ -136,6 +137,17 @@ function Assert-RuntimeManifest {
             $invalidMachine = $invalidMachine -or
                 ($planVersion -isnot [int] -and $planVersion -isnot [long]) -or
                 $planVersion -ne $expectedMachineContract.ConnectionPlanVersion
+        }
+
+        # Archive integrity remains independent of current host launch compatibility.
+        if ($null -eq $shortcutProperty) {
+            $invalidMachine = $invalidMachine -or $RequireMachineContract
+        }
+        else {
+            $shortcutVersion = $shortcutProperty.Value
+            $invalidMachine = $invalidMachine -or
+                ($shortcutVersion -isnot [int] -and $shortcutVersion -isnot [long]) -or
+                $shortcutVersion -ne $expectedMachineContract.ShortcutBindingsVersion
         }
 
         if (-not $invalidMachine) {

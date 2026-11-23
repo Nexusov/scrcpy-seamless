@@ -125,6 +125,7 @@ struct sc_screen_params {
     bool legacy_paste;
     bool clipboard_autosync;
     uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
+    const struct sc_shortcut_bindings *shortcut_bindings;
 
     const char *window_title;
     bool always_on_top;

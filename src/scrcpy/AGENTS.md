@@ -9,6 +9,15 @@ machine-mode ownership and event boundaries are documented in
 
 Scope: `src/scrcpy/`.
 
+Focused native keyboard actions use the generated catalog from
+`spec/options/native-shortcuts.json`. Change that source and run SpecGen rather
+than editing `shortcut_actions.generated.inc`. `shortcut-bindings` is a bounded
+immutable invocation override; the input manager owns semantic dispatch and
+the existing mode/readiness gates. Captured DOWN/UP state contains generation
+values only. Detach and focus loss must consume old releases/repeats without
+resolving a replacement endpoint. Do not add global input hooks or another
+input/IPC architecture for remapping.
+
 This tree currently contains the scrcpy-derived desktop client and Android
 server baseline used by Seamless 1.x. Preserve upstream copyright and
 Apache-2.0 attribution.

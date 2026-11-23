@@ -16,9 +16,16 @@ The `desktop-native/runtime-contract.json` build claim is copied into 6C DEV
 runtime manifests; the Infrastructure parity test checks its product, version
 and required capabilities against the managed protocol constants. The claim
 also declares a separate ConnectionPlanVersion for the bounded launch-plan
-bootstrap, without changing IPC v1. Missing older claims are incompatible with
+bootstrap and ShortcutBindingsVersion for focused semantic keyboard remapping,
+without changing IPC v1. Missing older claims are incompatible with
 the new Desktop host, not evidence of corrupt historical bytes. The claim does
 not replace the actual native handshake.
+
+`options/native-shortcuts.json` is the bounded semantic keyboard catalog.
+SpecGen projects its identities, contexts, aliases and condition references to
+native/Core definitions. Preserve native execution gates and reject conflicting
+effective maps; do not hand-edit either generated action catalog. Native option
+overrides use the existing mirroring configuration draft and schema.
 
 Scope: `spec/`.
 

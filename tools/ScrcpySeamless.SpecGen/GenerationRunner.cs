@@ -20,7 +20,8 @@ internal static class GenerationRunner
 
         var specification = OptionSpecification.Read(specPath);
         SpecValidator.Validate(specification);
-        var outputs = OutputGenerator.Generate(specification);
+        var outputs = OutputGenerator.Generate(specification)
+            .Concat(NativeShortcutGenerator.Generate(root)).ToDictionary(entry => entry.Key, entry => entry.Value);
         foreach (var (relativePath, content) in outputs)
         {
             var target = Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar));

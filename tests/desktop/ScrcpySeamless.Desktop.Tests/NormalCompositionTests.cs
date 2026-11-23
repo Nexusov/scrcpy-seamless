@@ -981,6 +981,7 @@ public sealed class NormalCompositionTests
             MachineContract = machineCompatible ? new MachineRuntimeContract
             {
                 ConnectionPlanVersion = DeviceRuntimeBundle.RequiredConnectionPlanVersion,
+                    ShortcutBindingsVersion = DeviceRuntimeBundle.RequiredShortcutBindingsVersion,
                 Product = ProtocolCompatibility.Product,
                 ProtocolMajor = ProtocolCompatibility.Major,
                 ProtocolMinor = ProtocolCompatibility.Minor,

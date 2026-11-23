@@ -1,5 +1,13 @@
 # Desktop scaffold agent guide
 
+Settings → Shortcuts edits native keyboard overrides in the existing detached
+mirroring option draft. Keep Apply/Cancel and committed launch snapshots; do
+not create another preference store. Generate action/default/condition data
+from `spec/options/native-shortcuts.json`. The separate control-center editor
+retains its own focus scope. Native edits apply only at the next launch, never
+through Desktop input injection. Hash-valid older runtime archives can remain
+integrity-verifiable while incompatible with current host invocation claims.
+
 Normal no-argument startup defaults to portable storage and validates only the
 adjacent package runtime. Installed mode also uses that runtime; DEV keeps its
 explicit opt-in runtime selection and isolated root. Preview never resolves

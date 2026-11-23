@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "util/tick.h"
+#include "shortcut_bindings.h"
 
 enum sc_log_level {
     SC_LOG_LEVEL_VERBOSE,
@@ -269,6 +270,7 @@ struct scrcpy_options {
     uint32_t tunnel_host;
     uint16_t tunnel_port;
     uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
+    struct sc_shortcut_bindings shortcut_bindings;
     uint8_t min_size_alignment;
     uint16_t max_size;
     uint32_t video_bit_rate;

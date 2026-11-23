@@ -30,6 +30,7 @@ src = [
     'src/frame_buffer.c',
     'src/video_ingress.c',
     'src/input_manager.c',
+    'src/shortcut_bindings.c',
     'src/keyboard_sdk.c',
     'src/mouse_capture.c',
     'src/mouse_sdk.c',
@@ -79,6 +80,7 @@ src = [
     'src/util/thread.c',
     'src/util/tick.c',
     'src/util/timeout.c',
+    'vendor/yyjson/yyjson.c',
 ]
 
 feature_test_macros = [
@@ -100,7 +102,6 @@ if host_machine.system() == 'windows'
         'src/ipc/machine_exit.c',
         'src/ipc/machine.c',
         'src/ipc/machine_stream.c',
-        'vendor/yyjson/yyjson.c',
         windows.compile_resources('scrcpy-windows.rc'),
     ]
     feature_test_macros += [
@@ -339,6 +340,7 @@ if get_option('buildtype') == 'debug'
     tests = [
         ['test_control_outcomes', [
             'tests/test_control_outcomes.c', 'src/control_msg.c',
+            'src/util/utf8.c',
             'src/dispatcher.c', 'src/events.c', 'src/util/acksync.c',
             'src/util/str.c', 'src/util/strbuf.c', 'src/util/thread.c',
             'src/util/tick.c', 'src/util/log.c', 'src/util/memory.c',
@@ -395,9 +397,16 @@ if get_option('buildtype') == 'debug'
             'src/session_notifications.c', 'src/dispatcher.c', 'src/events.c',
             'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
         ]],
+        ['test_shortcut_bindings', [
+            'tests/test_shortcut_bindings.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c',
+        ]],
+        ['test_input_shortcuts', [
+            'tests/test_input_shortcuts.c', 'src/input_manager.c', 'src/shortcut_bindings.c',
+            'vendor/yyjson/yyjson.c', 'src/options.c',
+        ]],
         ['test_input_binding', [
             'tests/test_input_binding.c',
-            'src/input_manager.c',
+            'src/input_manager.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c',
             'src/options.c',
         ]],
         ['test_dispatcher', [
@@ -447,7 +456,7 @@ if get_option('buildtype') == 'debug'
         ]],
         ['test_cli', [
             'tests/test_cli.c',
-            'src/cli.c',
+            'src/cli.c', 'src/shortcut_bindings.c',
             'src/connection_plan.c',
             'vendor/yyjson/yyjson.c',
             'src/options.c',
@@ -594,7 +603,7 @@ if get_option('buildtype') == 'debug'
     # Exercise production presentation with deterministic external-effect doubles.
     presentation_test = executable('test_screen_presentation', [
         'tests/test_screen_presentation.c', 'src/screen.c',
-        'src/input_manager.c', 'src/video_ingress.c', 'src/frame_buffer.c',
+        'src/input_manager.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c', 'src/video_ingress.c', 'src/frame_buffer.c',
         'src/dispatcher.c', 'src/events.c', 'src/options.c', 'src/control_msg.c',
         'src/fps_counter.c', 'src/disconnect.c', 'src/util/thread.c',
         'src/util/tick.c', 'src/util/log.c', 'src/util/str.c',

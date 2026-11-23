@@ -184,6 +184,7 @@ try {
         $oldManifestPath = Join-Path $oldMachine 'runtime\runtime-dev-manifest.json'
         $oldManifest = Get-Content -LiteralPath $oldManifestPath -Raw | ConvertFrom-Json
         $oldManifest.MachineContract.PSObject.Properties.Remove('ConnectionPlanVersion')
+        $oldManifest.MachineContract.PSObject.Properties.Remove('ShortcutBindingsVersion')
 
         if ($versionCase -ne 'missing') {
             $value = switch ($versionCase) {
@@ -209,6 +210,38 @@ try {
                 if ((Get-FileHash -LiteralPath $unchangedPaths[$index] -Algorithm SHA256).Hash -cne $before[$index]) {
                     throw 'Read-only historical machine verification changed retained bytes.'
                 }
+            }
+        }
+    }
+
+    foreach ($versionCase in @('missing', 'zero', 'future', 'null', 'text')) {
+        $oldMachine = Join-Path $fixtureRoot ('shortcut bootstrap ' + $versionCase)
+        New-SyntheticPackage -Directory $oldMachine
+        $oldManifestPath = Join-Path $oldMachine 'runtime\runtime-dev-manifest.json'
+        $oldManifest = Get-Content -LiteralPath $oldManifestPath -Raw | ConvertFrom-Json
+        $oldManifest.MachineContract.PSObject.Properties.Remove('ShortcutBindingsVersion')
+
+        if ($versionCase -ne 'missing') {
+            $value = switch ($versionCase) {
+                'zero' { 0 }
+                'future' { 2 }
+                'null' { $null }
+                'text' { '1' }
+            }
+            $oldManifest.MachineContract | Add-Member -NotePropertyName 'ShortcutBindingsVersion' -NotePropertyValue $value
+        }
+
+        $oldManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $oldManifestPath -Encoding UTF8
+        Assert-RejectedPackage -Directory $oldMachine -Archive (Join-Path $fixtureRoot ('new-shortcut-' + $versionCase + '.zip'))
+
+        if ($versionCase -eq 'missing') {
+            $oldArchive = Join-Path $fixtureRoot 'historical five-field machine.zip'
+            New-HistoricalSyntheticArchive -Directory $oldMachine -Archive $oldArchive
+            $before = (Get-FileHash -LiteralPath $oldArchive -Algorithm SHA256).Hash
+            & $packager -SourceSha $sourceSha -ArchivePath $oldArchive -VerifyOnly | Out-Null
+
+            if ((Get-FileHash -LiteralPath $oldArchive -Algorithm SHA256).Hash -cne $before) {
+                throw 'Read-only historical five-field verification changed retained archive bytes.'
             }
         }
     }

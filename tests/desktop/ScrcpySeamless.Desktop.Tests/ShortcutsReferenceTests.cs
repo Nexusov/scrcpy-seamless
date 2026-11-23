@@ -18,6 +18,32 @@ namespace ScrcpySeamless.Desktop.Tests;
 /// <summary>Anchors the static native reference and its side-effect-free Settings surface.</summary>
 public sealed class ShortcutsReferenceTests
 {
+    [AvaloniaFact]
+    public void FocusedNativeEditorUsesAccessibleControlsAndTheDetachedDraft()
+    {
+        ShellViewModel shell = DesktopComposition.Create(
+            new DesktopLaunchOptions(true, AppTheme.Dark, null, true), _ => { });
+        shell.ShowSettings();
+        shell.Settings.ShowShortcutsCommand.Execute(null);
+        MainWindow window = new(shell) { Width = 820, Height = 620 };
+        window.Show();
+        window.UpdateLayout();
+        ComboBox mode = Assert.Single(window.GetVisualDescendants().OfType<ComboBox>(),
+            control => AutomationProperties.GetAutomationId(control) == "shortcut.home.mode");
+        Assert.Equal("Home: Binding mode", AutomationProperties.GetName(mode));
+        mode.SelectedIndex = 1;
+        window.UpdateLayout();
+        TextBox gesture = Assert.Single(window.GetVisualDescendants().OfType<TextBox>(),
+            control => AutomationProperties.GetAutomationId(control) == "shortcut.home.gesture");
+        Assert.True(gesture.IsVisible);
+        gesture.Text = "F12";
+        window.UpdateLayout();
+        Assert.Equal("{\"home\":\"F12\"}",
+            shell.Settings.DraftValues[NativeShortcutBindings.OptionId].GetString());
+        Assert.Null(shell.Settings.Configuration);
+        window.Close();
+    }
+
     /// <summary>Matches representative native handler cases and mode qualifiers independently.</summary>
     [Fact]
     public void NativeReferenceMatchesBundledHandler()

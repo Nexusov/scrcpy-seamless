@@ -1725,6 +1725,12 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
                     return false;
                 }
                 break;
+            case OPT_SHORTCUT_BINDINGS:
+                if (!sc_shortcut_bindings_parse(optarg, &opts->shortcut_bindings)) {
+                    LOGE("Invalid focused mirror shortcut bindings");
+                    return false;
+                }
+                break;
             case OPT_LEGACY_PASTE:
                 opts->legacy_paste = true;
                 break;

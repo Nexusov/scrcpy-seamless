@@ -53,6 +53,8 @@ public sealed class SpecGenerationTests
             var input = Path.Combine(root, "spec", "options", "options.yaml");
             Directory.CreateDirectory(Path.GetDirectoryName(input)!);
             File.Copy(Path.Combine(FindRoot(), "spec", "options", "options.yaml"), input);
+            File.Copy(Path.Combine(FindRoot(), "spec", "options", "native-shortcuts.json"),
+                Path.Combine(root, "spec", "options", "native-shortcuts.json"));
             GenerationRunner.Execute(root, "generate");
             var first = OutputGenerator.Generate(Load());
             var firstBytes = first.Keys.ToDictionary(

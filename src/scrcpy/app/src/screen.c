@@ -613,6 +613,7 @@ sc_screen_init(struct sc_screen *screen,
         .legacy_paste = params->legacy_paste,
         .clipboard_autosync = params->clipboard_autosync,
         .shortcut_mods = params->shortcut_mods,
+        .shortcut_bindings = params->shortcut_bindings,
     };
     sc_input_manager_init(&screen->im, &input_params);
     sc_mouse_capture_init(&screen->mc, screen->window, params->shortcut_mods);
@@ -1321,6 +1322,11 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             }
 
             return;
+    }
+
+    if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        // Release captured device keys before relative capture consumes focus loss.
+        sc_input_manager_handle_event(&screen->im, event);
     }
 
     if (sc_input_manager_is_ready(&screen->im)

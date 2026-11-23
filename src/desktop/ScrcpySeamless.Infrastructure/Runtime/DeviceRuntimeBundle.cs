@@ -39,6 +39,7 @@ public sealed class MachineRuntimeContract
     public int ProtocolMajor { get; init; }
     public int ProtocolMinor { get; init; }
     public int ConnectionPlanVersion { get; init; }
+    public int ShortcutBindingsVersion { get; init; }
     public string[]? Capabilities { get; init; }
 }
 
@@ -47,6 +48,7 @@ public sealed class DeviceRuntimeBundle
 {
     public const string ManifestFileName = "runtime-dev-manifest.json";
     public const int RequiredConnectionPlanVersion = 1;
+    public const int RequiredShortcutBindingsVersion = 1;
     private static readonly string[] RequiredFiles =
     [
         "scrcpy.exe", "scrcpy-server", "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll",
@@ -169,6 +171,7 @@ public sealed class DeviceRuntimeBundle
             contract.ProtocolMajor is < 0 or > ushort.MaxValue ||
             contract.ProtocolMinor is < 0 or > ushort.MaxValue ||
             contract.ConnectionPlanVersion is < 0 or > ushort.MaxValue ||
+            contract.ShortcutBindingsVersion is < 0 or > ushort.MaxValue ||
             contract.Capabilities is null || contract.Capabilities.Length is < 1 or > 16 ||
             contract.Capabilities.Any(capability => string.IsNullOrEmpty(capability) ||
                 Encoding.UTF8.GetByteCount(capability) > 64 || capability.Contains('\0')) ||
@@ -183,6 +186,7 @@ public sealed class DeviceRuntimeBundle
             contract.ProtocolMajor == ProtocolCompatibility.Major &&
             contract.ProtocolMinor >= ProtocolCompatibility.Minor &&
             contract.ConnectionPlanVersion == RequiredConnectionPlanVersion &&
+            contract.ShortcutBindingsVersion == RequiredShortcutBindingsVersion &&
             ProtocolCompatibility.RequiredCapabilities.All(capability =>
                 contract.Capabilities!.Contains(capability, StringComparer.Ordinal));
 

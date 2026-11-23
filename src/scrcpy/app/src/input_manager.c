@@ -35,6 +35,24 @@ sc_input_manager_reset_transient(struct sc_input_manager *im) {
     im->last_mod = 0;
     im->key_repeat = 0;
     im->next_sequence = 1; // zero is SC_SEQUENCE_INVALID
+    for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+        struct sc_shortcut_press *press = &im->shortcut_presses[index];
+        press->paired_down = false;
+        press->repeat_admitted = false;
+        press->generation = 0;
+        press->action = SC_SHORTCUT_ACTION_NONE;
+    }
+}
+
+static bool
+sc_input_manager_has_shortcut_press(const struct sc_input_manager *im) {
+    for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+        if (im->shortcut_presses[index].active && im->shortcut_presses[index].text_claim) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** Reconcile attached gamepads only after remote input becomes available. */
@@ -76,6 +94,8 @@ sc_input_manager_init(struct sc_input_manager *im,
     im->clipboard_autosync = params->clipboard_autosync;
 
     im->sdl_shortcut_mods = sc_shortcut_mods_to_sdl(params->shortcut_mods);
+    sc_shortcut_map_init(&im->shortcuts, params->shortcut_bindings);
+    memset(im->shortcut_presses, 0, sizeof(im->shortcut_presses));
 
     sc_input_manager_reset_transient(im);
 }
@@ -486,7 +506,8 @@ sc_input_manager_process_text_input(struct sc_input_manager *im,
 
     uint16_t mod = sc_sdl_mod_normalize(SDL_GetModState());
 
-    if (sc_shortcut_mods_is_shortcut_mod(im->sdl_shortcut_mods, mod)) {
+    if (sc_shortcut_mods_is_shortcut_mod(im->sdl_shortcut_mods, mod)
+            || sc_input_manager_has_shortcut_press(im)) {
         // A shortcut must never generate text events
         return;
     }
@@ -534,6 +555,279 @@ inverse_point(struct sc_point point, struct sc_size size,
     return point;
 }
 
+static bool
+sc_input_manager_is_held_shortcut(enum sc_shortcut_action action) {
+    return action == SC_SHORTCUT_ACTION_HOME || action == SC_SHORTCUT_ACTION_BACK
+        || action == SC_SHORTCUT_ACTION_RECENT || action == SC_SHORTCUT_ACTION_MENU
+        || action == SC_SHORTCUT_ACTION_POWER_KEY || action == SC_SHORTCUT_ACTION_VOLUME_UP
+        || action == SC_SHORTCUT_ACTION_VOLUME_DOWN;
+}
+
+static void
+sc_input_manager_send_shortcut_key(struct sc_input_manager *im,
+                                   enum sc_shortcut_action shortcut,
+                                   enum sc_action action) {
+    switch (shortcut) {
+        case SC_SHORTCUT_ACTION_HOME: action_home(im, action); break;
+        case SC_SHORTCUT_ACTION_BACK: action_back(im, action); break;
+        case SC_SHORTCUT_ACTION_RECENT: action_app_switch(im, action); break;
+        case SC_SHORTCUT_ACTION_MENU: action_menu(im, action); break;
+        case SC_SHORTCUT_ACTION_POWER_KEY: action_power(im, action); break;
+        case SC_SHORTCUT_ACTION_VOLUME_UP: action_volume_up(im, action); break;
+        case SC_SHORTCUT_ACTION_VOLUME_DOWN: action_volume_down(im, action); break;
+        default: assert(!"Not a paired shortcut key"); break;
+    }
+}
+
+/** Returns whether a current-generation remote press was attempted. */
+static bool
+sc_input_manager_execute_shortcut(struct sc_input_manager *im,
+                                   enum sc_shortcut_action action,
+                                   bool down, bool repeat, bool captured_release) {
+    bool video = im->screen->video;
+    bool paused = im->screen->paused;
+
+    switch (action) {
+        case SC_SHORTCUT_ACTION_QUIT_MIRROR:
+            sc_push_event(SDL_EVENT_QUIT);
+            return false;
+        case SC_SHORTCUT_ACTION_PAUSE:
+        case SC_SHORTCUT_ACTION_UNPAUSE:
+            if (video && down && !repeat) {
+                sc_screen_set_paused(im->screen, action == SC_SHORTCUT_ACTION_PAUSE);
+            }
+            return false;
+        case SC_SHORTCUT_ACTION_ROTATE_LEFT:
+        case SC_SHORTCUT_ACTION_ROTATE_RIGHT:
+        case SC_SHORTCUT_ACTION_FLIP_HORIZONTAL:
+        case SC_SHORTCUT_ACTION_FLIP_VERTICAL:
+            if (video && down && !repeat) {
+                enum sc_orientation transform = action == SC_SHORTCUT_ACTION_ROTATE_LEFT ? SC_ORIENTATION_270
+                    : action == SC_SHORTCUT_ACTION_ROTATE_RIGHT ? SC_ORIENTATION_90
+                    : action == SC_SHORTCUT_ACTION_FLIP_HORIZONTAL ? SC_ORIENTATION_FLIP_0 : SC_ORIENTATION_FLIP_180;
+                apply_orientation_transform(im, transform);
+            }
+            return false;
+        case SC_SHORTCUT_ACTION_FULLSCREEN:
+            if (video && down && !repeat) {
+                sc_screen_toggle_fullscreen(im->screen);
+            }
+            return false;
+        case SC_SHORTCUT_ACTION_REMOVE_BORDERS:
+            if (video && down && !repeat) {
+                sc_screen_resize_to_fit(im->screen);
+            }
+            return false;
+        case SC_SHORTCUT_ACTION_PIXEL_PERFECT:
+            if (video && down && !repeat) {
+                sc_screen_resize_to_pixel_perfect(im->screen);
+            }
+            return false;
+        case SC_SHORTCUT_ACTION_FPS:
+            if (video && down && !repeat) {
+                switch_fps_counter_state(im);
+            }
+            return false;
+        default:
+            break;
+    }
+
+    if (!sc_input_manager_is_ready(im) || !im->binding.controller) {
+        return false;
+    }
+
+    if (sc_input_manager_is_held_shortcut(action)) {
+        bool volume = action == SC_SHORTCUT_ACTION_VOLUME_UP || action == SC_SHORTCUT_ACTION_VOLUME_DOWN;
+
+        if (im->camera || !im->binding.kp || (!captured_release && (paused || !down || (repeat && !volume)))) {
+            return false;
+        }
+
+        sc_input_manager_send_shortcut_key(im, action, captured_release ? SC_ACTION_UP : SC_ACTION_DOWN);
+        return !captured_release;
+    }
+
+    bool zoom = action == SC_SHORTCUT_ACTION_CAMERA_ZOOM_IN || action == SC_SHORTCUT_ACTION_CAMERA_ZOOM_OUT;
+    bool torch = action == SC_SHORTCUT_ACTION_TORCH_ON || action == SC_SHORTCUT_ACTION_TORCH_OFF;
+
+    if (!down || (repeat && !zoom) || (paused && !torch)) {
+        return false;
+    }
+
+    if (action == SC_SHORTCUT_ACTION_RESET_VIDEO) {
+        reset_video(im);
+        return false;
+    }
+
+    if (im->camera) {
+        if (torch) {
+            camera_set_torch(im, action == SC_SHORTCUT_ACTION_TORCH_ON);
+        } else if (zoom) {
+            if (action == SC_SHORTCUT_ACTION_CAMERA_ZOOM_IN) {
+                camera_zoom_in(im);
+            } else {
+                camera_zoom_out(im);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    switch (action) {
+        case SC_SHORTCUT_ACTION_SCREEN_OFF:
+        case SC_SHORTCUT_ACTION_SCREEN_ON:
+            set_display_power(im, action == SC_SHORTCUT_ACTION_SCREEN_ON);
+            break;
+        case SC_SHORTCUT_ACTION_COPY:
+        case SC_SHORTCUT_ACTION_CUT:
+            if (im->binding.kp) {
+                get_device_clipboard(im, action == SC_SHORTCUT_ACTION_COPY ? SC_COPY_KEY_COPY : SC_COPY_KEY_CUT);
+            }
+            break;
+        case SC_SHORTCUT_ACTION_PASTE:
+        case SC_SHORTCUT_ACTION_PASTE_TEXT:
+            if (im->binding.kp) {
+                if (action == SC_SHORTCUT_ACTION_PASTE_TEXT || im->legacy_paste) {
+                    clipboard_paste(im);
+                } else {
+                    set_device_clipboard(im, true, SC_SEQUENCE_INVALID);
+                }
+            }
+            break;
+        case SC_SHORTCUT_ACTION_NOTIFICATIONS: expand_notification_panel(im); break;
+        case SC_SHORTCUT_ACTION_QUICK_SETTINGS: expand_settings_panel(im); break;
+        case SC_SHORTCUT_ACTION_COLLAPSE_PANELS: collapse_panels(im); break;
+        case SC_SHORTCUT_ACTION_ROTATE_DEVICE: rotate_device(im); break;
+        case SC_SHORTCUT_ACTION_KEYBOARD_SETTINGS:
+            if (im->binding.kp && im->binding.kp->hid) {
+                open_hard_keyboard_settings(im);
+            }
+            break;
+        default:
+            break;
+    }
+
+    return false;
+}
+
+static struct sc_shortcut_press *
+sc_input_manager_find_shortcut_press(struct sc_input_manager *im,
+                                     const SDL_KeyboardEvent *event) {
+    for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+        struct sc_shortcut_press *press = &im->shortcut_presses[index];
+        bool same = event->scancode != SDL_SCANCODE_UNKNOWN ? press->scancode == event->scancode
+            : press->scancode == SDL_SCANCODE_UNKNOWN && press->key == event->key;
+
+        if (press->active && same) {
+            return press;
+        }
+    }
+
+    return NULL;
+}
+
+static bool
+sc_input_manager_process_shortcut(struct sc_input_manager *im,
+                                   const SDL_KeyboardEvent *event,
+                                   uint16_t modifiers, bool namespace_key) {
+    bool down = event->type == SDL_EVENT_KEY_DOWN;
+    struct sc_shortcut_press *press = sc_input_manager_find_shortcut_press(im, event);
+
+    if (!down && press) {
+        struct sc_shortcut_press released = *press;
+        press->active = false;
+
+        if (released.paired_down && released.generation == im->binding.generation) {
+            sc_input_manager_execute_shortcut(im, released.action, false, false, true);
+        } else if (released.action == SC_SHORTCUT_ACTION_QUIT_MIRROR) {
+            sc_input_manager_execute_shortcut(im, released.action, false, false, false);
+        }
+
+        return true;
+    }
+
+    if (down && event->repeat && press) {
+        if ((press->repeat_admitted && press->generation == im->binding.generation)
+                || press->action == SC_SHORTCUT_ACTION_QUIT_MIRROR) {
+            sc_input_manager_execute_shortcut(im, press->action, true, true, false);
+        }
+
+        return true;
+    }
+
+    bool claimed;
+    enum sc_shortcut_action action = sc_shortcut_map_match(&im->shortcuts, event->key,
+        modifiers, im->sdl_shortcut_mods, im->camera, im->key_repeat, &claimed);
+
+    if (!claimed) {
+        if (down && !namespace_key) {
+            for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+                im->shortcut_presses[index].text_claim = false;
+            }
+        }
+
+        // The inherited F11 path historically reserves modified F11 as well.
+        return namespace_key || (event->key == SDLK_F11
+            && !im->shortcuts.actions[SC_SHORTCUT_ACTION_FULLSCREEN].overridden);
+    }
+
+    if (down && !event->repeat) {
+        if (!press) {
+            for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+                if (!im->shortcut_presses[index].active) {
+                    press = &im->shortcut_presses[index];
+                    break;
+                }
+            }
+        }
+
+        if (!press) {
+            return true;
+        }
+
+        *press = (struct sc_shortcut_press) {
+            .scancode = event->scancode, .key = event->key,
+            .action = action, .generation = im->binding.generation, .active = true,
+            .text_claim = sc_shortcut_mods_is_shortcut_mod(im->sdl_shortcut_mods, modifiers),
+        };
+    }
+
+    if (event->repeat && action != SC_SHORTCUT_ACTION_QUIT_MIRROR
+            && (!press || !press->repeat_admitted || press->generation != im->binding.generation)) {
+        return true;
+    }
+
+    bool admitted = sc_input_manager_execute_shortcut(im, action, down, event->repeat, false);
+
+    if (press && admitted) {
+        press->paired_down = sc_input_manager_is_held_shortcut(action);
+        press->repeat_admitted = true;
+    }
+
+    return true;
+}
+
+static void
+sc_input_manager_release_shortcuts(struct sc_input_manager *im) {
+    for (unsigned index = 0; index < SC_SHORTCUT_MAX_PRESSED; ++index) {
+        struct sc_shortcut_press press = im->shortcut_presses[index];
+        im->shortcut_presses[index].paired_down = false;
+        im->shortcut_presses[index].repeat_admitted = false;
+        im->shortcut_presses[index].generation = 0;
+        im->shortcut_presses[index].action = SC_SHORTCUT_ACTION_NONE;
+        im->shortcut_presses[index].text_claim = false;
+
+        if (press.active && press.paired_down && press.generation == im->binding.generation) {
+            sc_input_manager_execute_shortcut(im, press.action, false, false, true);
+        }
+    }
+
+    im->last_keycode = SDLK_UNKNOWN;
+    im->last_mod = 0;
+    im->key_repeat = 0;
+}
+
 /** Keep local shortcuts available while withholding all gated device delivery. */
 static void
 sc_input_manager_process_key(struct sc_input_manager *im,
@@ -541,10 +835,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     // some key events do not interact with the device, so process the event
     // even if control is disabled
 
-    // controller is NULL if --no-control is requested
-    bool control = im->binding.controller;
     bool paused = im->screen->paused;
-    bool video = im->screen->video;
     bool disconnected = !sc_input_manager_is_ready(im);
 
     SDL_Keycode sdl_keycode = event->key;
@@ -572,227 +863,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         }
     }
 
-    // Shortcuts that do not involve the MOD key
-    switch (sdl_keycode) {
-        case SDLK_F11:
-            if (video && !repeat && down) {
-                bool alt = mod & SDL_KMOD_ALT;
-                bool super = mod & SDL_KMOD_GUI;
-                if (!ctrl && !shift && !alt && !super) {
-                    sc_screen_toggle_fullscreen(im->screen);
-                }
-            }
-            return;
-    }
-
-    if (is_shortcut) {
-        enum sc_action action = down ? SC_ACTION_DOWN : SC_ACTION_UP;
-        switch (sdl_keycode) {
-            case SDLK_Z:
-                if (video && down && !repeat) {
-                    sc_screen_set_paused(im->screen, !shift);
-                }
-                return;
-            case SDLK_DOWN:
-                // Only capture if shift is set
-                if (shift) {
-                    if (video && !repeat && down) {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_FLIP_180);
-                    }
-                    return;
-                }
-                break;
-            case SDLK_UP:
-                // Only capture if shift is set
-                if (shift) {
-                    if (video && !repeat && down) {
-                        apply_orientation_transform(im, SC_ORIENTATION_FLIP_180);
-                    }
-                    return;
-                }
-                break;
-            case SDLK_LEFT:
-                if (video && !repeat && down) {
-                    if (shift) {
-                        apply_orientation_transform(im, SC_ORIENTATION_FLIP_0);
-                    } else {
-                        apply_orientation_transform(im, SC_ORIENTATION_270);
-                    }
-                }
-                return;
-            case SDLK_RIGHT:
-                if (video && !repeat && down) {
-                    if (shift) {
-                        apply_orientation_transform(im, SC_ORIENTATION_FLIP_0);
-                    } else {
-                        apply_orientation_transform(im, SC_ORIENTATION_90);
-                    }
-                }
-                return;
-            case SDLK_F:
-                if (video && !shift && !repeat && down) {
-                    sc_screen_toggle_fullscreen(im->screen);
-                }
-                return;
-            case SDLK_W:
-                if (video && !shift && !repeat && down) {
-                    sc_screen_resize_to_fit(im->screen);
-                }
-                return;
-            case SDLK_G:
-                if (video && !shift && !repeat && down) {
-                    sc_screen_resize_to_pixel_perfect(im->screen);
-                }
-                return;
-            case SDLK_I:
-                if (video && !shift && !repeat && down) {
-                    switch_fps_counter_state(im);
-                }
-                return;
-            case SDLK_Q:
-                sc_push_event(SDL_EVENT_QUIT);
-                return;
-        }
-
-        if (disconnected) {
-            // Only handle shortcuts that do not interact with the device (since
-            // it is disconnected)
-            return;
-        }
-
-        // Flatten conditions to avoid additional indentation levels
-        if (control) {
-            // Controls for all sources
-            switch (sdl_keycode) {
-                case SDLK_R:
-                    // Only capture if shift is set
-                    if (shift) {
-                        if (!repeat && down && !paused) {
-                            reset_video(im);
-                        }
-                        return;
-                    }
-                    break;
-            }
-        }
-
-        if (control && !im->camera) {
-            switch (sdl_keycode) {
-                case SDLK_H:
-                    if (im->binding.kp && !shift && !repeat && !paused) {
-                        action_home(im, action);
-                    }
-                    return;
-                case SDLK_B: // fall-through
-                case SDLK_BACKSPACE:
-                    if (im->binding.kp && !shift && !repeat && !paused) {
-                        action_back(im, action);
-                    }
-                    return;
-                case SDLK_S:
-                    if (im->binding.kp && !shift && !repeat && !paused) {
-                        action_app_switch(im, action);
-                    }
-                    return;
-                case SDLK_M:
-                    if (im->binding.kp && !shift && !repeat && !paused) {
-                        action_menu(im, action);
-                    }
-                    return;
-                case SDLK_P:
-                    if (im->binding.kp && !shift && !repeat && !paused) {
-                        action_power(im, action);
-                    }
-                    return;
-                case SDLK_O:
-                    if (control && !repeat && down && !paused) {
-                        bool on = shift;
-                        set_display_power(im, on);
-                    }
-                    return;
-                case SDLK_DOWN:
-                    if (im->binding.kp && !shift && !paused) {
-                        // forward repeated events
-                        action_volume_down(im, action);
-                    }
-                    return;
-                case SDLK_UP:
-                    if (im->binding.kp && !shift && !paused) {
-                        // forward repeated events
-                        action_volume_up(im, action);
-                    }
-                    return;
-                case SDLK_C:
-                    if (im->binding.kp && !shift && !repeat && down && !paused) {
-                        get_device_clipboard(im, SC_COPY_KEY_COPY);
-                    }
-                    return;
-                case SDLK_X:
-                    if (im->binding.kp && !shift && !repeat && down && !paused) {
-                        get_device_clipboard(im, SC_COPY_KEY_CUT);
-                    }
-                    return;
-                case SDLK_V:
-                    if (im->binding.kp && !repeat && down && !paused) {
-                        if (shift || im->legacy_paste) {
-                            // inject the text as input events
-                            clipboard_paste(im);
-                        } else {
-                            // store the text in the device clipboard and paste,
-                            // without requesting an acknowledgment
-                            set_device_clipboard(im, true, SC_SEQUENCE_INVALID);
-                        }
-                    }
-                    return;
-                case SDLK_N:
-                    if (!repeat && down && !paused) {
-                        if (shift) {
-                            collapse_panels(im);
-                        } else if (im->key_repeat == 0) {
-                            expand_notification_panel(im);
-                        } else {
-                            expand_settings_panel(im);
-                        }
-                    }
-                    return;
-                case SDLK_R:
-                    if (!repeat && !shift && down && !paused) {
-                        rotate_device(im);
-                    }
-                    return;
-                case SDLK_K:
-                    if (!shift && !repeat && down && !paused
-                            && im->binding.kp && im->binding.kp->hid) {
-                        // Only if the current keyboard is hid
-                        open_hard_keyboard_settings(im);
-                    }
-                    return;
-            }
-        }
-
-        if (control && im->camera) {
-            switch (sdl_keycode) {
-                case SDLK_T:
-                    if (!repeat && down) {
-                        camera_set_torch(im, !shift);
-                    }
-                    return;
-                case SDLK_DOWN:
-                    if (!shift && down && !paused) {
-                        // forward repeated events
-                        camera_zoom_out(im);
-                    }
-                    return;
-                case SDLK_UP:
-                    if (!shift && down && !paused) {
-                        // forward repeated events
-                        camera_zoom_in(im);
-                    }
-                    return;
-            }
-        }
-
+    if (sc_input_manager_process_shortcut(im, event, mod, is_shortcut)) {
         return;
     }
 
@@ -1357,6 +1428,9 @@ sc_input_manager_handle_event(struct sc_input_manager *im,
                               const SDL_Event *event) {
     assert(SDL_IsMainThread());
     switch (event->type) {
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+            sc_input_manager_release_shortcuts(im);
+            break;
         case SDL_EVENT_TEXT_INPUT:
             sc_input_manager_process_text_input(im, &event->text);
             break;
