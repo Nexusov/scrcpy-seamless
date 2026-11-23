@@ -462,6 +462,74 @@ test_saturation_and_zero_delay(void) {
     assert(finish.failure == SC_CONNECTION_FAILURE_ATTEMPT_EXHAUSTED);
 }
 
+static void
+test_transient_failure_trace(struct sc_connection_plan plan,
+                             unsigned resolver_failures) {
+    struct sc_connection_manager manager = test_manager(plan, 0);
+    sc_tick now = 0;
+    const enum sc_connection_failure transient = SC_CONNECTION_FAILURE_TRANSIENT_CONNECT;
+
+    for (unsigned index = 0; index < plan.maximum_attempts; ++index) {
+        struct sc_connection_action resolve = test_poll(&manager, now,
+                                                        SC_CONNECTION_ACTION_RESOLVE);
+        assert(resolve.attempt == index + 1);
+        unsigned flips = plan.allow_fallback ? index % 2 : 0;
+        assert(resolve.candidate == (plan.selected_candidate ^ flips));
+        test_poll(&manager, now, SC_CONNECTION_ACTION_WAIT);
+        assert(!sc_connection_manager_resolved(&manager, resolve.attempt - 1,
+                                               SC_CONNECTION_FAILURE_NONE, now));
+        bool fail_resolution = index < resolver_failures;
+        assert(sc_connection_manager_resolved(&manager, resolve.attempt,
+                  fail_resolution ? transient : SC_CONNECTION_FAILURE_NONE, now));
+
+        if (!fail_resolution) {
+            struct sc_connection_action start = test_poll(&manager, now,
+                                                          SC_CONNECTION_ACTION_START);
+            assert(start.attempt == resolve.attempt && start.candidate == resolve.candidate);
+            test_poll(&manager, now, SC_CONNECTION_ACTION_WAIT);
+            test_fail(&manager, start.attempt, transient, now);
+            test_retire(&manager, start.attempt, now);
+        }
+
+        if (index + 1 < plan.maximum_attempts) {
+            now += plan.initial_backoff;
+            test_poll(&manager, now - 1, SC_CONNECTION_ACTION_WAIT);
+        }
+    }
+
+    struct sc_connection_action finish = test_poll(&manager, now,
+                                                   SC_CONNECTION_ACTION_FINISH);
+    assert(finish.attempt == plan.maximum_attempts);
+    assert(finish.failure == SC_CONNECTION_FAILURE_RETRY_EXHAUSTED);
+    assert(finish.last_failure == transient);
+    sc_connection_manager_stop(&manager, SC_CONNECTION_FAILURE_USER_STOP, now);
+    finish = test_poll(&manager, now + plan.initial_backoff,
+                       SC_CONNECTION_ACTION_FINISH);
+    assert(finish.failure == SC_CONNECTION_FAILURE_RETRY_EXHAUSTED);
+}
+
+static void
+test_transient_failure_properties(void) {
+    enum { MAX_TEST_ATTEMPTS = 5 };
+    struct sc_connection_plan plan = test_plan();
+    plan.initial_backoff = plan.maximum_backoff = SC_TICK_FROM_MS(1);
+
+    for (unsigned limit = 1; limit <= MAX_TEST_ATTEMPTS; ++limit) {
+        plan.maximum_attempts = limit;
+
+        for (unsigned candidate = 0; candidate < plan.candidate_count; ++candidate) {
+            plan.selected_candidate = candidate;
+
+            for (unsigned failed = 0; failed <= limit; ++failed) {
+                plan.allow_fallback = false;
+                test_transient_failure_trace(plan, failed);
+                plan.allow_fallback = true;
+                test_transient_failure_trace(plan, failed);
+            }
+        }
+    }
+}
+
 int
 main(void) {
     test_validation_and_capture();
@@ -473,6 +541,7 @@ main(void) {
     test_sticky_stop_and_deadline();
     test_terminal_failures();
     test_saturation_and_zero_delay();
-    puts("Connection manager: 9 fake-clock production policy groups passed");
+    test_transient_failure_properties();
+    puts("Connection manager: 10 fake-clock production policy groups passed");
     return 0;
 }

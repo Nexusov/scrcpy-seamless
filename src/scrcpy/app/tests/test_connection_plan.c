@@ -108,6 +108,52 @@ check_managed_plans(const char *directory) {
     puts("connection plan C# -> C: five independently checked committed plans and 15 rejection mutations");
 }
 
+static void
+check_field_order_and_ownership(void) {
+    static const char *const fields[] = {
+        "\"version\": 1",
+        "\"reconnect\": true",
+        "\"selected\": 0",
+        "\"requiredCapabilities\": 5",
+        "\"desiredCapabilities\": 7",
+        "\"maximumAttempts\": 3",
+        "\"initialBackoffUs\": \"1000000\"",
+        "\"maximumBackoffUs\": \"8000000\"",
+        "\"candidates\": ["
+            "{\"serial\":\"SYNTHETIC\\u005fUSB\",\"transport\":\"usb\"},"
+            "{\"endpoint\":\"synthetic.example:37123\",\"transport\":\"network\"}]",
+    };
+
+    for (size_t first = 0; first < ARRAY_LEN(fields); ++first) {
+        char input[SC_CONNECTION_PLAN_MAX_BYTES + 1] = "{";
+        size_t length = strlen(input);
+
+        for (size_t index = 0; index < ARRAY_LEN(fields); ++index) {
+            int written = snprintf(input + length, sizeof(input) - length,
+                                   "%s\n  %s", index ? "," : "",
+                                   fields[(first + index) % ARRAY_LEN(fields)]);
+            assert(written > 0 && (size_t) written < sizeof(input) - length);
+            length += written;
+        }
+        assert(sizeof(input) - length >= sizeof("\n}"));
+        memcpy(input + length, "\n}", sizeof("\n}"));
+
+        struct sc_connection_launch_plan plan;
+        assert(sc_connection_launch_plan_parse(input, &plan));
+        memset(input, 0, sizeof(input));
+        assert(plan.reconnect && plan.policy.retry_enabled && plan.policy.allow_fallback);
+        assert(plan.required_capabilities == 5 && plan.desired_capabilities == 7);
+        assert(plan.policy.candidate_count == 2 && plan.policy.selected_candidate == 0);
+        assert(plan.policy.maximum_attempts == 3);
+        assert(plan.policy.initial_backoff == SC_TICK_FROM_SEC(1));
+        assert(plan.policy.maximum_backoff == SC_TICK_FROM_SEC(8));
+        assert(plan.policy.candidates[0] == SC_CONNECTION_USB);
+        assert(plan.policy.candidates[1] == SC_CONNECTION_NETWORK);
+        assert(!strcmp(plan.targets[0].serial, "SYNTHETIC_USB"));
+        assert(!strcmp(plan.targets[1].endpoint, "synthetic.example:37123"));
+    }
+}
+
 int
 main(int argc, char *argv[]) {
     if (argc == 3 && !strcmp(argv[1], "--managed")) {
@@ -188,6 +234,8 @@ main(int argc, char *argv[]) {
         bool oversized = sc_connection_launch_plan_parse(input, &plan);
         assert(!oversized);
     }
-    puts("connection launch plan: accepted owned plan, 25 isolated rejections, 23 endpoint and four service cases");
+    check_field_order_and_ownership();
+    puts("connection launch plan: accepted owned plan, 25 isolated rejections, "
+         "23 endpoint cases, four service cases and nine field orders");
     return 0;
 }
