@@ -395,19 +395,22 @@ sc_machine_init(const struct sc_machine_config *config) {
     machine.handshake_deadline = GetTickCount64() + SC_MACHINE_HANDSHAKE_MS;
     machine.writer_thread = CreateThread(NULL, 0, sc_machine_writer,
                                          NULL, 0, NULL);
-    machine.guard_thread = CreateThread(NULL, 0, sc_machine_guard,
-                                        NULL, 0, NULL);
+    if (machine.writer_thread) {
+        machine.guard_thread = CreateThread(NULL, 0, sc_machine_guard,
+                                            NULL, 0, NULL);
+    }
     if (!machine.writer_thread || !machine.guard_thread) {
+        EnterCriticalSection(&machine.mutex);
         machine.closing = true;
         WakeAllConditionVariable(&machine.queue_changed);
-        SetEvent(machine.shutdown_event);
+        LeaveCriticalSection(&machine.mutex);
         if (machine.writer_thread) {
-            WaitForSingleObject(machine.writer_thread, SC_MACHINE_JOIN_MS);
+            if (WaitForSingleObject(machine.writer_thread,
+                                    SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
+                TerminateProcess(GetCurrentProcess(), 7);
+                abort();
+            }
             CloseHandle(machine.writer_thread);
-        }
-        if (machine.guard_thread) {
-            WaitForSingleObject(machine.guard_thread, SC_MACHINE_JOIN_MS);
-            CloseHandle(machine.guard_thread);
         }
         CloseHandle(machine.shutdown_event);
         CloseHandle(machine.parent);
@@ -793,9 +796,14 @@ sc_machine_destroy(void) {
                             SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
         CancelSynchronousIo(machine.writer_thread);
         TerminateProcess(GetCurrentProcess(), 7);
+        abort();
     }
     SetEvent(machine.shutdown_event);
-    WaitForSingleObject(machine.guard_thread, SC_MACHINE_JOIN_MS);
+    if (WaitForSingleObject(machine.guard_thread,
+                            SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
+        TerminateProcess(GetCurrentProcess(), 7);
+        abort();
+    }
     CloseHandle(machine.writer_thread);
     CloseHandle(machine.guard_thread);
     CloseHandle(machine.shutdown_event);

@@ -1099,9 +1099,9 @@ run_server(void *data) {
     // The tunnel is always closed by server_connect_to()
     if (!ok) {
         sc_process_terminate(pid);
-        sc_process_wait(pid, true); // ignore exit code
         sc_process_observer_join(&observer);
         sc_process_observer_destroy(&observer);
+        sc_process_close(pid);
         goto error_connection_failed;
     }
 
