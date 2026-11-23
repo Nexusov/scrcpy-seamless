@@ -92,6 +92,13 @@ Required release pipeline properties:
 Do not manually assemble a local binary and call it an official release once
 the canonical release pipeline exists.
 
+Use the [portable 2.0 build and verification procedure](portable-packaging.md)
+to stage an untagged Windows x64 candidate from committed source. Preserve its
+manifest, inventory, SBOM, ZIP digest and automated check results for the
+[joint acceptance procedure](portable-rc-acceptance.md). Public release requires
+the separate tag and publication decision. Record external attestations only
+when the release infrastructure actually produces them.
+
 ## Development artifacts
 
 Development packages are traceable but untagged.

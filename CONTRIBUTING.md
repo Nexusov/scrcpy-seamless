@@ -2,6 +2,9 @@
 
 Start with a focused issue or pull request describing the behavior you want to
 change. Keep unrelated cleanup separate so reviewers can assess each change.
+For 2.0, use the [portable source build](docs/development/portable-packaging.md),
+[Desktop checks](docs/development/desktop-build.md) and machine conformance
+lanes. Report sensitive issues through the [security process](SECURITY.md).
 
 ## Run the checks
 
@@ -61,8 +64,8 @@ portable ZIP creation, follow [BUILD.md](docs/BUILD.md).
 - Preserve USB, Wi-Fi, combined mode, saved settings, and old launcher compatibility.
 - Never commit `phone.json`, pairing codes, ADB keys, logs, shortcuts, local build
   configuration, downloaded dependencies, or generated ZIPs.
-- Add new runtime modules to the packager's explicit file list and validate a ZIP
-  if you change imports, wrappers, documentation paths, or package layout.
+- Verify the generated portable inventory and a ZIP when changing published
+  dependencies, runtime imports or package layout.
 
 ## Update upstream or publish
 

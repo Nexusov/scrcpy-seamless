@@ -1,8 +1,10 @@
 # Desktop software-renderer servicing boundary
 
-The Windows Desktop keeps Avalonia 12.1.3 and its existing HarfBuzzSharp 8.3.1.3
-adapter. It explicitly resolves SkiaSharp and its native companions to 4.155.2
-through central versions and locked project graphs. The explicit Linux and WASM
+The Windows Desktop keeps Avalonia 12.1.3. It explicitly resolves SkiaSharp and
+its native companions to 4.155.2. The later HarfBuzz servicing entry below
+records the separate shaping update from the original 8.3.1.3 adapter.
+Central versions and locked project graphs pin the selected packages.
+The explicit Linux and WASM
 companion constraints prevent the existing Avalonia dependencies from retaining
 a second 3.119.4 Skia line; they do not add platform acceptance. The macOS
 companion is resolved transitively by the same managed package version.
