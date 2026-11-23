@@ -59,6 +59,20 @@ if ($serverEvidence.SchemaVersion -ne 1 -or $serverEvidence.SourceHead -cne $Sou
     throw 'Source-built Android server evidence is stale or mismatched.'
 }
 
+$serverPins = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'server-toolchain.json') -Raw | ConvertFrom-Json
+$serverTools = $serverEvidence.Toolchain
+
+if ($serverTools.Origin -cnotin @('pinned-cache', 'provisioned') -or
+    $serverTools.JavaRuntimeVersion -cnotmatch '^17[.][0-9.]+[+][0-9]+([.-][a-zA-Z0-9.-]+)?$' -or
+    $serverTools.JdkReleaseSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+    ($serverTools.Origin -ceq 'pinned-cache' -and $serverTools.JavaRuntimeVersion -cne $serverPins.Jdk.Version) -or
+    $serverTools.AndroidPlatform -cne ($serverPins.AndroidPlatform.Package -split ';', 2)[1] -or
+    $serverTools.AndroidPlatformRevision -cne $serverPins.AndroidPlatform.Revision -or
+    $serverTools.AndroidBuildToolsRevision -cne $serverPins.AndroidBuildTools.Revision -or
+    $serverTools.AndroidPlatformToolsRevision -cne $serverPins.AndroidPlatformTools.Revision) {
+    throw 'Android server tool provenance does not match the allowed build inputs.'
+}
+
 function Copy-ReviewedRuntime {
     param([string]$RuntimeDirectory)
 
@@ -272,6 +286,15 @@ THIRD_PARTY.md. Distribute the corresponding-source companion with public releas
         DesktopSdk = $sdk.version
         NativeFingerprint = $nativeFingerprint
         ServerFingerprint = $serverFingerprint
+        ServerToolchain = [ordered]@{
+            Origin = $serverTools.Origin
+            JavaRuntimeVersion = $serverTools.JavaRuntimeVersion
+            JdkReleaseSha256 = $serverTools.JdkReleaseSha256
+            AndroidPlatform = $serverTools.AndroidPlatform
+            AndroidPlatformRevision = $serverTools.AndroidPlatformRevision
+            AndroidBuildToolsRevision = $serverTools.AndroidBuildToolsRevision
+            AndroidPlatformToolsRevision = $serverTools.AndroidPlatformToolsRevision
+        }
         NativeBuildProfile = $nativeEvidence.BuildProfile
         BuildInputSha256 = $inputHashes
         ReviewedArchives = $imports

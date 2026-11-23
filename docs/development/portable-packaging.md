@@ -12,6 +12,8 @@ Use the [native source-build procedure](native-build.md) and the
 executable and its build sidecar together. Keep the Android server and
 server-build.json together. Both build sidecars must identify the commit
 being staged. Staging recomputes both source fingerprints and artifact hashes.
+Build provenance retains the selected Android tool origin, JDK release digest
+and SDK revisions without recording local tool installation paths.
 Build the native component with `scripts/build.ps1 -PortableRelease`. This
 selects the Release configuration and strips symbols from the linked client.
 The stage requires that build profile from the exact committed source.
@@ -60,7 +62,10 @@ and verifies a new extraction in a directory with spaces. Staging and
 verification admit the exact runtime and published dependency paths. The
 check rejects reparse points, unsafe Windows path names, case-insensitive
 duplicates, extra files and hash drift. Independent extraction checks local
-integrity. Compiler output reproducibility and public provenance attestation
+integrity using the stream whose hash was verified. The verifier accepts at
+most 1,024 entries, 512 MiB each for the archive and expanded contents, 128 MiB
+per extracted file and 512 bytes for the checksum sidecar. Compiler output
+reproducibility and public provenance attestation
 are separate claims.
 
 The [legacy 1.x and Desktop DEV procedures](../PACKAGING.md) remain available
