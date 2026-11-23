@@ -119,6 +119,10 @@ function Get-PortablePublishAssets {
                 $name = [IO.Path]::GetFileName($asset.Name)
                 Assert-PortableName $name
 
+                if ($name.EndsWith('.pdb', [StringComparison]::OrdinalIgnoreCase)) {
+                    continue
+                }
+
                 if ($name -cnotmatch '\.dll$' -and $name -cne 'createdump.exe') {
                     throw "Unexpected Desktop runtime asset: $name"
                 }
