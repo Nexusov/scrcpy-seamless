@@ -2,12 +2,22 @@
 
 Phase 6B links vendored MIT yyjson and the IPC codecs into the native client.
 Only explicit `--seamless-machine` activation uses framed binary stdio;
-ordinary CLI and the accepted legacy Desktop host remain separate. Native
+ordinary CLI uses its usual selectors and one attempt. The private legacy
+launcher Stop and reconnect adapters live in `app/tests/legacy/` only. Native
 machine-mode ownership and event boundaries are documented in
 ../../docs/development/desktop-native-runtime.md; exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md.
 
 Scope: `src/scrcpy/`.
+
+Focused native keyboard actions use the generated catalog from
+`spec/options/native-shortcuts.json`. Change that source and run SpecGen rather
+than editing `shortcut_actions.generated.inc`. `shortcut-bindings` is a bounded
+immutable invocation override; the input manager owns semantic dispatch and
+the existing mode/readiness gates. Captured DOWN/UP state contains generation
+values only. Detach and focus loss must consume old releases/repeats without
+resolving a replacement endpoint. Do not add global input hooks or another
+input/IPC architecture for remapping.
 
 This tree currently contains the scrcpy-derived desktop client and Android
 server baseline used by Seamless 1.x. Preserve upstream copyright and
@@ -46,6 +56,51 @@ join producers, release completion callers, then remove exact-instance wakeups
 and destroy. Quiesce all threads using a completion handle before releasing its
 sole caller reference; cancellation does not release executing payload storage.
 Machine Stop/Focus remains on its application-scoped SDL path.
+P7.3 shipping orchestration uses the stable `app/src/session.h` owner. Detach
+input and close notification admission, revoke, request stop/unblock, join all
+borrowers/publishers, then destroy. In particular join receiver and AOA before
+ACK destruction; decoder/delay sink-close cascades keep their single owner.
+Application presentation/dispatcher/options outlive each owner. P7.4 reserves
+one parked `session_retirement` worker before graph acquisition. Main prepares
+retirement (input detach, notification/dispatcher revoke); worker requests
+module stop, joins borrowers and releases external destinations. Main consumes
+the release/acquire receipt before notification filtering and owner free.
+Presentation helper joins use the same worker; SDL destruction stays on main.
+Pump only application/window work while input is detached. Preserve an already
+selected terminal failure when a later Quit cancels pending retry. Persistent
+worker shutdown must observe actual SDL_THREAD_COMPLETE before reaping; neither
+a timeout nor cancellation authorizes freeing live storage. The synchronous
+owner APIs remain for direct module tests; normal mirroring uses worker stages.
+Do not relocate live synchronization storage.
+Read generation counters only after joining their publishers and after the
+SDL stream has settled its audio callback. Export only through the negotiated
+best-effort machine observation. Absent counters stay absent. Keep this data
+separate from readiness, termination and memory-bound assertions.
+Phase 8 machine launches carry the immutable, bounded connection plan described
+in `../../spec/desktop-native/CONNECTION_PLAN.md`; never reconstruct it from
+Status text or private reconnect environment values. The pure connection manager
+owns finite attempts/backoff/deadline and emits effects once. The resolver owns
+its interruptible worker and exact query children until real settlement; cancel
+is not join. Keep initial selected network identity separate from retry discovery.
+See `../../docs/architecture/CONNECTION_MANAGER.md` for generation/recording,
+capability and effect bounds. Recorders publish output readiness before sinks
+borrow the context; segment numbering follows joined actual-open receipts.
+
+P7.5 application orchestration lives in `app/src/app.c`; `scrcpy.c` is only an
+entry shim. The recovery adapter captures invocation inputs once and passes
+explicit selectors/connect intent to server parameters. The server must not
+read reconnect policy from environment. Keep one scoped event source and one
+current owner; no second reconnect loop or cross-generation restart label.
+`session_notifications.h` retains at most connected plus first terminal without
+allocation. Its exact application/generation SDL wakes preserve ordinary FIFO
+against Quit; only observed wakes or settled failed wakes may be consumed.
+Evaluate outcomes outside the dispatcher drain lease and before another wait;
+retain the bounded failed-wake poll and sticky Stop gate before replacement.
+After publisher joins remove only exact-instance wake values, never broad-flush
+user events. Screen disconnection helper latches are application-owned and are
+joined before their icon/context release. Audio stream destruction, not pause
+alone, supplies callback exclusion; preserve the pinned SDL source/runtime
+provenance distinction and isolated dummy-backend tests.
 P7.2 presentation uses `app/src/video_ingress.h` and a generation-owned sink
 bridge. The single dispatcher binding is `sc_generation_targets` for both
 presentation and receiver UHID resolution. Input borrowing lives only in

@@ -46,6 +46,10 @@ struct sc_aoa {
     struct sc_aoa_event_queue queue;
 
     struct sc_acksync *acksync;
+
+    // Set before worker startup; the callback owner survives sc_aoa_join().
+    void (*on_open_error)(void *userdata);
+    void *on_open_error_userdata;
 };
 
 bool
@@ -53,6 +57,12 @@ sc_aoa_init(struct sc_aoa *aoa, struct sc_usb *usb, struct sc_acksync *acksync);
 
 void
 sc_aoa_destroy(struct sc_aoa *aoa);
+
+/** Bind the owning generation's error handoff before starting its worker. */
+void
+sc_aoa_set_error_callback(struct sc_aoa *aoa,
+                          void (*on_open_error)(void *userdata),
+                          void *userdata);
 
 bool
 sc_aoa_start(struct sc_aoa *aoa);

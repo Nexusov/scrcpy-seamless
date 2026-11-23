@@ -1497,6 +1497,23 @@ public static class GeneratedOptionCatalog
         },
         new OptionDescriptor
         {
+            Id = "shortcut-bindings",
+            LongName = "shortcut-bindings",
+            Aliases = [],
+            Classification = OptionClassification.Editable,
+            ArgumentShape = OptionArgumentShape.Required,
+            ArgumentHint = "json",
+            ValueKind = OptionValueKind.String,
+            EnumValues = [],
+            Requires = [],
+            Conflicts = [],
+            RuleIds = ["native-shortcut-bindings"],
+            Category = "Control",
+            LabelResourceKey = "options.shortcut-bindings.label",
+            DescriptionResourceKey = "options.shortcut-bindings.description",
+        },
+        new OptionDescriptor
+        {
             Id = "shortcut-mod",
             LongName = "shortcut-mod",
             Aliases = [],

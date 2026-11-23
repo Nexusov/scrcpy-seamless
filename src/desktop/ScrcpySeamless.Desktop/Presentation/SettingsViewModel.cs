@@ -258,7 +258,7 @@ public sealed class SettingsViewModel : ObservableViewModel
                 .Select(category => new SettingsCategory(category, text.Get($"settings.category.{category}"))))
             .ToArray());
         allRows = GeneratedOptionCatalog.All
-            .Where(option => option.Classification == OptionClassification.Editable)
+            .Where(option => option.Classification == OptionClassification.Editable && option.Id != NativeShortcutBindings.OptionId)
             .Select(option => new OptionRowViewModel(option, draft, text, Validate))
             .ToArray();
         VisibleRows = [];
@@ -271,6 +271,7 @@ public sealed class SettingsViewModel : ObservableViewModel
         DesktopSectionLabel = text.Get("settings.section.desktop");
         ShortcutsSectionLabel = text.Get("settings.section.shortcuts");
         ShortcutReference = new NativeShortcutReference(text);
+        ShortcutEditor = new NativeShortcutEditor(draft, text, Validate);
         ConfigurationApplyLabel = text.Get("settings.configuration.apply");
         ConfigurationCancelLabel = text.Get("settings.configuration.cancel");
         MigrationPrepareLabel = text.Get("settings.migration.prepare");
@@ -290,6 +291,7 @@ public sealed class SettingsViewModel : ObservableViewModel
     public string DesktopSectionLabel { get; }
     public string ShortcutsSectionLabel { get; }
     public NativeShortcutReference ShortcutReference { get; }
+    public NativeShortcutEditor ShortcutEditor { get; }
     public string ConfigurationApplyLabel { get; }
     public string ConfigurationCancelLabel { get; }
     public string ConfigurationReloadLabel => text.Get(Configuration?.ReloadRequiresDiscard == true
@@ -448,6 +450,7 @@ public sealed class SettingsViewModel : ObservableViewModel
     public void RefreshValues(IReadOnlyDictionary<string, JsonElement> values)
     {
         draft.Replace(values);
+        ShortcutEditor.Reload();
 
         foreach (OptionRowViewModel row in allRows)
         {
@@ -519,6 +522,7 @@ public sealed class SettingsViewModel : ObservableViewModel
     private void ResetDraft()
     {
         draft.Reset();
+        ShortcutEditor.Reload();
 
         foreach (OptionRowViewModel row in allRows)
         {

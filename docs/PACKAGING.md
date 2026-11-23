@@ -1,5 +1,7 @@
 # Packaging provenance
 
+For the 2.0 portable ZIP, follow the [Windows x64 portable package guide](development/portable-packaging.md). The provenance rules below govern 1.x.
+
 `release-manifest.json` owns the release/build labels and reviewed runtime hashes.
 `launcher/version.ps1` reads this manifest from the repository or packaged `app/`.
 

@@ -1,6 +1,120 @@
 # Seamless 2.0 execution plan
 
-Current status on 2026-10-03: Phase 6C is accepted for engineering integration
+## Autonomous technical completion — current authority
+
+On 2026-11-23 the maintainer authorized continuous technical completion of the
+remaining agreed 2.0 scope, including P7.4–P7.6 and Phases 8–13. Development now
+continues on `2.0/autonomous-completion` from the P7.3 source
+`0f5a165b9700cddb564c4df15ba1e15d59fff737`, which contains the five preserved
+P7.3 commits above integration base `799c5a31a5322815401c5b2a6cb93ac0f688ff24`.
+PR #17, its frozen candidate and its artifacts remain historical reference
+points; they need not be merged before dependent development. Its retained
+successful run `39663494758`, synthetic checkout
+`4986e925f644de5368faa5d08d32285434cda2cb`, validates that candidate only.
+
+This authorization supersedes earlier organizational instructions to stop at
+each checkpoint, await source review, request permission for the next phase or
+require an intermediate hardware smoke before implementation continues. It does
+not change technical dependencies, ownership/safety contracts or historical
+acceptance. Implement, test, independently review applicable risks, correct
+demonstrated findings and commit coherent verified changes before continuing.
+No new phase is complete merely because work on it is authorized. P7.3 is not
+thereby accepted or integrated, and no new runtime inherits old hardware passes.
+
+Normal non-forced pushes are authorized only for this task's work branch, with
+one implementation PR into `seamless-2.0` and auto-merge disabled. Merge, direct
+integration/stable branch writes, force/history rewriting, branch/artifact
+deletion, release tags/public releases and repository-setting changes remain
+outside scope. Physical devices, shared ADB, personal profiles/installation and
+the real clipboard remain isolated from development; synthetic/dummy automation
+is permitted. Joint hardware/manual acceptance and release approval follow
+technical completion. Missing hardware approval is not a development blocker.
+
+### Required outcome matrix
+
+The [accepted target](../../architecture/SEAMLESS_2_TARGET.md),
+[lifetime contract](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md), ordered
+roadmap below and maintainer's autonomous-completion instruction define this
+matrix. Existing foundations are starting points, not proof of final parity.
+Update each row with source-specific results as its remaining work is closed.
+
+| Required 2.0 outcome | Existing implementation | Remaining technical work | Automatic verification | Final joint/manual check |
+| --- | --- | --- | --- | --- |
+| Persistent app/presentation with replaceable generations (P7) | Stable owner, asynchronous retirement, exact SDL completion, one coordinator | Final combined gates and runtime boundary review | Blocked-worker responsiveness, failure/partial-init matrices, 100 controlled replacements with ownership accounting | USB/recovery/Stop on final bytes |
+| Recovery and transport policy (P8) | Explicit launch plan, bounded resolver and ConnectionManager with failure types, retry, hysteresis and degradation | Final combined gates | Controlled clocks, cancellation, independent ownership and retry limits | Permitted USB-to-Wi-Fi recovery and Stop |
+| Recording, headless and deadline (P8) | Numbered exclusive recording segments, joined outcome, preflight parity, invocation deadline and zero compatibility | Final combined gates | Recording failure/muxer retention, deadline and overload fixtures | When used, segment playback and deadline across recovery |
+| Upstream and protocol (P9) | [Selective ports and dispositions](../../upstream/PORTS.md), [C/Java device wire](../../../spec/device-protocol/PROTOCOL.md), preserved IPC contract | Final selected client/server and provenance verification | Bidirectional codecs, portable source server, defined managed/native entry points | Hardware compatibility of final pair |
+| Config, options and activation (P3–P6, P10) | Typed v2 authority, detached drafts, one-way explicit import, bounded same-root activation and machine child I/O | Final package and process gates | Restores, SpecGen, CAS/migration, activation, exact-child and parent-death | Representative private-copy migration and normal startup |
+| Control center and product scope (P10) | Guided setup, concurrent sessions, separated channel evidence, 34-action shortcut editor and explicit release check | Final combined UI review | Headless workflows, release cancellation, runtime guard and actual shortcut dispatch | Two devices where available, native shortcut scope and Focus |
+| Localization and accessibility (P5/P10/P12) | Compiled bindings, resources, keyboard/automation and software raster fixtures | Final focused automated checks and explicit coverage limits | Headless bindings, layout and rendering | Screen reader and multi-monitor DPI |
+| Canonical portable path (P11) | No-argument Desktop, adjacent machine runtime, source Native and Android, generated package inventory. Legacy process adapters are test fixtures. | Final package from clean candidate and packaged process checks | ZIP extraction with spaces, no-device bootstrap/Stop/parent-death and legacy fixture coverage | Fresh portable root without a launcher |
+| Runtime hardening and diagnostics (P12) | Retained-work limits, packet leases through muxer interleaving, bounded configuration and archive reads, explicit JSONL export with negotiated post-join generation counters | Final candidate validation and coverage review | Worker/queue and dummy PCM cases, trap-mode UBSan, compiler analysis, conformance, redaction and packaging checks | Audible output and hardware measurements on final bytes |
+| Distribution and dependency hygiene (P9/P12) | Serviced graphics/shaping packages, pinned imports, package notices/SBOM/checksums, private-reporting policy | Validate the final closure and hosted gate | Lock/provenance/notice and image/raster checks | Review candidate limitations and redistribution obligations |
+| Final candidate and handoff (P12/P13) | Canonical staging/verification and [joint manual procedure](../../development/portable-rc-acceptance.md) | Build, inspect and run checks against exact candidate bytes. Correlate final local/hosted results. | Full source lanes and packaged no-device test, exact archive inventory and SHA-256 | Joint artifact-specific manual acceptance, then separate publication decision |
+
+The [competitive feature matrix](../../research/COMPETITIVE_FEATURE_MATRIX.md)
+records pinned references and the 2.0 scope decisions. Existing product
+requirements above govern the implementation. Embedded mirror, full translations/runtime language
+switching, new official desktop platforms, plugin marketplace, HTTP automation,
+updater, CMake migration and mandatory Native AOT remain outside this 2.0 task.
+The adopted master charter's hash and accepted decisions remain recorded in the
+target document; its original input was not found at the known Downloads path
+or in the repository/work filenames during this recovery. No content is
+invented for that missing historical file; the accepted canonical target and
+the current self-contained authorization remain available. The ADR index has
+no accepted or proposed records to apply at this starting point.
+
+Maintain resumable local state at ignored `work/2.0-autonomous/state.md` with
+current task, branch/HEAD, pending changes, source-specific checks/findings and
+the next concrete action. Do not put raw logs, secrets or device data in Git.
+The current branch contains the retirement worker, application coordinator and
+connection manager. The matrix above separates implementation, candidate gates
+and joint/manual acceptance.
+
+## Preserved P7.3 and integration status
+
+Recorded status on 2026-10-21: P7.2 is accepted for engineering integration through
+[PR #16](https://github.com/Nexusov/scrcpy-seamless/pull/16#issuecomment-6322014379),
+actual merge `799c5a31a5322815401c5b2a6cb93ac0f688ff24`, ordered parents
+`7dff15837c4c39dd63f8488500d5f5c5c423027e` and
+`e8dc1259103f713904bc826c0a22a8cad455c6bf`, tree
+`ef69d301e2aef0107e90b6eb07c9776e7da752d2`. Five granular work commits are
+preserved. Separate push run [39642247608](https://github.com/Nexusov/scrcpy-seamless/actions/runs/39642247608),
+attempt 1, completed all four jobs successfully; complete job logs identify
+the actual merge checkout. This baseline does not validate P7.3.
+
+P7.3 is authorized on `2.0/p07-3-generation-graph` from that merge. Its bounded
+[owner/release contract](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p73-implementation-contract-recorded-before-production-changes)
+retains sequential retirement and synchronous joins. P7.4–P7.6 and Phase 8 are
+unstarted. Frozen `ge8dc1259` and all earlier artifacts/evidence remain unchanged;
+the [artifact-specific results and watch items](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-integration-and-artifact-specific-carry-forward)
+do not transfer to changed native bytes. Historical geometry and P7.1 activation
+CI cause remain unresolved, non-blocking engineering-integration watch items.
+This is not completion of Phase 7 or public release acceptance.
+
+P7.3's committed implementation is `b038f1d874db997cdfcf9092a9ce2d3df95bf9ff`.
+Implementation-source validation passed 33/33 canonical native checks, 35/35 additional
+USB-enabled checks, 556/556 managed tests, bidirectional conformance, eight
+owned-process/bootstrap/parent-death tests and separate 29/29 source/archive
+legacy lanes. The clean-source native build and exact evidence boundaries are
+in the [final validation record](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fresh-final-validation-and-proposed-runtime-gate).
+Subsequent [fixture teardown review](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#fixture-dispatcher-teardown-correction)
+demonstrated unchecked false destruction in three targets/six exits before
+adding application shutdown. The correction changes only those fixtures and
+their documentation; fresh canonical/USB debug checks passed 33/33 and 35/35
+with zero pre-shutdown ownership counts and required shutdown/destroy results.
+The original runs retain their actual assertions but did not check these
+dispatcher releases. The original native artifact remains unchanged; corrective
+source-specific build/process evidence is kept separately, with no DEV bundle.
+Independent P7.3 review remains pending; no Desktop DEV package/hardware gate,
+PR, integration or later checkpoint follows automatically from these results.
+
+## Prior integration decisions and development checkpoints
+
+The following dated entries retain their original evidence boundaries. Their
+then-pending checkpoint statements do not override the current status above.
+
+Status on 2026-10-03: Phase 6C is accepted for engineering integration
 and continued development through [PR #12](https://github.com/Nexusov/scrcpy-seamless/pull/12)
 merge `f08e603f0a4187b227c67a1eec4d845b814e095e`. Its ordered parents are
 `85197957352c1606ce4d96970bf7a20d3ee1f531` and
@@ -879,18 +993,18 @@ and pins them; planning-date observations are not installation instructions.
 ## Phase 7 planning checkpoint index
 
 The [detailed lifetime plan](../../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md)
-owns the historical source map, implemented P7.1/P7.2 contracts, proposed later
+owns the historical source map, implemented P7.1/P7.2/P7.3 contracts, proposed later
 contracts, tests and exit criteria. This index summarizes their scoped status
 and does not authorize later checkpoints.
 
 | Checkpoint | Dependency | Proposed bounded result | Status |
 | --- | --- | --- | --- |
 | P7.1 | Approved plan at `dbb0a9b`; bounded implementation authorization | App dispatcher, generation admission and receiver payload/waiter ownership | Accepted for engineering integration through PR #15; exact merge and evidence limits are recorded in the current summary. Only migrated work has the new generation guarantee; original activation CI causality remains unresolved. |
-| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Implemented with bounded delayed-first-frame correction; pending independent acceptance. Fresh correction checks: 25 native targets including nine delay-composition groups, 556 managed tests, bidirectional IPC, eight process tests and separate 29/29 source/archive legacy lanes. No new Desktop package or hardware pass. |
-| P7.3 | P7.2 | Explicit generation graph and complete scoped producer migration | Proposed; not started |
-| P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Proposed; not started |
-| P7.5 | P7.4 | One app coordinator and equivalent legacy recovery adapter | Proposed; not started |
-| P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Proposed; not started |
+| P7.2 | Accepted P7.1 | Presentation/input/frame ingress separation | Accepted for engineering integration through PR #16 merge `799c5a31…`; artifact-specific buffered smoke and single geometry check remain bounded as recorded above. Historical geometry causality is unresolved. |
+| P7.3 | Accepted P7.2 and bounded implementation authorization | Explicit generation graph and complete scoped producer migration | Implemented source checkpoint pending independent review. Stable owner/stage cleanup, scoped value notifications, direct ACK release proof and actual SDL dummy callback settlement; synchronous joins and platform/backend limits remain. No new Desktop DEV package or hardware pass. |
+| P7.4 | P7.3 | Serviceable asynchronous retirement with main-thread SDL finalization | Implemented on the autonomous branch |
+| P7.5 | P7.4 | One app coordinator; the later canonical cutover removes the private legacy recovery adapter | Implemented on the autonomous branch |
+| P7.6 | P7.5 | Consolidated production-linked parity and exact-artifact acceptance gate | Controlled replacement lane implemented; final manual checks remain separate |
 
 Phase 8 retains new transport/retry/backoff/hysteresis/degradation and
 recording/headless/deadline policy; Phase 12 retains broad diagnostic export and
@@ -1179,3 +1293,49 @@ launcher, observer and their tests are unchanged by Phase 3; do not weaken
 their timing assertions. The hosted `test` job and other PR #4 checks passed
 before integration. The local timing limitation remains part of the handoff
 evidence.
+
+## P10 bounded concurrent workspace implementation contract
+
+The control center owns a bounded collection of at most eight per-child
+`DeviceSessionViewModel` entries through `SessionsWorkspaceViewModel`. Selection
+changes presentation only. Each child retains the existing single lifecycle
+consumer, committed launch snapshot, late-child cleanup and typed evidence.
+`ControlCenterSessions` reserves one SessionId/ProfileId before host creation;
+failed/cancelled launch releases only after its possible late child settles,
+and cleanup failure retains the reservation. VM ownership-gate operations do
+not hold the registry lock across process/I/O or UI callbacks. The registry
+never calls into a VM while holding its lock.
+
+Exact-session activation searches the owned entries by SessionId. Closing the
+control center settles all entries independently before device-operation
+cleanup; a failure keeps the workspace available with ownership retained.
+Idle entries may be removed explicitly; an owned or starting entry cannot be
+removed. The Devices launch pane remains a selection facade over these same
+owners rather than creating a second lifetime consumer.
+
+Sessions and Diagnostics become real destinations using the existing design
+and bounded observations. Guided empty-state actions navigate existing
+Devices/Profile setup and reuse their draft/Apply/Cancel contracts; they do not
+pair, refresh ADB or mutate configuration implicitly. Video/audio/control facts
+remain independent: a presented video frame does not establish audible audio
+or usable control. Explicit subsystem degradation marks that channel unavailable;
+unknown stays unknown. No new protocol observation or raw diagnostic export is
+invented. Preview composition constructs no live owner, native host or ADB.
+
+Verification targets simultaneous synthetic children, per-profile reservation,
+late cancelled acquisition, exact Focus/Stop, off-page lifecycle/degradation,
+shutdown cleanup failure and bounded entry admission. Existing single-child,
+committed-snapshot, preview and configuration suites remain applicable. This
+slice does not implement native shortcut remapping or release checking and
+does not establish hardware/multi-monitor/screen-reader acceptance.
+
+The Group 1 implementation passed 150 Desktop headless tests at normal test
+concurrency. Its focused owner/channel/view lane passed 44 tests, including two
+simultaneous synthetic children, exact-session Focus, retained cleanup failure,
+cancelled late acquisition, all-entry shutdown, entry limits, realized Sessions
+and Diagnostics bindings, preview isolation and off-page channel degradation.
+The added fixture initially assumed a single failed disposal prevented a later
+successful cleanup; that one failing fixture was replaced by a controlled
+persistent disposal gate. This was a test assumption correction, not a product
+cleanup defect or a historical CI diagnosis. Full managed-solution validation
+belongs to the owning completion gate, separately from this Desktop run.

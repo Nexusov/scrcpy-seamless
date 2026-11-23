@@ -75,7 +75,7 @@ public sealed class VersionedDesktopPreferencesStore
 
         try
         {
-            bytes = await File.ReadAllBytesAsync(preferencesFile, cancellationToken).ConfigureAwait(false);
+            bytes = await ConfigurationDocument.ReadAsync(preferencesFile, cancellationToken).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {
@@ -84,6 +84,11 @@ public sealed class VersionedDesktopPreferencesStore
         catch (DirectoryNotFoundException)
         {
             return new DesktopPreferencesReadResult(DesktopPreferencesReadStatus.Missing, new DesktopPreferences(), null, []);
+        }
+        catch (InvalidDataException)
+        {
+            return new DesktopPreferencesReadResult(DesktopPreferencesReadStatus.Invalid, null, null,
+                [new ValidationIssue(CoreErrorCode.InvalidConfiguration, "$")]);
         }
 
         return Parse(bytes);
@@ -105,6 +110,13 @@ public sealed class VersionedDesktopPreferencesStore
         }
 
         byte[] newBytes = JsonSerializer.SerializeToUtf8Bytes(preferences, SerializationOptions);
+
+        if (newBytes.Length > ConfigurationDocument.MaximumBytes)
+        {
+            return new DesktopPreferencesCommitResult(DesktopPreferencesCommitStatus.InvalidPreferences, null,
+                [new ValidationIssue(CoreErrorCode.InvalidConfiguration, "$")]);
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(preferencesFile)!);
         using Mutex mutex = new(initiallyOwned: false, mutexName);
         bool acquired;
@@ -130,11 +142,16 @@ public sealed class VersionedDesktopPreferencesStore
 
             try
             {
-                currentBytes = File.ReadAllBytes(preferencesFile);
+                currentBytes = ConfigurationDocument.Read(preferencesFile);
             }
             catch (FileNotFoundException)
             {
                 currentBytes = null;
+            }
+            catch (InvalidDataException)
+            {
+                return new DesktopPreferencesCommitResult(DesktopPreferencesCommitStatus.InvalidExistingDocument, null,
+                    [new ValidationIssue(CoreErrorCode.InvalidConfiguration, "$")]);
             }
 
             string? currentRevision = currentBytes is null ? null : RevisionOf(currentBytes);

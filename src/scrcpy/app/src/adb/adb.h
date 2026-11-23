@@ -24,6 +24,12 @@ sc_adb_destroy(void);
 const char *
 sc_adb_get_executable(void);
 
+/* Bounded owned query. The caller provides arguments including the executable.
+ * Truncated output is rejected after terminating and reaping that exact child. */
+bool
+sc_adb_query(struct sc_intr *intr, const char *const argv[], char *output,
+              size_t capacity);
+
 enum sc_adb_device_selector_type {
     SC_ADB_DEVICE_SELECT_ALL,
     SC_ADB_DEVICE_SELECT_SERIAL,

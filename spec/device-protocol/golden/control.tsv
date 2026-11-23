@@ -1,0 +1,27 @@
+# Independent canonical wire bytes; id<TAB>hex. No codec generates this file.
+keycode	00010000002a0102030411223344
+text	010000000441e282ac
+touch	0202fedcba9876543210ffffff85000001c80438078080000000000100000005
+scroll	030000002a00000063032002588000400000000001
+back	0400
+expand-notifications	05
+expand-settings	06
+collapse-panels	07
+get-clipboard	0802
+set-clipboard	09fedcba9876543210010000000441e282ac
+display-power	0a01
+rotate	0b
+uhid-create	0c12340abc00ff01550003050109
+uhid-input	0d1234000300ff80
+uhid-destroy	0e1234
+keyboard-settings	0f
+start-app	10106f72672e6578616d706c652e64656d6f
+reset-video	11
+camera-torch	1201
+camera-zoom-in	13
+camera-zoom-out	14
+resize-display	150a0005a0
+text-empty	0100000000
+set-clipboard-empty	0900000000000000000000000000
+display-power-off	0a00
+touch-pressure-one	0202fedcba9876543210ffffff85000001c804380780ffff0000000100000005

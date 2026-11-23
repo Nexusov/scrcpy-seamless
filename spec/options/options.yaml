@@ -1079,6 +1079,21 @@ options:
     pattern: "^\\d+$"
     minimum: 0
     maximum: 2147483
+  - id: "shortcut-bindings"
+    longName: "shortcut-bindings"
+    nativeId: "OPT_SHORTCUT_BINDINGS"
+    nativeNumericId: 1094
+    argumentShape: "required"
+    argumentHint: "json"
+    nativeHelp: "Override focused mirror keyboard actions with a bounded JSON object of action IDs to gestures. An empty gesture disables an action; omitted actions keep their defaults. Use Settings Shortcuts for the action list and validation. This does not install global shortcuts."
+    classification: "editable"
+    category: "Control"
+    valueKind: "string"
+    label: "Mirror shortcut bindings"
+    description: "Edit focused mirror action bindings in Settings Shortcuts. Saved mappings apply to the next launch."
+    legacySeamlessCompatible: false
+    ruleIds:
+      - "native-shortcut-bindings"
   - id: "shortcut-mod"
     longName: "shortcut-mod"
     nativeId: "OPT_SHORTCUT_MOD"
@@ -1436,3 +1451,15 @@ options:
     category: "Technical"
     valueKind: "unsignedInteger"
     label: "Machine parent creation time"
+  - id: "seamless-connection-plan"
+    longName: "seamless-connection-plan"
+    nativeId: "OPT_SEAMLESS_CONNECTION_PLAN"
+    nativeNumericId: 1093
+    argumentShape: "required"
+    argumentHint: "json"
+    nativeHelp: "Internal: carry an immutable bounded versioned Desktop connection plan."
+    classification: "managed"
+    internalOnly: true
+    category: "Technical"
+    valueKind: "string"
+    label: "Machine connection plan"

@@ -115,6 +115,12 @@
     </Style>
   </Application.Styles>
   <Application.DataTemplates>
+    <DataTemplate DataType="{x:Type vm:SessionsWorkspaceViewModel}">
+      <views:SessionsView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:DiagnosticsWorkspaceViewModel}">
+      <views:DiagnosticsView />
+    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:DeviceSessionViewModel}">
       <views:DeviceSessionView />
     </DataTemplate>

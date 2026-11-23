@@ -33,6 +33,20 @@ enum sc_input_binding_state {
 
 struct sc_input_gamepad;
 
+/* Represent every SDL physical key plus bounded unknown-scancode aliases. */
+#define SC_SHORTCUT_MAX_PRESSED (SDL_SCANCODE_COUNT + SC_SHORTCUT_ACTION_COUNT * SC_SHORTCUT_MAX_ALIASES)
+
+struct sc_shortcut_press {
+    SDL_Scancode scancode;
+    SDL_Keycode key;
+    enum sc_shortcut_action action;
+    uint64_t generation;
+    bool active;
+    bool paired_down;
+    bool repeat_admitted;
+    bool text_claim;
+};
+
 struct sc_input_manager {
     // P7.2: the only generation endpoint binding; SDL main-thread access only.
     struct sc_input_binding binding;
@@ -47,6 +61,8 @@ struct sc_input_manager {
     bool clipboard_autosync;
 
     uint16_t sdl_shortcut_mods;
+    struct sc_shortcut_map shortcuts;
+    struct sc_shortcut_press shortcut_presses[SC_SHORTCUT_MAX_PRESSED];
 
     bool vfinger_down;
     bool vfinger_invert_x;
@@ -72,6 +88,7 @@ struct sc_input_manager_params {
     bool legacy_paste;
     bool clipboard_autosync;
     uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
+    const struct sc_shortcut_bindings *shortcut_bindings;
 };
 
 void

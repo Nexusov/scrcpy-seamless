@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <libusb-1.0/libusb.h>
 
-#include "events.h"
 #include "util/log.h"
 #include "util/str.h"
 #include "util/tick.h"
@@ -81,8 +80,19 @@ sc_aoa_init(struct sc_aoa *aoa, struct sc_usb *usb,
     aoa->stopped = false;
     aoa->acksync = acksync;
     aoa->usb = usb;
+    aoa->on_open_error = NULL;
+    aoa->on_open_error_userdata = NULL;
 
     return true;
+}
+
+/** Capture the owner's generation handoff before any AOA callback can run. */
+void
+sc_aoa_set_error_callback(struct sc_aoa *aoa,
+                          void (*on_open_error)(void *userdata),
+                          void *userdata) {
+    aoa->on_open_error = on_open_error;
+    aoa->on_open_error_userdata = userdata;
 }
 
 void
@@ -374,8 +384,9 @@ sc_aoa_process_event(struct sc_aoa *aoa, struct sc_aoa_event *event,
             } else {
                 LOGW("Could not open AOA device: %" PRIu16, hid_open->hid_id);
                 if (event->open.exit_on_error) {
-                    // Notify the error to the main thread, which will exit
-                    sc_push_event(SC_EVENT_AOA_OPEN_ERROR);
+                    // The retained owner publishes a captured generation value.
+                    assert(aoa->on_open_error);
+                    aoa->on_open_error(aoa->on_open_error_userdata);
                 }
             }
 

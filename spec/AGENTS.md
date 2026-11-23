@@ -15,9 +15,26 @@ codec and call that cross-language validation.
 The `desktop-native/runtime-contract.json` build claim is copied into 6C DEV
 runtime manifests; the Infrastructure parity test checks its product, version
 and required capabilities against the managed protocol constants. The claim
-does not replace the actual native handshake.
+also declares a separate ConnectionPlanVersion for the bounded launch-plan
+bootstrap and ShortcutBindingsVersion for focused semantic keyboard remapping,
+without changing IPC v1. Missing older claims are incompatible with
+the new Desktop host, not evidence of corrupt historical bytes. The claim does
+not replace the actual native handshake.
+
+`options/native-shortcuts.json` is the bounded semantic keyboard catalog.
+SpecGen projects its identities, contexts, aliases and condition references to
+native/Core definitions. Preserve native execution gates and reject conflicting
+effective maps; do not hand-edit either generated action catalog. Native option
+overrides use the existing mirroring configuration draft and schema.
 
 Scope: `spec/`.
+
+The separate Android control-channel contract is `device-protocol/PROTOCOL.md`.
+Its independent literal/boundary/UTF-8 goldens feed actual C/Java codecs through
+`scripts/test-device-protocol.ps1`. Preserve unsigned bit patterns, strict
+NUL-free text versus binary UHID data, and both actual interop directions.
+Never regenerate expected bytes from a production serializer or equate this
+control-codec lane with media/device/runtime validation.
 
 Read the root `AGENTS.md` and [option development guide](../docs/development/options.md) before changing option metadata.
 

@@ -353,20 +353,49 @@ public class NewDisplayCapture extends SurfaceCapture {
         this.videoConstraints = videoConstraints;
     }
 
+    static final class ResizeTarget {
+        private final DisplayProperties logical;
+        private final Size physical;
+        private final int dpi;
+
+        ResizeTarget(DisplayProperties logical, Size physical, int dpi) {
+            this.logical = logical;
+            this.physical = physical;
+            this.dpi = dpi;
+        }
+
+        DisplayProperties getLogical() {
+            return logical;
+        }
+
+        Size getPhysical() {
+            return physical;
+        }
+
+        int getDpi() {
+            return dpi;
+        }
+    }
+
+    /** Pure preparation is shared by actual resize and isolated geometry tests. */
+    ResizeTarget prepareResize(Size size, DisplayInfo displayInfo) {
+        size = size.constrain(videoConstraints, false);
+        int displayRotation = displayInfo.getRotation();
+
+        if (captureOrientation.isSwap()) {
+            size = size.rotate();
+        }
+        Size physical = (displayRotation % 2) == 0 ? size : size.rotate();
+        return new ResizeTarget(new DisplayProperties(size, displayRotation), physical, displayInfo.getDpi());
+    }
+
     private synchronized void triggerResize(Size size) {
         if (virtualDisplay != null) {
-            size = size.constrain(videoConstraints); // in case the constraints have changed
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
-            int displayRotation = displayInfo.getRotation();
-            if (captureOrientation.isSwap()) {
-                size = size.rotate();
-            }
-            tracker.pushClientRequest(new DisplayProperties(size, displayRotation));
-
-            // Although the display size (as detected by the DisplayMonitor) is rotated, the virtual display itself is not
-            Size vdSize = (displayRotation % 2) == 0 ? size : size.rotate();
-            virtualDisplay.resize(vdSize.getWidth(), vdSize.getHeight(), dpi);
+            ResizeTarget target = prepareResize(size, displayInfo);
+            tracker.pushClientRequest(target.getLogical());
+            virtualDisplay.resize(target.getPhysical().getWidth(), target.getPhysical().getHeight(), target.getDpi());
         }
     }
 }

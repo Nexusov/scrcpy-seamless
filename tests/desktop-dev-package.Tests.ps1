@@ -76,6 +76,38 @@ function Assert-RejectedPackage {
     }
 }
 
+# Model an archive already produced by older tools, without running old binaries.
+function New-HistoricalSyntheticArchive {
+    param([string]$Directory, [string]$Archive)
+
+    $files = [string[]]@(Get-ChildItem -LiteralPath $Directory -File -Recurse |
+        Where-Object { $_.Name -ne 'dev-package-manifest.json' } |
+        ForEach-Object { $_.FullName.Substring($Directory.Length).TrimStart('\', '/').Replace('\', '/') })
+    [Array]::Sort($files, [StringComparer]::Ordinal)
+    $hashes = [ordered]@{}
+
+    foreach ($name in $files) {
+        $hashes[$name] = (Get-FileHash -LiteralPath (Join-Path $Directory $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+
+    [ordered]@{ SchemaVersion = 1; SourceSha = $sourceSha; Files = $hashes } |
+        ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'dev-package-manifest.json') -Encoding UTF8
+    $zip = [IO.Compression.ZipFile]::Open($Archive, [IO.Compression.ZipArchiveMode]::Create)
+
+    try {
+        foreach ($name in @($files) + 'dev-package-manifest.json') {
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,
+                (Join-Path $Directory $name), $name) | Out-Null
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
+
+    $hash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($Archive))" | Set-Content -LiteralPath ($Archive + '.sha256') -Encoding Ascii
+}
+
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
 
 try {
@@ -145,6 +177,74 @@ try {
     $legacyArchiveHash = (Get-FileHash -LiteralPath $legacyArchive -Algorithm SHA256).Hash.ToLowerInvariant()
     "$legacyArchiveHash  archived legacy.zip" | Set-Content -LiteralPath ($legacyArchive + '.sha256') -Encoding Ascii
     & $packager -SourceSha $sourceSha -ArchivePath $legacyArchive -VerifyOnly | Out-Null
+
+    foreach ($versionCase in @('missing', 'zero', 'future', 'null', 'text')) {
+        $oldMachine = Join-Path $fixtureRoot ('machine bootstrap ' + $versionCase)
+        New-SyntheticPackage -Directory $oldMachine
+        $oldManifestPath = Join-Path $oldMachine 'runtime\runtime-dev-manifest.json'
+        $oldManifest = Get-Content -LiteralPath $oldManifestPath -Raw | ConvertFrom-Json
+        $oldManifest.MachineContract.PSObject.Properties.Remove('ConnectionPlanVersion')
+        $oldManifest.MachineContract.PSObject.Properties.Remove('ShortcutBindingsVersion')
+
+        if ($versionCase -ne 'missing') {
+            $value = switch ($versionCase) {
+                'zero' { 0 }
+                'future' { 2 }
+                'null' { $null }
+                'text' { '1' }
+            }
+            $oldManifest.MachineContract | Add-Member -NotePropertyName 'ConnectionPlanVersion' -NotePropertyValue $value
+        }
+
+        $oldManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $oldManifestPath -Encoding UTF8
+        Assert-RejectedPackage -Directory $oldMachine -Archive (Join-Path $fixtureRoot ('new-machine-' + $versionCase + '.zip'))
+
+        if ($versionCase -eq 'missing') {
+            $oldArchive = Join-Path $fixtureRoot 'historical four-field machine.zip'
+            New-HistoricalSyntheticArchive -Directory $oldMachine -Archive $oldArchive
+            $unchangedPaths = @($oldArchive, ($oldArchive + '.sha256'), $oldManifestPath)
+            $before = @($unchangedPaths | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash })
+            & $packager -SourceSha $sourceSha -ArchivePath $oldArchive -VerifyOnly | Out-Null
+
+            for ($index = 0; $index -lt $unchangedPaths.Count; $index++) {
+                if ((Get-FileHash -LiteralPath $unchangedPaths[$index] -Algorithm SHA256).Hash -cne $before[$index]) {
+                    throw 'Read-only historical machine verification changed retained bytes.'
+                }
+            }
+        }
+    }
+
+    foreach ($versionCase in @('missing', 'zero', 'future', 'null', 'text')) {
+        $oldMachine = Join-Path $fixtureRoot ('shortcut bootstrap ' + $versionCase)
+        New-SyntheticPackage -Directory $oldMachine
+        $oldManifestPath = Join-Path $oldMachine 'runtime\runtime-dev-manifest.json'
+        $oldManifest = Get-Content -LiteralPath $oldManifestPath -Raw | ConvertFrom-Json
+        $oldManifest.MachineContract.PSObject.Properties.Remove('ShortcutBindingsVersion')
+
+        if ($versionCase -ne 'missing') {
+            $value = switch ($versionCase) {
+                'zero' { 0 }
+                'future' { 2 }
+                'null' { $null }
+                'text' { '1' }
+            }
+            $oldManifest.MachineContract | Add-Member -NotePropertyName 'ShortcutBindingsVersion' -NotePropertyValue $value
+        }
+
+        $oldManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $oldManifestPath -Encoding UTF8
+        Assert-RejectedPackage -Directory $oldMachine -Archive (Join-Path $fixtureRoot ('new-shortcut-' + $versionCase + '.zip'))
+
+        if ($versionCase -eq 'missing') {
+            $oldArchive = Join-Path $fixtureRoot 'historical five-field machine.zip'
+            New-HistoricalSyntheticArchive -Directory $oldMachine -Archive $oldArchive
+            $before = (Get-FileHash -LiteralPath $oldArchive -Algorithm SHA256).Hash
+            & $packager -SourceSha $sourceSha -ArchivePath $oldArchive -VerifyOnly | Out-Null
+
+            if ((Get-FileHash -LiteralPath $oldArchive -Algorithm SHA256).Hash -cne $before) {
+                throw 'Read-only historical five-field verification changed retained archive bytes.'
+            }
+        }
+    }
 
     $falseClaim = Join-Path $fixtureRoot 'false machine claim'
     New-SyntheticPackage -Directory $falseClaim

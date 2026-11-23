@@ -137,3 +137,32 @@ uses the production process host. Separate checks execute the ordinary
 paths. Together they cover real redirected pipes, handshake, Focus/Stop
 correlation and exact-child cleanup on abnormal parent death. They do not
 exercise Android media, the shared ADB server or Phase 6C Desktop composition.
+
+## Native property and lifetime checks
+
+The native debug suite includes three bounded, deterministic property checks.
+
+- `test_connection_manager` checks 80 fake-clock traces that vary the attempt
+  budget, selected candidate, fallback permission and the split between
+  resolver and startup failures. The traces check effect ordering, stale
+  completion rejection, backoff and the sticky exhaustion reason.
+- `test_connection_plan` rotates all nine root fields in ordinary launch plans,
+  with whitespace and an escaped serial. It checks the parsed values after
+  clearing the input buffer.
+- `test_ipc_contract` checks that three complete commands survive every fixed
+  read width from a single byte to the entire stream, with their session,
+  request IDs and command order preserved.
+
+The pinned Windows GCC toolchain supports `-fanalyzer` on the ConnectionManager,
+launch plan, IPC frame and IPC JSON translation units.
+AddressSanitizer and reporting-mode UndefinedBehaviorSanitizer require
+runtime libraries absent from this toolchain. The three focused test
+executables can run with `-fsanitize=undefined -fsanitize-undefined-trap-on-error`
+on both compile and link commands.
+
+The coordinator's existing `--soak` case runs 100 replacements and checks
+generation and resource settlement before admitting each replacement. Its
+fake clock and external-effect doubles make it suitable for counting
+tracked acquisitions, starts, joins and releases. Measuring the fixture's
+wall time covers the local test run. Device reconnect latency, process
+memory use and media performance require their own measurements.

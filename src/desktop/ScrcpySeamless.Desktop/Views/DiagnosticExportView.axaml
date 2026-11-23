@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.DiagnosticExportView"
+             x:DataType="vm:DiagnosticExportViewModel">
+  <Border Classes="card">
+    <StackPanel Spacing="10">
+      <TextBlock Classes="sectionTitle" Text="{Binding Title}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+      <TextBlock Classes="muted" Text="{Binding Coverage}" TextWrapping="Wrap" />
+      <WrapPanel ItemSpacing="10" LineSpacing="8">
+        <Button Content="{Binding ExportLabel}" Command="{Binding ExportCommand}"
+                AutomationProperties.AutomationId="diagnostics.export.save"
+                AutomationProperties.Name="{Binding ExportLabel}" />
+        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                AutomationProperties.AutomationId="diagnostics.export.cancel"
+                AutomationProperties.Name="{Binding CancelLabel}" />
+      </WrapPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="diagnostics.export.status" />
+      <TextBlock Text="{Binding PartialOutputMessage}" IsVisible="{Binding HasPartialOutput}" TextWrapping="Wrap" />
+    </StackPanel>
+  </Border>
+</UserControl>

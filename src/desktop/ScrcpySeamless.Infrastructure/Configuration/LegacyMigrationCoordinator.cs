@@ -69,8 +69,19 @@ public sealed class LegacyMigrationCoordinator
             return new LegacyMigrationOperation(LegacyMigrationStatus.InvalidV2, null, []);
         }
 
-        byte[]? phoneBytes = await ReadOptionalAsync(phoneFile, cancellationToken).ConfigureAwait(false);
-        byte[]? settingsBytes = await ReadOptionalAsync(settingsFile, cancellationToken).ConfigureAwait(false);
+        byte[]? phoneBytes;
+        byte[]? settingsBytes;
+
+        try
+        {
+            phoneBytes = await ReadOptionalAsync(phoneFile, cancellationToken).ConfigureAwait(false);
+            settingsBytes = await ReadOptionalAsync(settingsFile, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidDataException)
+        {
+            return new LegacyMigrationOperation(LegacyMigrationStatus.InvalidLegacy, null,
+                [new LegacyMigrationProblem(LegacyMigrationProblemCode.InvalidJson, "legacy", "$")]);
+        }
 
         if (phoneBytes is null && settingsBytes is null)
         {
@@ -133,8 +144,18 @@ public sealed class LegacyMigrationCoordinator
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            byte[]? currentPhone = ReadOptional(phoneFile);
-            byte[]? currentSettings = ReadOptional(settingsFile);
+            byte[]? currentPhone;
+            byte[]? currentSettings;
+
+            try
+            {
+                currentPhone = ReadOptional(phoneFile);
+                currentSettings = ReadOptional(settingsFile);
+            }
+            catch (InvalidDataException)
+            {
+                return new LegacyMigrationOperation(LegacyMigrationStatus.LegacyChanged, null, []);
+            }
             string? currentPhoneRevision = RevisionOf(currentPhone);
             string? currentSettingsRevision = RevisionOf(currentSettings);
             bool phoneChanged = !string.Equals(proposal.PhoneRevision, currentPhoneRevision, StringComparison.Ordinal);
@@ -200,7 +221,7 @@ public sealed class LegacyMigrationCoordinator
     {
         try
         {
-            return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            return await ConfigurationDocument.ReadAsync(path, cancellationToken).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {
@@ -213,7 +234,7 @@ public sealed class LegacyMigrationCoordinator
     {
         try
         {
-            return File.ReadAllBytes(path);
+            return ConfigurationDocument.Read(path);
         }
         catch (FileNotFoundException)
         {

@@ -302,6 +302,17 @@ exclude pairing codes, ADB private keys and other secrets; redact unnecessary
 raw device/network identifiers. No telemetry or remote web content by default.
 Validate paths as data and constrain generated filenames. The legacy Phase 0
 observer is not a substitute for this contract.
+
+The 2.0 candidate aggregates measurements at settled connection-generation
+boundaries. The native owner reads media/control counters after workers and the
+SDL audio callback have settled. The versioned optional IPC extension carries
+those counters and the Windows process sample through the original ordered
+channel without making diagnostics a lifecycle prerequisite. The Desktop
+exports the retained projection on request. The
+[diagnostic field guide](../development/desktop-native-runtime.md#explicit-local-jsonl-diagnostics)
+defines measured values and availability. There is no continuous file logger
+or claim of exact peak process memory, callback-to-speaker latency or physical
+readiness. Hardware coverage remains separate from synthetic counters.
 Add SECURITY.md before public beta. Follow the existing evidence-first debugging
 policy and review AGENTS/docs impact for every change.
 

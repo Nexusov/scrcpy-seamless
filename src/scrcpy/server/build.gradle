@@ -29,4 +29,21 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 }
 
+// These source fixtures live outside the Gradle project and must invalidate tests.
+def deviceProtocolGoldens = rootProject.file('../../spec/device-protocol/golden')
+def deviceProtocolNativeFrames = providers.environmentVariable('SC_DEVICE_PROTOCOL_C_CONTROL')
+def deviceProtocolJavaFrames = providers.environmentVariable('SC_DEVICE_PROTOCOL_JAVA_DEVICE')
+def deviceProtocolInterop = providers.environmentVariable('SC_DEVICE_PROTOCOL_INTEROP_REQUIRED')
+tasks.withType(Test).configureEach {
+    inputs.dir(deviceProtocolGoldens).withPropertyName('deviceProtocolGoldens')
+    inputs.property('deviceProtocolInterop', deviceProtocolInterop.orElse('0'))
+    inputs.property('deviceProtocolJavaFrames', deviceProtocolJavaFrames.orElse(''))
+    // Retained evidence is not a Gradle-owned output subject to stale-output cleanup.
+
+    if (deviceProtocolNativeFrames.isPresent()) {
+        inputs.file(deviceProtocolNativeFrames.get()).withPropertyName('deviceProtocolNativeFrames')
+    }
+
+}
+
 apply from: "$project.rootDir/config/android-checkstyle.gradle"

@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "dispatcher.h"
+#include "control_status.h"
 #include "uhid/uhid_output.h"
 #include "util/acksync.h"
 #include "util/net.h"
@@ -31,7 +32,8 @@ struct sc_receiver {
 };
 
 struct sc_receiver_callbacks {
-    void (*on_ended)(struct sc_receiver *receiver, bool error, void *userdata);
+    void (*on_ended)(struct sc_receiver *receiver, enum sc_control_status status,
+                     void *userdata);
 };
 
 bool

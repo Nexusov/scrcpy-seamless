@@ -70,6 +70,9 @@ sc_file_pusher_destroy(struct sc_file_pusher *fp) {
         assert(req);
         sc_file_pusher_request_destroy(req);
     }
+
+    // Release queue backing after the joined worker and all owned requests.
+    sc_vecdeque_destroy(&fp->queue);
 }
 
 bool

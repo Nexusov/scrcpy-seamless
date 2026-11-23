@@ -1,5 +1,22 @@
 # Desktop/native machine runtime
 
+## Canonical portable composition
+
+The 2.0 application starts in portable mode when no storage selector is given.
+Portable and installed modes resolve only the adjacent `runtime` directory;
+an explicit development root may select its isolated runtime. Validation still
+precedes all device effects, and missing or incompatible inputs leave launch
+unavailable. Working-directory search, PATH-native lookup and a legacy process
+fallback are not allowed. Preview never resolves a runtime or persistent root.
+Startup displays its loading window while same-root activation and runtime
+validation settle. Component hashing uses fixed-size reads off the UI thread.
+Closing during startup requests cancellation and releases the activation lease
+before closing the loading window. Normal close waits for owned device and
+application operations, including activation and explicit release checks.
+The canonical source-built package must carry the compatible runtime manifest,
+full inventories and source/build evidence; no-argument startup is not proof
+of a successful device handshake.
+
 The [v1 wire contract](../../spec/desktop-native/PROTOCOL.md) defines message
 syntax and meaning. Phase 6B provides the owned process route; Phase 6C selects
 `MachineNativeHost` in normal device-enabled Desktop composition when the
@@ -10,6 +27,13 @@ settings-only startup do not launch native. The machine route is Windows x64
 only at this stage. Synthetic process tests do not establish Android video,
 control or audible output behavior.
 
+The production executable has no private launcher Stop event or environment
+recovery adapter. Machine Stop uses the framed channel and recovery uses the
+validated launch plan. Ordinary CLI invocation preserves its command-line device
+selectors, including the standard ANDROID_SERIAL fallback. That invocation has
+one attempt without a machine plan. Historical launcher contracts are kept
+under the test directories for regression evidence.
+
 The build-side machine capability claim is
 [`runtime-contract.json`](../../spec/desktop-native/runtime-contract.json).
 Staging and archive validation read it; a managed parity test checks its
@@ -17,7 +41,14 @@ product, protocol version and required capabilities against
 `ProtocolCompatibility`. The runtime manifest remains schema 1 with optional
 machine metadata so previously built bundles remain readable. Full file/hash
 checks run first; an otherwise valid old manifest without machine metadata
-returns `IncompatibleMachineContract`. This local manifest is consistency
+returns `IncompatibleMachineContract`. A current machine runtime also claims
+`ConnectionPlanVersion: 1` for the bounded immutable launch argument. A missing
+or different version is incompatible before child creation even if its framed
+IPC version and capabilities match. This bootstrap version does not change the
+version-1 wire codec. Read-only archive verification still accepts historical
+four-field machine claims; creating a new package requires the current claim.
+Neither verification path modifies an older package or grants it new runtime
+features. This local manifest is consistency
 metadata, not a signature. The child must still pass the real negotiated
 handshake on Mirror, and a failed handshake never starts a legacy child.
 
@@ -305,3 +336,102 @@ Admission is separate from later downstream acceptance. Worker join precedes
 queue release and sink close; the upstream producer still owns publication/close
 serialization. This does not bound the existing growable delay queue or validate
 hardware latency. See the [ordering correction](../architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p72-delayed-first-frame-ordering-correction).
+
+## Explicit local JSONL diagnostics
+
+Diagnostics provides a user-initiated Save action over the existing detached,
+single-consumer session projections. This exporter is separate from the DEV
+Copy evidence format above: it excludes source/profile/device/path values and
+raw session, attempt and process identifiers. Session and attempt correlations
+are export-local ordinals, reset for every export. Resource text, commands,
+stderr, clipboard content, exception text and error payloads are never inputs
+to the serializer. The Copy action retains its existing scope and may append
+negotiated metrics with local generation ordinals; historical files remain
+unchanged.
+
+[`DiagnosticExportFormatter`](../../src/desktop/ScrcpySeamless.Desktop/Presentation/DiagnosticExportFormatter.cs)
+defines append-only JSONL format version 1. Every line is one JSON object with
+a `Record` discriminator: one `Export` header, at most eight `Session` summaries
+and at most 64 `Lifecycle` rows per summary. The total bound is 521 records,
+512 KiB UTF-8 and six JSON container levels. A fixed-capacity output buffer
+rejects the complete export rather than returning a truncated document. Keep
+existing field meaning/type stable; compatible new fields may be appended.
+Incompatible semantics require a new format version. There is no background
+log, rotation service or automatic export; every saved file is an explicit
+new bounded snapshot.
+
+Only actual projection counts are aggregated: total observed, retained and
+omitted events, retained channel-event counts and retained attempt count.
+Sequences and native monotonic microseconds are invariant decimal strings;
+UTC values preserve the observed instant and available precision. Per-event
+intervals and retained span require nondecreasing native monotonic samples.
+Loss-to-resume intervals run from the first pending **retained** TransportLost
+to the next retained StreamResumed; another loss before a resume does not reset
+the start. These intervals are not complete outage measurements when earlier
+history was omitted. Non-monotonic samples remain exported, with derived
+durations unavailable.
+
+An optional `generation-metrics-v1` negotiation appends `GenerationRetired`
+observations without changing the three required capabilities or protocol 1.0.
+The strict two-level `generationMetrics` wire object has exactly two mandatory
+and ten optional recognized fields, using the existing exact unsigned decimal
+string syntax. Missing optional fields are unknown; explicit wire nulls,
+duplicates and unknown fields are rejected. This event requires a nonnull
+attempt, native subsystem and none reason/error. It is not session termination.
+
+Only measured values from a joined/released generation are projected: complete
+audio packets read, decoded audio/video frames, submitted PCM sample frames
+(including silence), underflow/overflow sample frames, highest producer PCM
+queue observation before trimming and complete control writes. Software SDL
+submission is not audible output or device-side control acceptance.
+`retirementMicroseconds` covers the retirement request through main-thread
+settlement, including dispatcher receipt and handoff. Optional Windows working
+set/private-byte values are post-retirement samples after resource release,
+not peaks or a universal RSS certificate. Raw native generation remains typed
+internal data; both formats expose only export-local generation ordinals,
+independent of session and attempt correlation.
+
+Generation metrics are optional best-effort observations. Native publication
+and managed lifecycle admission require their bounded queues to be idle;
+admission/encoding or writer pressure, or later history eviction, can omit them. They
+add no queue, reader, periodic file or larger capacity. A later critical burst
+still has the existing finite backpressure policy. Sequence validation still
+includes a received optional frame even if it is omitted from the projection;
+projection totals count delivered observations, not every wire frame.
+Retirement measurements remain in diagnostic history without changing the
+current lifecycle status or channel evidence in Devices and Sessions.
+
+Retirement rows carry exact measured counters and nulls for absent counters.
+The legacy summary can report submitted PCM samples from its latest retained
+retired generation, with explicit scope and field availability. It does not
+map sample underflows to underflow-event counts, decoder frames to presented
+frames, or working/private samples to ambiguous generic memory. Older senders
+remain compatible and expose unknown counters rather than manufactured zeros.
+Audible readiness, native queue/retained bytes, video presentation counts,
+process exit code, wire Stop acknowledgement and permission return remain
+explicitly unavailable. Channel lifecycle events alone establish none of those
+measurements or physical transport truth.
+Terminal reason, initiating cleanup intent, managed cleanup outcome and actual
+exact-child observations remain distinct typed fields.
+
+[`LocalDiagnosticWriter`](../../src/desktop/ScrcpySeamless.Infrastructure/Diagnostics/LocalDiagnosticWriter.cs)
+uses atomic `FileMode.CreateNew`, never an existence-check admission or
+overwrite. Windows device namespaces, alternate-stream selectors, invalid
+components and lossy trailing-dot/space names are rejected before opening;
+both the original selection and normalized path are checked. Non-local
+providers without provable CreateNew semantics are unsupported. The UI never
+renders the selected absolute destination or raw I/O exception.
+
+Cancellation does not prove that no file was created. A failed/cancelled new
+file is retained with a typed partial-output receipt; its name is not deleted
+after releasing ownership, and an existing destination is never replaced.
+Successful write/flush/dispose is a managed I/O result, not a crash-durability
+or signature claim. The composition awaits picker/write settlement through
+`DiagnosticExportViewModel.CloseAsync()` before releasing adapters. An actual
+completed save remains Saved even if a later cancellation was requested.
+
+Synthetic filesystem/stream, immutable-format/privacy and headless UI tests
+exercise the real formatter and writer, including CreateNew races, injected
+write/flush/dispose failures, cancellation, actual NTFS stream rejection and
+retained-only timing. These checks do not supply missing hardware/audio/backend
+measurements or close the historical geometry/activation observations.

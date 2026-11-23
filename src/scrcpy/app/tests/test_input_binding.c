@@ -9,9 +9,12 @@
 #include "events.h"
 #include "input_manager.h"
 #include "screen.h"
+#include "shortcut_mod.h"
 #include "util/sdl.h"
 
 static unsigned key_calls;
+static struct sc_key_event last_key_event;
+static SDL_Keymod test_modifiers;
 static unsigned local_calls;
 static unsigned text_calls;
 static unsigned mouse_calls;
@@ -120,7 +123,7 @@ static void
 process_key(struct sc_key_processor *processor,
             const struct sc_key_event *event, uint64_t sequence) {
     assert(processor == expected_keyboard);
-    (void) event;
+    last_key_event = *event;
     last_key_sequence = sequence;
     ++key_calls;
 }
@@ -258,7 +261,7 @@ SDL_GetClipboardText(void) {
 /** Return deterministic modifiers. */
 SDL_Keymod
 SDL_GetModState(void) {
-    return SDL_KMOD_NONE;
+    return test_modifiers;
 }
 
 /** Return deterministic mouse position. */
@@ -400,8 +403,80 @@ assert_remote_blocked(struct sc_input_manager *manager) {
     assert(clipboard_reads == clipboard_before);
 }
 
+/** Layout-independent physical input retains the existing generation gates. */
+static void
+test_layout_input(bool altgr) {
+    static const struct sc_key_processor_ops operations = {
+        .process_key = process_key,
+        .process_text = process_text,
+    };
+    struct sc_key_processor keyboard = {.ops = &operations};
+    struct sc_screen screen = {.video = true};
+    struct sc_controller controller;
+    struct sc_input_manager manager;
+    struct sc_input_manager_params params = {
+        .screen = &screen,
+        .shortcut_mods = SC_SHORTCUT_MOD_RALT,
+    };
+    expected_keyboard = &keyboard;
+    expected_controller = &controller;
+    sc_input_manager_init(&manager, &params);
+    struct sc_input_binding binding = {
+        .generation = SC_INPUT_TEST_GENERATION,
+        .controller = &controller,
+        .kp = &keyboard,
+    };
+    sc_input_manager_bind(&manager, &binding, true);
+    unsigned before = key_calls;
+    SDL_Event key = {.key = {.type = SDL_EVENT_KEY_DOWN, .key = SDLK_UNKNOWN,
+                             .scancode = SDL_SCANCODE_A}};
+    sc_input_manager_handle_event(&manager, &key);
+    assert(key_calls == before);
+    assert(sc_input_manager_mark_presented(&manager, SC_INPUT_TEST_GENERATION));
+
+    if (!altgr) {
+        sc_input_manager_handle_event(&manager, &key);
+        assert(key_calls == before + 1);
+        assert(last_key_event.keycode == SC_KEYCODE_UNKNOWN);
+        assert(last_key_event.scancode == SC_SCANCODE_A);
+        key.key.key = SDLK_A;
+        key.key.scancode = SDL_SCANCODE_UNKNOWN;
+        sc_input_manager_handle_event(&manager, &key);
+        assert(key_calls == before + 1);
+    } else {
+        test_modifiers = SDL_KMOD_MODE;
+        SDL_Event text = {.text = {.type = SDL_EVENT_TEXT_INPUT, .text = "synthetic"}};
+        unsigned before_text = text_calls;
+        sc_input_manager_handle_event(&manager, &text);
+        assert(text_calls == before_text);
+        test_modifiers = SDL_KMOD_NONE;
+        assert(sc_shortcut_mods_is_shortcut_key(SDL_KMOD_RALT, SDLK_MODE));
+        key.key.key = SDLK_MODE;
+        key.key.scancode = SDL_SCANCODE_RALT;
+        key.key.type = SDL_EVENT_KEY_UP;
+        sc_input_manager_handle_event(&manager, &key);
+        assert(key_calls == before);
+        manager.sdl_shortcut_mods = SDL_KMOD_LALT;
+        key.key = (SDL_KeyboardEvent) {.type = SDL_EVENT_KEY_DOWN, .key = SDLK_A,
+                                      .scancode = SDL_SCANCODE_A, .mod = SDL_KMOD_MODE};
+        sc_input_manager_handle_event(&manager, &key);
+        assert(key_calls == before + 1);
+        assert(last_key_event.mods_state & SC_MOD_RALT);
+    }
+    sc_input_manager_detach(&manager);
+    before = key_calls;
+    sc_input_manager_handle_event(&manager, &key);
+    assert(key_calls == before);
+    sc_input_manager_destroy(&manager);
+}
+
 /** Validate detach, current presentation, replacement and partial input paths. */
-int main(void) {
+int main(int argument_count, char **arguments) {
+
+    if (argument_count == 2) {
+        test_layout_input(!strcmp(arguments[1], "--altgr"));
+        return 0;
+    }
     static const struct sc_key_processor_ops operations = {
         .process_key = process_key,
         .process_text = process_text,
@@ -574,5 +649,7 @@ int main(void) {
     free(old_owned_file);
     free(new_owned_file);
     free(old_owned_clipboard);
+    test_layout_input(false);
+    test_layout_input(true);
     return 0;
 }

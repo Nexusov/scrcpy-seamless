@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScrcpySeamless.Desktop.Presentation"
+             x:Class="ScrcpySeamless.Desktop.Views.ReleaseCheckView"
+             x:DataType="vm:ReleaseCheckViewModel">
+  <Border Classes="card">
+    <StackPanel Spacing="10">
+      <TextBlock Classes="sectionTitle" Text="{Binding Title}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding CurrentVersionLabel}" TextWrapping="Wrap" />
+      <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding ChannelLabel}" />
+      <ComboBox ItemsSource="{Binding Channels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"
+                IsEnabled="{Binding CanChooseChannel}"
+                AutomationProperties.AutomationId="releaseCheck.channel"
+                AutomationProperties.Name="{Binding ChannelLabel}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:ReleaseChannelChoice">
+            <TextBlock Text="{Binding Label}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <WrapPanel ItemSpacing="10" LineSpacing="8">
+        <Button Content="{Binding CheckLabel}" Command="{Binding CheckCommand}"
+                AutomationProperties.AutomationId="releaseCheck.check"
+                AutomationProperties.Name="{Binding CheckLabel}" />
+        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                AutomationProperties.AutomationId="releaseCheck.cancel"
+                AutomationProperties.Name="{Binding CancelLabel}" />
+      </WrapPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="releaseCheck.status" />
+      <TextBlock Text="{Binding ReleaseVersion}" IsVisible="{Binding HasReleaseVersion}" />
+      <Button Content="{Binding OpenLabel}" Command="{Binding OpenReleaseCommand}"
+              IsVisible="{Binding CanOpenRelease}" HorizontalAlignment="Left"
+              AutomationProperties.AutomationId="releaseCheck.open"
+              AutomationProperties.Name="{Binding OpenLabel}" />
+    </StackPanel>
+  </Border>
+</UserControl>

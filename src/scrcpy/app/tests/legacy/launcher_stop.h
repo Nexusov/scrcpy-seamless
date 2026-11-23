@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #ifdef _WIN32
 # include <windows.h>
-# include "thread.h"
+# include "util/thread.h"
 #endif
 
 struct sc_launcher_stop {

@@ -7,11 +7,12 @@ import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 public class ControlMessageReader {
 
     private static final int MESSAGE_MAX_SIZE = 1 << 18; // 256k
+    private static final int TINY_TEXT_MAX_LENGTH = 0xff;
+    private static final int UHID_DATA_MAX_LENGTH = 0xffff;
 
     public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 14; // type: 1 byte; sequence: 8 bytes; paste flag: 1 byte; length: 4 bytes
     public static final int INJECT_TEXT_MAX_LENGTH = 300;
@@ -84,25 +85,25 @@ public class ControlMessageReader {
         return value;
     }
 
-    private String parseString(int sizeBytes) throws IOException {
+    private String parseString(int sizeBytes, int maxLength) throws IOException {
         assert sizeBytes > 0 && sizeBytes <= 4;
-        byte[] data = parseByteArray(sizeBytes);
-        return new String(data, StandardCharsets.UTF_8);
+        byte[] data = parseByteArray(sizeBytes, maxLength);
+        return DeviceProtocolText.decode(data);
     }
 
-    private String parseString() throws IOException {
-        return parseString(4);
-    }
-
-    private byte[] parseByteArray(int sizeBytes) throws IOException {
+    private byte[] parseByteArray(int sizeBytes, int maxLength) throws IOException {
         int len = parseBufferLength(sizeBytes);
+
+        if (len < 0 || len > maxLength) {
+            throw new ControlProtocolException("Invalid payload length: " + len);
+        }
         byte[] data = new byte[len];
         dis.readFully(data);
         return data;
     }
 
     private ControlMessage parseInjectText() throws IOException {
-        String text = parseString();
+        String text = parseString(4, INJECT_TEXT_MAX_LENGTH);
         return ControlMessage.createInjectText(text);
     }
 
@@ -138,7 +139,7 @@ public class ControlMessageReader {
     private ControlMessage parseSetClipboard() throws IOException {
         long sequence = dis.readLong();
         boolean paste = dis.readByte() != 0;
-        String text = parseString();
+        String text = parseString(4, CLIPBOARD_TEXT_MAX_LENGTH);
         return ControlMessage.createSetClipboard(sequence, text, paste);
     }
 
@@ -151,14 +152,14 @@ public class ControlMessageReader {
         int id = dis.readUnsignedShort();
         int vendorId = dis.readUnsignedShort();
         int productId = dis.readUnsignedShort();
-        String name = parseString(1);
-        byte[] data = parseByteArray(2);
+        String name = parseString(1, TINY_TEXT_MAX_LENGTH);
+        byte[] data = parseByteArray(2, UHID_DATA_MAX_LENGTH);
         return ControlMessage.createUhidCreate(id, vendorId, productId, name, data);
     }
 
     private ControlMessage parseUhidInput() throws IOException {
         int id = dis.readUnsignedShort();
-        byte[] data = parseByteArray(2);
+        byte[] data = parseByteArray(2, UHID_DATA_MAX_LENGTH);
         return ControlMessage.createUhidInput(id, data);
     }
 
@@ -168,7 +169,7 @@ public class ControlMessageReader {
     }
 
     private ControlMessage parseStartApp() throws IOException {
-        String name = parseString(1);
+        String name = parseString(1, TINY_TEXT_MAX_LENGTH);
         return ControlMessage.createStartApp(name);
     }
 

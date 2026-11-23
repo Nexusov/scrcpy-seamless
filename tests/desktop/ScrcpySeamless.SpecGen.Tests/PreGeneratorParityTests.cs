@@ -25,13 +25,16 @@ public sealed class PreGeneratorParityTests
 
         var expectedOptions = baseline.GetProperty("options").EnumerateArray().ToArray();
         Assert.Equal(109, expectedOptions.Length);
-        Assert.Equal(expectedOptions.Length,
-            specification.Options.Count(option => !option.InternalOnly));
+        var baselineOptions = specification.Options.Where(option => !option.InternalOnly && option.Id != "shortcut-bindings").ToArray();
+        Assert.Equal(expectedOptions.Length, baselineOptions.Length);
+        var newShortcutOption = Assert.Single(specification.Options, option => option.Id == "shortcut-bindings");
+        Assert.Equal("required", newShortcutOption.ArgumentShape);
+        Assert.False(newShortcutOption.InternalOnly);
 
         for (var index = 0; index < expectedOptions.Length; index++)
         {
             var expected = expectedOptions[index];
-            var actual = specification.Options[index];
+            var actual = baselineOptions[index];
             Assert.Equal(expected.GetProperty("longName").GetString(), actual.LongName);
             Assert.Equal(expected.GetProperty("shortName").GetString(), actual.ShortName);
             Assert.Equal(expected.GetProperty("argumentShape").GetString(), actual.ArgumentShape);
@@ -59,7 +62,11 @@ public sealed class PreGeneratorParityTests
         using var current = JsonDocument.Parse(File.ReadAllText(currentPath));
         using var generated = JsonDocument.Parse(generatedCatalogue);
         var expectedOptions = fixture.RootElement.EnumerateArray().ToArray();
-        var actualOptions = current.RootElement.EnumerateArray().ToArray();
+        var actualOptions = current.RootElement.EnumerateArray()
+            .Where(option => option.GetProperty("Name").GetString() != "shortcut-bindings").ToArray();
+        var newShortcutOption = Assert.Single(current.RootElement.EnumerateArray(),
+            option => option.GetProperty("Name").GetString() == "shortcut-bindings");
+        Assert.False(newShortcutOption.GetProperty("SeamlessCompatible").GetBoolean());
 
         Assert.Equal(106, expectedOptions.Length);
         Assert.Equal(expectedOptions.Length, actualOptions.Length);

@@ -22,7 +22,6 @@
 #endif
 #include "util/log.h"
 #include "util/net.h"
-#include "util/launcher_stop.h"
 #include "version.h"
 
 #ifdef _WIN32
@@ -148,7 +147,6 @@ main_scrcpy(int argc, char *argv[]) {
         goto net_cleanup;
     }
 
-    struct sc_launcher_stop launcher_stop = {0};
 #ifdef _WIN32
     if (machine_active) {
         if (!sc_machine_start(sc_machine_request_stop, NULL) ||
@@ -157,12 +155,8 @@ main_scrcpy(int argc, char *argv[]) {
             ret = SCRCPY_EXIT_FAILURE;
             goto main_thread_cleanup;
         }
-    } else
-#endif
-    if (!sc_launcher_stop_init(&launcher_stop)) {
-        ret = SCRCPY_EXIT_FAILURE;
-        goto main_thread_cleanup;
     }
+#endif
 
 #ifdef HAVE_USB
     ret = args.opts.otg ? scrcpy_otg(&args.opts, &dispatcher) :
@@ -190,12 +184,9 @@ main_scrcpy(int argc, char *argv[]) {
                                       ret == SCRCPY_EXIT_SUCCESS,
                                       sc_machine_stop_requested(),
                                       sc_machine_stop_reason()), "none");
-    } else
-#endif
-    sc_launcher_stop_destroy(&launcher_stop);
+    }
 
 main_thread_cleanup:;
-#ifdef _WIN32
     if (machine_active) {
         sc_machine_close_commands();
     }

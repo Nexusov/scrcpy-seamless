@@ -10,11 +10,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
+#include <psapi.h>
 #include <rpc.h>
 #include <SDL3/SDL.h>
 
 #include "ipc/ipc_frame.h"
 #include "ipc/ipc_json.h"
+#include "ipc/machine_stream.h"
 
 #define SC_MACHINE_QUEUE_ITEMS 64
 #define SC_MACHINE_QUEUE_BYTES (2u * 1024u * 1024u)
@@ -57,12 +59,12 @@ struct sc_machine_state {
     bool closing;
     bool commands_closing;
     bool initialized;
+    bool generation_metrics_negotiated;
     bool handshake_written;
     LONG handshake_complete;
     char session_id[37];
     char attempt_id[37];
-    bool attempt_reconnecting;
-    bool frame_presented;
+    struct sc_machine_stream stream;
     SDL_Window *window; // SDL main thread only
     void (*request_stop)(void *);
     void *stop_userdata;
@@ -395,19 +397,22 @@ sc_machine_init(const struct sc_machine_config *config) {
     machine.handshake_deadline = GetTickCount64() + SC_MACHINE_HANDSHAKE_MS;
     machine.writer_thread = CreateThread(NULL, 0, sc_machine_writer,
                                          NULL, 0, NULL);
-    machine.guard_thread = CreateThread(NULL, 0, sc_machine_guard,
-                                        NULL, 0, NULL);
+    if (machine.writer_thread) {
+        machine.guard_thread = CreateThread(NULL, 0, sc_machine_guard,
+                                            NULL, 0, NULL);
+    }
     if (!machine.writer_thread || !machine.guard_thread) {
+        EnterCriticalSection(&machine.mutex);
         machine.closing = true;
         WakeAllConditionVariable(&machine.queue_changed);
-        SetEvent(machine.shutdown_event);
+        LeaveCriticalSection(&machine.mutex);
         if (machine.writer_thread) {
-            WaitForSingleObject(machine.writer_thread, SC_MACHINE_JOIN_MS);
+            if (WaitForSingleObject(machine.writer_thread,
+                                    SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
+                TerminateProcess(GetCurrentProcess(), 7);
+                abort();
+            }
             CloseHandle(machine.writer_thread);
-        }
-        if (machine.guard_thread) {
-            WaitForSingleObject(machine.guard_thread, SC_MACHINE_JOIN_MS);
-            CloseHandle(machine.guard_thread);
         }
         CloseHandle(machine.shutdown_event);
         CloseHandle(machine.parent);
@@ -443,6 +448,13 @@ sc_machine_handshake(void) {
     }
     if (strcmp(result.status, "accepted")) {
         return false;
+    }
+    for (size_t index = 0; index < result.capabilities.count; ++index) {
+        if (!strcmp(result.capabilities.values[index],
+                    SC_IPC_GENERATION_METRICS_CAPABILITY)) {
+            machine.generation_metrics_negotiated = true;
+            break;
+        }
     }
     InterlockedExchange(&machine.handshake_complete, 1);
     return true;
@@ -594,19 +606,22 @@ sc_machine_set_attempt_id(const char attempt_id[37], bool reconnecting) {
         return;
     }
     strcpy(machine.attempt_id, attempt_id);
-    machine.attempt_reconnecting = reconnecting;
-    machine.frame_presented = false;
+    sc_machine_stream_begin(&machine.stream, reconnecting);
 }
 
 /** A decoded byte or opened window is not the first presented video frame. */
 void
 sc_machine_on_frame_presented(void) {
-    if (!sc_machine_is_active() || machine.frame_presented ||
+    if (!sc_machine_is_active() ||
             !machine.attempt_id[0]) {
         return;
     }
-    machine.frame_presented = true;
-    sc_machine_emit_lifecycle(machine.attempt_reconnecting ? "StreamResumed" :
+    enum sc_machine_stream_event event = sc_machine_stream_presented(&machine.stream);
+
+    if (event == SC_MACHINE_STREAM_NONE) {
+        return;
+    }
+    sc_machine_emit_lifecycle(event == SC_MACHINE_STREAM_RESUMED ? "StreamResumed" :
                               "StreamStarted", "video", machine.attempt_id,
                               "none", "none");
 }
@@ -635,10 +650,11 @@ sc_machine_timestamp(char utc[25], uint64_t *elapsed_us) {
 }
 
 /** Assign sequence and enqueue under one lock so publication order is stable. */
-bool
-sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
-                          const char *attempt_id, const char *reason,
-                          const char *error) {
+static bool
+sc_machine_emit_lifecycle_internal(const char *event_type, const char *subsystem,
+                                   const char *attempt_id, const char *reason,
+                                   const char *error,
+                                   const struct sc_ipc_generation_metrics *metrics) {
     if (!InterlockedCompareExchange(&machine.handshake_complete, 0, 0) ||
             !event_type || !subsystem ||
             !reason || !error) {
@@ -656,13 +672,22 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
     strcpy(message.subsystem, subsystem);
     strcpy(message.reason, reason);
     strcpy(message.error, error);
+    if (metrics) {
+        message.generation_metrics = *metrics;
+    }
     sc_machine_timestamp(message.utc, &message.monotonic_microseconds);
     bool session_stopped = !strcmp(event_type, "SessionStopped");
     if (session_stopped) {
         EnterCriticalSection(&machine.stop_publication_mutex);
     }
     EnterCriticalSection(&machine.mutex);
-    message.sequence = ++machine.sequence;
+    // Evidence never waits for a busy writer or competes for a queued slot.
+    if (metrics && (machine.closing || machine.terminal ||
+                    machine.queue_count || machine.in_flight_bytes)) {
+        LeaveCriticalSection(&machine.mutex);
+        return false;
+    }
+    message.sequence = machine.sequence + 1;
     // Sequencing and encoding are serialized with the queue owner.
     uint8_t *payload = NULL;
     size_t payload_length = 0;
@@ -679,6 +704,7 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
                                     machine.queue_bytes - machine.in_flight_bytes;
     bool accepted = !machine.closing && !machine.terminal && capacity;
     if (accepted) {
+        machine.sequence = message.sequence;
         size_t tail = (machine.queue_head + machine.queue_count) %
                       SC_MACHINE_QUEUE_ITEMS;
         machine.queue[tail] = (struct sc_machine_frame) {frame, frame_length};
@@ -692,9 +718,41 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
     }
     if (!accepted) {
         free(frame);
-        sc_machine_fail();
+        if (!metrics) {
+            sc_machine_fail();
+        }
     }
     return accepted;
+}
+
+bool
+sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
+                          const char *attempt_id, const char *reason,
+                          const char *error) {
+    return sc_machine_emit_lifecycle_internal(event_type, subsystem, attempt_id,
+                                              reason, error, NULL);
+}
+
+void
+sc_machine_emit_generation_metrics(const char attempt_id[37],
+                                    struct sc_ipc_generation_metrics *metrics) {
+    if (!attempt_id || !attempt_id[0] || !sc_machine_is_active() ||
+        !machine.generation_metrics_negotiated) {
+        return;
+    }
+
+    PROCESS_MEMORY_COUNTERS_EX counters = {.cb = sizeof(counters)};
+    if (GetProcessMemoryInfo(GetCurrentProcess(),
+                             (PROCESS_MEMORY_COUNTERS *) &counters,
+                             sizeof(counters))) {
+        sc_ipc_generation_metrics_set(metrics, SC_IPC_METRIC_WORKING_SET_BYTES,
+                                      counters.WorkingSetSize);
+        sc_ipc_generation_metrics_set(metrics, SC_IPC_METRIC_PRIVATE_BYTES,
+                                      counters.PrivateUsage);
+    }
+
+    sc_machine_emit_lifecycle_internal("GenerationRetired", "native", attempt_id,
+                                       "none", "none", metrics);
 }
 
 /** Use Windows' UUID generator for per-attempt identity. */
@@ -790,9 +848,14 @@ sc_machine_destroy(void) {
                             SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
         CancelSynchronousIo(machine.writer_thread);
         TerminateProcess(GetCurrentProcess(), 7);
+        abort();
     }
     SetEvent(machine.shutdown_event);
-    WaitForSingleObject(machine.guard_thread, SC_MACHINE_JOIN_MS);
+    if (WaitForSingleObject(machine.guard_thread,
+                            SC_MACHINE_JOIN_MS) != WAIT_OBJECT_0) {
+        TerminateProcess(GetCurrentProcess(), 7);
+        abort();
+    }
     CloseHandle(machine.writer_thread);
     CloseHandle(machine.guard_thread);
     CloseHandle(machine.shutdown_event);

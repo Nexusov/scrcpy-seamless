@@ -45,6 +45,9 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
     private string channelEvidence;
     private string focusStatus;
     private ulong? lastLifecycleSequence;
+    private string videoEvidence = string.Empty;
+    private string audioEvidence = string.Empty;
+    private string controlEvidence = string.Empty;
 
     /// <summary>Attaches existing boundaries without contacting a device.</summary>
     public DeviceSessionViewModel(DevicesViewModel devices, ProfilesViewModel profiles,
@@ -65,6 +68,7 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
             ? "Select a saved profile and refresh/select an available ADB transport."
             : DescribeUnavailableRuntime();
         channelEvidence = text.Get("devices.machine.channelsUnknown");
+        videoEvidence = audioEvidence = controlEvidence = text.Get("channels.unknown");
         focusStatus = string.Empty;
         MirrorCommand = new ActionCommand(() => _ = MirrorAsync());
         StopCommand = new ActionCommand(() => _ = StopAsync());
@@ -78,11 +82,13 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
     public ICommand StopCommand { get; }
     public ICommand FocusCommand { get; }
     public string FocusLabel => text.Get("devices.focusMirror");
+    public string VideoLabel => text.Get("devices.video");
+    public string AudioLabel => text.Get("devices.audio");
+    public string ControlLabel => text.Get("devices.control");
     public string NativeHostName => host?.GetType().Name ?? "Unavailable";
     public string HostModeStatus => text.Get(host switch
     {
         MachineNativeHost => "devices.machine.hostMachine",
-        LegacyNativeHost => "devices.machine.hostLegacy",
         null => "devices.machine.hostUnavailable",
         _ => "devices.machine.hostSynthetic",
     });
@@ -112,13 +118,16 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
     }
     public bool HasObservedWindowHandle => windowHandle != nint.Zero;
     public string ChannelEvidence { get => channelEvidence; private set => SetProperty(ref channelEvidence, value); }
+    public string VideoEvidence { get => videoEvidence; private set => SetProperty(ref videoEvidence, value); }
+    public string AudioEvidence { get => audioEvidence; private set => SetProperty(ref audioEvidence, value); }
+    public string ControlEvidence { get => controlEvidence; private set => SetProperty(ref controlEvidence, value); }
     public string FocusStatus { get => focusStatus; private set => SetProperty(ref focusStatus, value); }
     public ulong? LastLifecycleSequence
     {
         get => lastLifecycleSequence;
         private set => SetProperty(ref lastLifecycleSequence, value);
     }
-    public bool HasOwnedSession { get { lock (gate) { return session is not null || startTask is not null; } } }
+    public bool HasOwnedSession { get { lock (gate) { return session is not null || startTask is not null || reservedSession is not null; } } }
     public bool IsShuttingDown { get { lock (gate) { return shuttingDown; } } }
 
     /// <summary>Explains a rejected DEV runtime while leaving configuration editing available.</summary>
@@ -138,9 +147,10 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
     /// <summary>Rejects another launch while an owned launch or child is active.</summary>
     public Task MirrorAsync(CancellationToken cancellationToken = default)
     {
+        Task launch;
         lock (gate)
         {
-            if (shuttingDown || stopping || session is not null || startTask is not null)
+            if (shuttingDown || stopping || session is not null || startTask is not null || reservedSession is not null)
             {
                 Status = "A session or launch is already active, or shutdown is in progress.";
                 return Task.CompletedTask;
@@ -148,14 +158,18 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
 
             startCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             startTask = StartCoreAsync(startCancellation.Token);
-            return startTask;
+            launch = startTask;
         }
+
+        OnPropertyChanged(nameof(HasOwnedSession));
+        return launch;
     }
 
     /// <summary>Reads the committed revision and validates all execution inputs before starting.</summary>
     private async Task StartCoreAsync(CancellationToken cancellationToken)
     {
         await Task.Yield();
+        SessionId? launchReservation = null;
 
         try
         {
@@ -227,6 +241,14 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (!ReserveLaunch(preparation.Request!, selectedProfile.Label))
+            {
+                Status = text.Get("sessions.profileOwned");
+                return;
+            }
+
+            launchReservation = preparation.Request!.SessionId;
             Status = "Starting the selected native session…";
             INativeSession started = await host.StartAsync(preparation.Request!, cancellationToken);
             bool mustStop;
@@ -251,14 +273,10 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
 
             }
 
-            ProcessId = started switch
-            {
-                MachineNativeSession machine => machine.ProcessId,
-                LegacyNativeSession legacy => legacy.ProcessId,
-                _ => null,
-            };
-            WindowHandle = (started as LegacyNativeSession)?.MainWindowHandle ?? nint.Zero;
+            ProcessId = (started as MachineNativeSession)?.ProcessId;
+            WindowHandle = nint.Zero;
             ChannelEvidence = text.Get("devices.machine.channelsUnknown");
+            VideoEvidence = AudioEvidence = ControlEvidence = text.Get("channels.unknown");
             FocusStatus = string.Empty;
             LastLifecycleSequence = null;
 
@@ -315,12 +333,21 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
         }
         finally
         {
+            bool releaseReservation;
             lock (gate)
             {
+                releaseReservation = session is null;
                 startTask = null;
                 startCancellation?.Dispose();
                 startCancellation = null;
             }
+
+            if (releaseReservation && launchReservation is { } reservation)
+            {
+                ReleaseLaunch(reservation);
+            }
+
+            OnPropertyChanged(nameof(HasOwnedSession));
         }
     }
 
@@ -454,6 +481,16 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
                 NativeVideoEvidence.NotReady => "devices.machine.channelsVideoUnavailable",
                 _ => "devices.machine.channelsVideoUnknown",
             });
+            VideoEvidence = text.Get(lifecycleProjection.Video switch
+            {
+                NativeVideoEvidence.ObservedFrame => "channels.videoObserved",
+                NativeVideoEvidence.NotReady => "channels.unavailable",
+                _ => "channels.unknown",
+            });
+            AudioEvidence = text.Get(lifecycleProjection.Audio == NativeChannelEvidence.NotReady
+                ? "channels.unavailable" : "channels.unknown");
+            ControlEvidence = text.Get(lifecycleProjection.Control == NativeChannelEvidence.NotReady
+                ? "channels.unavailable" : "channels.unknown");
         }
     }
 
@@ -607,6 +644,7 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
             throw;
         }
 
+        SessionId? completedReservation;
         lock (gate)
         {
             if (!ReferenceEquals(session, owned))
@@ -616,6 +654,7 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
 
             // Evidence records settlement before the exact owner and projection are released.
             RetainSuccessfulCleanup(owned);
+            VideoEvidence = AudioEvidence = ControlEvidence = text.Get("channels.unavailable");
             session = null;
             sessionCleanupTask = null;
             completedLifecycleEvents = lifecycleProjection?.RecentObservations ?? completedLifecycleEvents;
@@ -625,8 +664,15 @@ public sealed partial class DeviceSessionViewModel : ObservableViewModel
             lifecycleCancellation = null;
             lifecycleProjection = null;
             lifecycleUiPending = false;
-            return true;
+            completedReservation = reservedSession;
         }
+
+        if (completedReservation is { } reservation)
+        {
+            ReleaseLaunch(reservation);
+        }
+
+        return true;
     }
 
     /// <summary>Targets the currently owned machine mirror from the explicit local button.</summary>

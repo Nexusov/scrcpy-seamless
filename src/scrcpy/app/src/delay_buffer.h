@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <libavutil/frame.h>
 
 #include "clock.h"
@@ -14,6 +15,9 @@
 #include "util/vecdeque.h"
 
 //#define SC_BUFFERING_DEBUG // uncomment to debug
+
+#define SC_DELAY_BUFFER_MAX_RETAINED_ITEMS 256
+#define SC_DELAY_BUFFER_MAX_RETAINED_BYTES ((size_t) 512 * 1024 * 1024)
 
 // forward declarations
 typedef struct AVFrame AVFrame;
@@ -26,6 +30,7 @@ enum sc_delayed_packet_type {
 struct sc_delayed_packet {
     enum sc_delayed_packet_type type;
     bool asap; // first video frame bypasses the wait, never its FIFO predecessors
+    size_t charge;
     union {
         AVFrame *frame;
         struct sc_stream_session session;
@@ -52,6 +57,9 @@ struct sc_delay_buffer {
     struct sc_clock clock;
     struct sc_delayed_packet_queue queue;
     bool stopped;
+    // Admission reservations, FIFO entries and the popped callback all count.
+    size_t retained_items;
+    size_t retained_bytes;
 };
 
 struct sc_delay_buffer_callbacks {

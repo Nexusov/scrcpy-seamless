@@ -78,11 +78,18 @@ struct sc_server_params {
     uint8_t list;
 };
 
+enum sc_server_failure {
+    SC_SERVER_FAILURE_START,
+    SC_SERVER_FAILURE_TRANSIENT_CONNECTION,
+};
+
 struct sc_server {
     // The internal allocated strings are copies owned by the server
     struct sc_server_params params;
     char *serial;
     char *device_socket_name;
+    /* Written by the worker before publishing its failed-connection callback. */
+    enum sc_server_failure failure;
 
     sc_thread thread;
     struct sc_server_info info; // initialized once connected

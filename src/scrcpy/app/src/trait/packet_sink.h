@@ -41,7 +41,9 @@ struct sc_packet_sink_ops {
     /*/
      * Called when the input stream has been disabled at runtime.
      *
-     * If it is called, then open(), close() and push() will never be called.
+     * If called, no successful open(), close() or push() follows. A failed
+     * open attempt may precede it and must already have rolled itself back.
+     * Successful prefix sinks are closed on rollback, never also disabled.
      *
      * It is useful to notify the recorder that the requested audio stream has
      * finally been disabled because the device could not capture it.

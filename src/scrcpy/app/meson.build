@@ -1,5 +1,10 @@
 src = [
     'src/main.c',
+    'src/app.c',
+    'src/recording_segments.c',
+    'src/connection_manager.c',
+    'src/connection_plan.c',
+    'src/transport_resolver.c',
     'src/adb/adb.c',
     'src/adb/adb_device.c',
     'src/adb/adb_parser.c',
@@ -24,6 +29,7 @@ src = [
     'src/frame_buffer.c',
     'src/video_ingress.c',
     'src/input_manager.c',
+    'src/shortcut_bindings.c',
     'src/keyboard_sdk.c',
     'src/mouse_capture.c',
     'src/mouse_sdk.c',
@@ -33,6 +39,9 @@ src = [
     'src/receiver.c',
     'src/recorder.c',
     'src/scrcpy.c',
+    'src/session.c',
+    'src/session_retirement.c',
+    'src/session_notifications.c',
     'src/screen.c',
     'src/sdl_hints.c',
     'src/server.c',
@@ -54,7 +63,6 @@ src = [
     'src/util/file.c',
     'src/util/intmap.c',
     'src/util/intr.c',
-    'src/util/launcher_stop.c',
     'src/util/log.c',
     'src/util/memory.c',
     'src/util/net.c',
@@ -65,10 +73,12 @@ src = [
     'src/util/sdl.c',
     'src/util/strbuf.c',
     'src/util/str.c',
+    'src/util/utf8.c',
     'src/util/term.c',
     'src/util/thread.c',
     'src/util/tick.c',
     'src/util/timeout.c',
+    'vendor/yyjson/yyjson.c',
 ]
 
 feature_test_macros = [
@@ -89,7 +99,7 @@ if host_machine.system() == 'windows'
         'src/ipc/ipc_json.c',
         'src/ipc/machine_exit.c',
         'src/ipc/machine.c',
-        'vendor/yyjson/yyjson.c',
+        'src/ipc/machine_stream.c',
         windows.compile_resources('scrcpy-windows.rc'),
     ]
     feature_test_macros += [
@@ -150,6 +160,7 @@ if host_machine.system() == 'windows'
     dependencies += cc.find_library('mingw32')
     dependencies += cc.find_library('ws2_32')
     dependencies += cc.find_library('rpcrt4')
+    dependencies += cc.find_library('psapi')
 endif
 
 check_functions = [
@@ -232,10 +243,169 @@ endif
 
 # do not build tests in release (assertions would not be executed at all)
 if get_option('buildtype') == 'debug'
+    # Link shipping ownership and orchestration; only external effects are wrapped.
+    # These Windows cases also cover the existing machine Stop intent boundary.
+    if host_machine.system() == 'windows'
+        texture_wraps = [
+            'SDL_GetRendererName', 'SDL_CreateTextureWithProperties',
+            'SDL_GetTextureProperties', 'SDL_DestroyProperties',
+            'SDL_DestroyTexture', 'SDL_UpdateYUVTexture',
+        ]
+        texture_link_args = []
+        foreach symbol : texture_wraps
+            texture_link_args += '-Wl,--wrap=' + symbol
+        endforeach
+        texture_test = executable('test_texture_ports', [
+            'tests/test_texture_ports.c', 'src/texture.c', 'src/util/log.c',
+        ], include_directories: src_dir, dependencies: dependencies,
+           link_args: texture_link_args)
+        test('test_texture_ports', texture_test)
+
+        session_sources = []
+        foreach index : range(1, src.length())
+            session_sources += src[index]
+        endforeach
+        session_wraps = [
+            'sc_server_init', 'sc_server_start', 'sc_server_stop',
+            'sc_server_join', 'sc_server_destroy', 'sc_machine_is_active',
+            'sc_machine_stop_requested', 'sc_machine_emit_lifecycle',
+            'sc_controller_init', 'sc_controller_start', 'sc_controller_join',
+            'sc_controller_destroy', 'sc_file_pusher_init',
+            'sc_file_pusher_destroy', 'sc_screen_init', 'sc_recorder_init',
+            'sc_recorder_start', 'sc_recorder_destroy', 'sc_demuxer_start',
+            'sc_demuxer_join', 'sc_timeout_init', 'sc_timeout_start',
+            'sc_timeout_destroy', 'sc_acksync_init', 'sc_acksync_destroy',
+            'sc_usb_init', 'sc_usb_select_device', 'sc_usb_connect',
+            'sc_usb_device_destroy', 'sc_usb_stop', 'sc_usb_join',
+            'sc_usb_disconnect', 'sc_usb_destroy', 'sc_aoa_init',
+            'sc_aoa_start', 'sc_aoa_join', 'sc_aoa_destroy',
+            'sc_keyboard_aoa_init', 'sc_keyboard_aoa_destroy',
+            'sc_mouse_aoa_init', 'sc_mouse_aoa_destroy',
+            'SDL_GetJoysticks', 'SDL_IsGamepad', 'SDL_free',
+            'calloc', 'free', 'sc_mutex_init',
+        ]
+        session_link_args = []
+        foreach symbol : session_wraps
+            session_link_args += '-Wl,--wrap=' + symbol
+        endforeach
+        session_test = executable('test_session',
+            ['tests/test_session.c'] + session_sources,
+            include_directories: src_dir, dependencies: dependencies,
+            link_args: session_link_args)
+        test('test_session', session_test)
+        app_connection_args = session_link_args
+        foreach symbol : ['SDL_Init', 'SDL_WaitEventTimeout', 'sc_tick_now',
+                           'sc_adb_query', 'sc_transport_resolver_take',
+                           'sc_connection_manager_connected', 'sc_recorder_join',
+                           'av_write_trailer']
+            app_connection_args += '-Wl,--wrap=' + symbol
+        endforeach
+        app_connection_test = executable('test_app_connection',
+            ['tests/test_app_connection.c'] + session_sources,
+            include_directories: src_dir, dependencies: dependencies,
+            link_args: app_connection_args)
+        test('test_app_connection', app_connection_test)
+
+
+        if usb_support
+            ack_wraps = [
+                'sc_server_init', 'sc_server_start', 'sc_server_stop',
+                'sc_server_join', 'sc_server_destroy', 'sc_usb_init',
+                'sc_usb_select_device', 'sc_usb_connect', 'sc_usb_stop',
+                'sc_usb_join', 'sc_usb_disconnect', 'sc_usb_destroy',
+                'libusb_control_transfer', 'sc_aoa_start', 'sc_aoa_join',
+                'sc_acksync_wait', 'net_recv', 'net_send_all',
+                'sc_controller_join', 'sc_acksync_destroy',
+            ]
+            ack_link_args = []
+            foreach symbol : ack_wraps
+                ack_link_args += '-Wl,--wrap=' + symbol
+            endforeach
+            ack_test = executable('test_session_ack',
+                ['tests/test_session_ack.c'] + session_sources,
+                include_directories: src_dir, dependencies: dependencies,
+                link_args: ack_link_args)
+            test('test_session_ack', ack_test)
+            otg_test = executable('test_otg_lifetime', [
+                'tests/test_otg_lifetime.c', 'src/usb/scrcpy_otg.c',
+                'src/session_notifications.c', 'src/dispatcher.c', 'src/events.c',
+                'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+                'src/compat.c',
+            ], include_directories: src_dir, dependencies: dependencies)
+            test('test_otg_lifetime', otg_test)
+        endif
+    endif
+
     tests = [
+        ['test_control_outcomes', [
+            'tests/test_control_outcomes.c', 'src/control_msg.c',
+            'src/util/utf8.c',
+            'src/dispatcher.c', 'src/events.c', 'src/util/acksync.c',
+            'src/util/str.c', 'src/util/strbuf.c', 'src/util/thread.c',
+            'src/util/tick.c', 'src/util/log.c', 'src/util/memory.c',
+        ]],
+        ['test_demuxer_outcomes', [
+            'tests/test_demuxer_outcomes.c', 'src/packet_merger.c',
+            'src/trait/packet_source.c', 'src/util/thread.c',
+            'src/util/log.c', 'src/util/tick.c',
+        ]],
+        ['test_machine_stream', [
+            'tests/test_machine_stream.c', 'src/ipc/machine_stream.c',
+        ]],
+        ['test_connection_manager', [
+            'tests/test_connection_manager.c', 'src/connection_manager.c',
+        ]],
+        ['test_connection_plan', [
+            'tests/test_connection_plan.c', 'src/connection_plan.c',
+            'vendor/yyjson/yyjson.c',
+        ]],
+        ['test_transport_resolver', [
+            'tests/test_transport_resolver.c', 'src/transport_resolver.c',
+            'src/connection_plan.c', 'vendor/yyjson/yyjson.c',
+            'src/util/intr.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
+        ]],
+        ['test_recovery_adapter', [
+            'tests/legacy/test_recovery_adapter.c', 'tests/legacy/recovery_adapter.c',
+        ]],
+        ['test_recording_segments', [
+            'tests/test_recording_segments.c', 'src/recording_segments.c',
+            'src/trait/packet_source.c',
+            'src/options.c', 'src/util/str.c', 'src/util/strbuf.c',
+            'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
+        ]],
+        ['test_recorder_lifetime', [
+            'tests/test_recorder_lifetime.c', 'src/options.c',
+            'src/util/str.c', 'src/util/strbuf.c', 'src/util/memory.c',
+            'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+            'src/compat.c',
+        ]],
+        ['test_session_sink_graph', [
+            'tests/test_session_sink_graph.c', 'src/decoder.c',
+            'src/trait/packet_source.c', 'src/trait/frame_source.c',
+            'src/util/log.c',
+        ]],
+        ['test_file_pusher_lifetime', [
+            'tests/test_file_pusher_lifetime.c', 'src/util/intr.c',
+            'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+            'src/util/log.c',
+        ]],
+        ['test_session_notifications', [
+            'tests/test_session_notifications.c',
+            'src/session_notifications.c', 'src/dispatcher.c', 'src/events.c',
+            'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c',
+        ]],
+        ['test_shortcut_bindings', [
+            'tests/test_shortcut_bindings.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c',
+        ]],
+        ['test_input_shortcuts', [
+            'tests/test_input_shortcuts.c', 'src/input_manager.c', 'src/shortcut_bindings.c',
+            'vendor/yyjson/yyjson.c', 'src/options.c',
+        ]],
         ['test_input_binding', [
             'tests/test_input_binding.c',
-            'src/input_manager.c',
+            'src/input_manager.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c',
             'src/options.c',
         ]],
         ['test_dispatcher', [
@@ -257,8 +427,8 @@ if get_option('buildtype') == 'debug'
             'src/util/strbuf.c',
         ]],
         ['test_launcher_stop', [
-            'tests/test_launcher_stop.c',
-            'src/util/launcher_stop.c',
+            'tests/legacy/test_launcher_stop.c',
+            'tests/legacy/launcher_stop.c',
             'src/events.c',
             'src/util/thread.c',
             'src/util/tick.c',
@@ -285,7 +455,9 @@ if get_option('buildtype') == 'debug'
         ]],
         ['test_cli', [
             'tests/test_cli.c',
-            'src/cli.c',
+            'src/cli.c', 'src/shortcut_bindings.c',
+            'src/connection_plan.c',
+            'vendor/yyjson/yyjson.c',
             'src/options.c',
             'src/util/log.c',
             'src/util/net.c',
@@ -308,6 +480,7 @@ if get_option('buildtype') == 'debug'
         ['test_device_msg_deserialize', [
             'tests/test_device_msg_deserialize.c',
             'src/device_msg.c',
+            'src/util/utf8.c',
         ]],
         ['test_orientation', [
             'tests/test_orientation.c',
@@ -339,6 +512,65 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    recorder_mux_test = executable('test_recorder_mux_retention', [
+        'tests/test_recorder_mux_retention.c', 'src/options.c',
+        'src/util/str.c', 'src/util/strbuf.c', 'src/util/memory.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies)
+    test('test_recorder_mux_retention', recorder_mux_test)
+    test('test_recorder_mux_drain', recorder_mux_test, args: ['--within-limit'])
+
+    adb_query_test = executable('test_adb_query', [
+        'tests/test_adb_query.c', 'src/adb/adb_parser.c',
+        'src/adb/adb_device.c', 'src/util/str.c', 'src/util/strbuf.c',
+        'src/util/process_intr.c', 'src/util/intr.c', 'src/util/thread.c',
+        'src/util/log.c', 'src/util/tick.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST', '-ffunction-sections', '-fdata-sections'],
+       link_args: ['-Wl,--gc-sections'])
+    test('test_adb_query', adb_query_test)
+
+    retirement_test = executable('test_session_retirement', [
+        'tests/test_session_retirement.c', 'src/session_retirement.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=sc_mutex_init', '-Wl,--wrap=sc_mutex_destroy',
+                   '-Wl,--wrap=sc_cond_init', '-Wl,--wrap=sc_cond_destroy',
+                   '-Wl,--wrap=sc_thread_create', '-Wl,--wrap=sc_thread_join'])
+    test('test_session_retirement', retirement_test)
+
+    # Exercise actual SDL dummy callback exclusion and production open unwind.
+    timeout_lifetime_test = executable('test_timeout_lifetime', [
+        'tests/test_timeout_lifetime.c', 'src/util/thread.c',
+        'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'])
+    test('test_timeout_lifetime', timeout_lifetime_test)
+    test('test_timeout_partial_init', timeout_lifetime_test, args: ['--init-failure'])
+    test('test_timeout_stopped_context', timeout_lifetime_test, args: ['--already-stopped'])
+
+    # Exercise actual SDL dummy callback exclusion and production open unwind.
+    audio_lifetime_test = executable('test_audio_lifetime', [
+        'tests/test_audio_lifetime.c', 'src/audio_player.c',
+        'src/audio_regulator.c', 'src/util/audiobuf.c', 'src/util/average.c',
+        'src/util/memory.c', 'src/util/thread.c', 'src/util/tick.c',
+        'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies,
+       c_args: ['-DSC_TEST'],
+       link_args: ['-Wl,--wrap=swr_alloc', '-Wl,--wrap=swr_init',
+                   '-Wl,--wrap=swr_free', '-Wl,--wrap=sc_mutex_init',
+                   '-Wl,--wrap=sc_mutex_destroy', '-Wl,--wrap=sc_allocarray',
+                   '-Wl,--wrap=malloc', '-Wl,--wrap=free',
+                   '-Wl,--wrap=sc_audiobuf_destroy',
+                   '-Wl,--wrap=sc_audio_regulator_destroy',
+                   '-Wl,--wrap=sc_audio_regulator_pull',
+                   '-Wl,--wrap=SDL_SetHint', '-Wl,--wrap=SDL_OpenAudioDeviceStream',
+                   '-Wl,--wrap=SDL_ResumeAudioDevice',
+                   '-Wl,--wrap=SDL_PauseAudioDevice',
+                   '-Wl,--wrap=SDL_DestroyAudioStream'])
+    test('test_audio_lifetime', audio_lifetime_test)
 
     # Exercise real FFmpeg reference ownership and allocation failures.
     framebuffer_test = executable('test_frame_buffer', [
@@ -378,14 +610,19 @@ if get_option('buildtype') == 'debug'
     # Exercise production presentation with deterministic external-effect doubles.
     presentation_test = executable('test_screen_presentation', [
         'tests/test_screen_presentation.c', 'src/screen.c',
-        'src/input_manager.c', 'src/video_ingress.c', 'src/frame_buffer.c',
+        'src/input_manager.c', 'src/shortcut_bindings.c', 'vendor/yyjson/yyjson.c', 'src/video_ingress.c', 'src/frame_buffer.c',
         'src/dispatcher.c', 'src/events.c', 'src/options.c', 'src/control_msg.c',
         'src/fps_counter.c', 'src/disconnect.c', 'src/util/thread.c',
         'src/util/tick.c', 'src/util/log.c', 'src/util/str.c',
         'src/util/strbuf.c', 'src/compat.c',
     ], include_directories: src_dir, dependencies: dependencies,
        c_args: ['-DSC_TEST', '-DSC_SCREEN_TEST'],
-       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free'])
+       link_args: ['-Wl,--wrap=av_frame_alloc', '-Wl,--wrap=av_frame_free',
+                   '-Wl,--wrap=sc_disconnect_start',
+                   '-Wl,--wrap=sc_disconnect_interrupt',
+                   '-Wl,--wrap=sc_disconnect_join',
+                   '-Wl,--wrap=sc_disconnect_destroy',
+                   '-Wl,--wrap=SDL_WaitEventTimeout'])
     test('test_screen_presentation', presentation_test)
 
     # Link actual receiver/deserializer ownership with external-effect doubles.
@@ -394,6 +631,7 @@ if get_option('buildtype') == 'debug'
         'src/receiver.c',
         'src/dispatcher.c',
         'src/device_msg.c',
+        'src/util/utf8.c',
         'src/util/acksync.c',
         'src/util/thread.c',
         'src/util/tick.c',
@@ -417,6 +655,13 @@ if get_option('buildtype') == 'debug'
     test('test_ipc_contract', ipc_test,
          args: ['--golden', meson.project_source_root() / '../../spec/desktop-native/golden'])
 
+    device_protocol_test = executable('test_device_protocol', [
+        'tests/test_device_protocol.c', 'src/control_msg.c', 'src/device_msg.c',
+        'src/util/str.c', 'src/util/strbuf.c', 'src/util/utf8.c',
+    ], include_directories: src_dir, dependencies: dependencies)
+    test('test_device_protocol', device_protocol_test,
+         args: ['--selftest', meson.project_source_root() / '../../spec/device-protocol/golden'])
+
     if host_machine.system() == 'windows'
         machine_exit_test = executable('test_machine_exit', [
             'tests/test_machine_exit.c',
@@ -429,11 +674,13 @@ if get_option('buildtype') == 'debug'
         executable('test_machine_child', [
             'tests/test_machine_child.c',
             'src/ipc/machine.c',
+        'src/ipc/machine_stream.c',
             'src/ipc/ipc_frame.c',
             'src/ipc/ipc_json.c',
             'vendor/yyjson/yyjson.c',
         ], include_directories: src_dir,
-           dependencies: [dependency('sdl3'), cc.find_library('rpcrt4')],
+           dependencies: [dependency('sdl3'), cc.find_library('rpcrt4'),
+                          cc.find_library('psapi')],
            c_args: ['-DSC_TEST'])
     endif
 endif

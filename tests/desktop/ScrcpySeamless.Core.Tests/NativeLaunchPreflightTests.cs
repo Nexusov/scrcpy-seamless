@@ -176,9 +176,9 @@ public sealed class NativeLaunchPreflightTests
         Assert.Single(result.OptionDiagnostics);
     }
 
-    /// <summary>Current native reconnect excludes recording rather than silently removing the user's setting.</summary>
+    /// <summary>Generation recording keeps the committed base name and explicit recovery target.</summary>
     [Fact]
-    public void ReconnectRejectsLegacyIncompatibleRecording()
+    public void PlannedRecoverySupportsRecordingWithoutChangingCommittedFilename()
     {
         DeviceProfile profile = Profile();
         ConfigurationV2 configuration = Configuration(profile,
@@ -187,8 +187,9 @@ public sealed class NativeLaunchPreflightTests
         NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
             new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
 
-        Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
-        Assert.Null(result.Request);
+        Assert.True(result.IsReady);
+        Assert.Equal(profile.ConnectionEndpoint, result.Request!.ReconnectEndpoint);
+        Assert.Equal("synthetic.mp4", result.Request.Mirroring.Options["record"].GetString());
         Assert.Equal("synthetic.mp4", configuration.Mirroring.Options["record"].GetString());
     }
 
@@ -235,12 +236,12 @@ public sealed class NativeLaunchPreflightTests
         }
     }
 
-    /// <summary>Positive deadlines remain incompatible with USB fallback and selected-network retry.</summary>
+    /// <summary>The native invocation deadline is compatible with fallback and selected-network retry.</summary>
     [Theory]
     [InlineData("1")]
     [InlineData("010")]
     [InlineData("0x10")]
-    public void PositiveTimeLimitRejectsPlannedRecovery(string token)
+    public void PositiveTimeLimitPreservesPlannedRecovery(string token)
     {
         foreach (TransportKind selectedTransport in new[] { TransportKind.Usb, TransportKind.Network })
         {
@@ -254,8 +255,11 @@ public sealed class NativeLaunchPreflightTests
             NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
                 new AdbDevice(selectedSerial, AdbDeviceState.Device, null), SessionId.New());
 
-            Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
-            Assert.Null(result.Request);
+            Assert.True(result.IsReady);
+            Assert.Equal(selectedTransport, result.Request!.SelectedTransport);
+            Assert.Equal(profile.ConnectionEndpoint, result.Request.ReconnectEndpoint);
+            Assert.Equal(token, result.Request.Mirroring.Options["time-limit"].GetString());
+            Assert.Contains($"--time-limit={token}", OptionSelectionValidator.Evaluate(result.Request.Mirroring).Arguments);
             Assert.Empty(result.OptionDiagnostics);
             Assert.Equal(token, configuration.Mirroring.Options["time-limit"].GetString());
         }
@@ -338,13 +342,13 @@ public sealed class NativeLaunchPreflightTests
             diagnostic.OptionId == "time-limit" && diagnostic.Code == OptionDiagnosticCode.InvalidValueType);
     }
 
-    /// <summary>Skipping a zero deadline must still inspect every remaining incompatible option.</summary>
+    /// <summary>Zero and newly supported generation options preserve their raw snapshot in either order.</summary>
     [Theory]
     [InlineData("record", true)]
     [InlineData("record", false)]
     [InlineData("no-window", true)]
     [InlineData("no-window", false)]
-    public void ZeroTimeLimitDoesNotMaskOtherReconnectRestrictions(string incompatibleOption, bool zeroFirst)
+    public void ZeroTimeLimitComposesWithSupportedRecoveryOptions(string incompatibleOption, bool zeroFirst)
     {
         DeviceProfile profile = Profile();
         JsonElement zero = JsonSerializer.SerializeToElement("0");
@@ -359,11 +363,85 @@ public sealed class NativeLaunchPreflightTests
         NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
             new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
 
-        Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
-        Assert.Null(result.Request);
+        Assert.True(result.IsReady);
+        Assert.Equal(profile.ConnectionEndpoint, result.Request!.ReconnectEndpoint);
         Assert.Empty(result.OptionDiagnostics);
         Assert.Equal("0", configuration.Mirroring.Options["time-limit"].GetString());
         Assert.Equal(incompatibleValue.GetRawText(), configuration.Mirroring.Options[incompatibleOption].GetRawText());
+    }
+
+    /// <summary>Headless and suppressed presentation still use the committed transport plan.</summary>
+    [Theory]
+    [InlineData("no-window")]
+    [InlineData("no-playback")]
+    [InlineData("no-video")]
+    [InlineData("no-video-playback")]
+    public void HeadlessRecoveryKeepsOptionsAndSelectedRoute(string optionId)
+    {
+        foreach (TransportKind transport in new[] { TransportKind.Usb, TransportKind.Network })
+        {
+            DeviceProfile profile = ProfileWithPolicy(allowFallback: transport == TransportKind.Usb);
+            ConfigurationV2 configuration = Configuration(profile,
+                new Dictionary<string, JsonElement> { [optionId] = JsonSerializer.SerializeToElement(true) });
+            string serial = transport == TransportKind.Usb
+                ? profile.UsbIdentity!.Value.Value : profile.ConnectionEndpoint!.ToString();
+            SessionId session = SessionId.New();
+            NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "headless-rev", profile.Id,
+                new AdbDevice(serial, AdbDeviceState.Device, null), session);
+
+            Assert.True(result.IsReady);
+            Assert.Equal(session, result.Request!.SessionId);
+            Assert.Equal(profile.Id, result.Request.ProfileId);
+            Assert.Equal("headless-rev", result.Request.ConfigurationRevision);
+            Assert.Equal(serial, result.Request.SelectedAdbSerial);
+            Assert.Equal(transport, result.Request.SelectedTransport);
+            Assert.Equal(profile.ConnectionEndpoint, result.Request.ReconnectEndpoint);
+            Assert.True(result.Request.Mirroring.Options[optionId].GetBoolean());
+            Assert.Contains($"--{optionId}", OptionSelectionValidator.Evaluate(result.Request.Mirroring).Arguments);
+        }
+    }
+
+    /// <summary>Enabling supported modes does not admit USB-only AOA recovery, regardless of zero ordering.</summary>
+    [Theory]
+    [InlineData("keyboard", true)]
+    [InlineData("keyboard", false)]
+    [InlineData("mouse", true)]
+    [InlineData("mouse", false)]
+    [InlineData("gamepad", true)]
+    [InlineData("gamepad", false)]
+    public void ZeroTimeLimitDoesNotMaskAoaRecoveryRestriction(string optionId, bool zeroFirst)
+    {
+        DeviceProfile profile = Profile();
+        JsonElement zero = JsonSerializer.SerializeToElement("0");
+        JsonElement aoa = JsonSerializer.SerializeToElement("aoa");
+        Dictionary<string, JsonElement> options = zeroFirst
+            ? new() { ["time-limit"] = zero, [optionId] = aoa }
+            : new() { [optionId] = aoa, ["time-limit"] = zero };
+        NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(Configuration(profile, options), "rev",
+            profile.Id, new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+        Assert.Equal(NativeLaunchFailure.UnsupportedReconnectCombination, result.Failure);
+        Assert.Null(result.Request);
+        Assert.Empty(result.OptionDiagnostics);
+    }
+
+    /// <summary>The current portable build still rejects OTG through canonical option metadata.</summary>
+    [Fact]
+    public void OtgRemainsUnsupportedWithZeroDeadline()
+    {
+        DeviceProfile profile = Profile();
+        ConfigurationV2 configuration = Configuration(profile, new Dictionary<string, JsonElement>
+        {
+            ["time-limit"] = JsonSerializer.SerializeToElement("0"),
+            ["otg"] = JsonSerializer.SerializeToElement(true),
+        });
+        NativeLaunchPreparation result = NativeLaunchPreflight.Prepare(configuration, "rev", profile.Id,
+            new AdbDevice("SYNTHETIC_USB", AdbDeviceState.Device, null), SessionId.New());
+
+        Assert.Equal(NativeLaunchFailure.UnsupportedOption, result.Failure);
+        Assert.Null(result.Request);
+        Assert.Contains(result.OptionDiagnostics, diagnostic => diagnostic.OptionId == "otg" &&
+            diagnostic.Code == OptionDiagnosticCode.NotEditable);
     }
 
     /// <summary>Builds a synthetic saved identity with independent USB and network selectors.</summary>

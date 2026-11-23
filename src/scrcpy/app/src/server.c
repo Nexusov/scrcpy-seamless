@@ -958,6 +958,7 @@ run_server(void *data) {
     struct sc_server *server = data;
 
     const struct sc_server_params *params = &server->params;
+    server->failure = SC_SERVER_FAILURE_START;
 
     // Execute "adb start-server" before "adb devices" so that daemon starting
     // output/errors is correctly printed in the console ("adb devices" output
@@ -966,19 +967,6 @@ run_server(void *data) {
     if (!ok) {
         LOGE("Could not start adb server");
         goto error_connection_failed;
-    }
-
-    // Re-resolve the paired mDNS service before reconnecting to Wi-Fi.
-    const char *reconnect_serial = getenv("SCRCPY_RECONNECT_SERIAL");
-    bool reconnect_requested = reconnect_serial && params->req_serial
-                           && !strcmp(reconnect_serial, params->req_serial);
-
-    if (reconnect_requested) {
-        ok = sc_adb_connect(&server->intr, reconnect_serial, SC_ADB_SILENT);
-
-        if (!ok) {
-            goto error_connection_failed;
-        }
     }
 
     // params->tcpip_dst implies params->tcpip
@@ -1008,19 +996,12 @@ run_server(void *data) {
         } else if (params->select_tcpip) {
             selector.type = SC_ADB_DEVICE_SELECT_TCPIP;
         } else {
-            // No explicit selection, check $ANDROID_SERIAL
-            const char *env_serial = getenv("ANDROID_SERIAL");
-            if (env_serial) {
-                LOGI("Using ANDROID_SERIAL: %s", env_serial);
-                selector.type = SC_ADB_DEVICE_SELECT_SERIAL;
-                selector.serial = env_serial;
-            } else {
-                selector.type = SC_ADB_DEVICE_SELECT_ALL;
-            }
+            selector.type = SC_ADB_DEVICE_SELECT_ALL;
         }
         struct sc_adb_device device;
         ok = sc_adb_select_device(&server->intr, &selector, 0, &device);
         if (!ok) {
+            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
             goto error_connection_failed;
         }
 
@@ -1049,6 +1030,7 @@ run_server(void *data) {
         }
         ok = sc_server_configure_tcpip_known_address(server, tcpip_dst, plus);
         if (!ok) {
+            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
             goto error_connection_failed;
         }
     }
@@ -1117,9 +1099,9 @@ run_server(void *data) {
     // The tunnel is always closed by server_connect_to()
     if (!ok) {
         sc_process_terminate(pid);
-        sc_process_wait(pid, true); // ignore exit code
         sc_process_observer_join(&observer);
         sc_process_observer_destroy(&observer);
+        sc_process_close(pid);
         goto error_connection_failed;
     }
 

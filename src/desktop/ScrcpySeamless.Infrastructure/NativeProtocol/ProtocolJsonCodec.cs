@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using ScrcpySeamless.Core.Application.NativeHost;
 
 namespace ScrcpySeamless.Infrastructure.NativeProtocol;
 
@@ -23,7 +24,7 @@ public static class ProtocolJsonCodec
         "requiredCapabilities", "supportedCapabilities", "capabilities", "status",
         "requestId", "sessionId", "command", "sequence", "utc",
         "monotonicMicroseconds", "connectionAttemptId", "subsystem",
-        "eventType", "reason", "error"];
+        "eventType", "reason", "error", "generationMetrics"];
     private static readonly HashSet<string> HelloStatuses =
     ["accepted", "productMismatch", "majorMismatch", "requiredCapabilityMissing"];
     private static readonly HashSet<string> CommandStatuses =
@@ -33,9 +34,13 @@ public static class ProtocolJsonCodec
     private static readonly HashSet<string> Events =
     ["NativeReady", "Connecting", "StreamStarted", "TransportLost",
         "ReconnectScheduled", "Reconnecting", "StreamResumed",
-        "CapabilityDegraded", "SessionStopped", "FatalError"];
+        "CapabilityDegraded", "SessionStopped", "FatalError", "GenerationRetired"];
     private static readonly HashSet<string> AttemptEvents =
-    ["Connecting", "StreamStarted", "TransportLost", "Reconnecting", "StreamResumed"];
+    ["Connecting", "StreamStarted", "TransportLost", "Reconnecting", "StreamResumed", "GenerationRetired"];
+    private static readonly HashSet<string> MetricFields =
+    ["nativeGeneration", "retirementMicroseconds", "audioPacketsRead", "audioFramesDecoded",
+        "audioSamplesSubmitted", "audioUnderflowSamples", "audioOverflowSamplesDropped", "audioPcmPeakSamples",
+        "videoFramesDecoded", "controlMessagesWritten", "processWorkingSetBytes", "processPrivateBytes"];
     private static readonly HashSet<string> Reasons =
     ["none", "userStop", "windowClosed", "transportLost", "protocolError",
         "nativeFailure", "unknown"];
@@ -162,6 +167,11 @@ public static class ProtocolJsonCodec
                     writer.WriteString("eventType", message.EventType);
                     writer.WriteString("reason", message.Reason);
                     writer.WriteString("error", message.Error);
+
+                    if (message.GenerationMetrics is { } metrics)
+                    {
+                        WriteGenerationMetrics(writer, metrics);
+                    }
                     break;
                 default:
                     throw new ProtocolException(ProtocolFailure.UnsupportedMessage,
@@ -179,6 +189,12 @@ public static class ProtocolJsonCodec
     /// <summary>Bounds public message fields before the JSON writer allocates output.</summary>
     private static void ValidateForEncoding(ProtocolMessage message)
     {
+        if (message.GenerationMetrics is not null &&
+            (message.MessageType != "lifecycle" || message.EventType != "GenerationRetired"))
+        {
+            throw Invalid("Generation metrics are not valid for this message.");
+        }
+
         string?[] ordinaryStrings =
         [message.MessageType, message.Product, message.Status, message.Command,
             message.Subsystem, message.EventType, message.Reason, message.Error];
@@ -265,7 +281,7 @@ public static class ProtocolJsonCodec
         "command" => ["messageType", "requestId", "sessionId", "command"],
         "commandResult" => ["messageType", "requestId", "sessionId", "command", "status"],
         "lifecycle" => ["messageType", "sequence", "utc", "monotonicMicroseconds",
-            "sessionId", "connectionAttemptId", "subsystem", "eventType", "reason", "error"],
+            "sessionId", "connectionAttemptId", "subsystem", "eventType", "reason", "error", "generationMetrics"],
         _ => throw new ProtocolException(ProtocolFailure.UnsupportedMessage,
             "Unsupported message type."),
     };
@@ -343,6 +359,16 @@ public static class ProtocolJsonCodec
         {
             throw Invalid("Event requires a connection attempt.");
         }
+        string subsystem = ReadEnum(fields, "subsystem", Subsystems);
+        string reason = ReadEnum(fields, "reason", Reasons);
+        string error = ReadEnum(fields, "error", Errors);
+        bool retired = eventType == "GenerationRetired";
+
+        if (retired != fields.ContainsKey("generationMetrics") ||
+            retired && (subsystem != "native" || reason != "none" || error != "none"))
+        {
+            throw Invalid("Invalid retired-generation metrics scope.");
+        }
 
         return new ProtocolMessage
         {
@@ -352,11 +378,65 @@ public static class ProtocolJsonCodec
             MonotonicMicroseconds = ReadDecimal(fields, "monotonicMicroseconds", allowZero: true),
             SessionId = ReadGuid(fields, "sessionId"),
             ConnectionAttemptId = attempt,
-            Subsystem = ReadEnum(fields, "subsystem", Subsystems),
+            Subsystem = subsystem,
             EventType = eventType,
-            Reason = ReadEnum(fields, "reason", Reasons),
-            Error = ReadEnum(fields, "error", Errors),
+            Reason = reason,
+            Error = error,
+            GenerationMetrics = retired ? ReadGenerationMetrics(fields["generationMetrics"]) : null,
         };
+    }
+
+    private static NativeGenerationMetrics ReadGenerationMetrics(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            throw Invalid("Generation metrics must be an object.");
+        }
+        Dictionary<string, JsonElement> fields = new(StringComparer.Ordinal);
+
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            string name = CheckedString(property.Name, MaximumStringBytes);
+
+            if (fields.Count == MetricFields.Count || !MetricFields.Contains(name) || !fields.TryAdd(name, property.Value))
+            {
+                throw Invalid("Invalid generation metric field.");
+            }
+        }
+
+        ulong? Optional(string name) => fields.ContainsKey(name) ? ReadDecimal(fields, name, allowZero: true) : null;
+        return new(ReadDecimal(fields, "nativeGeneration", allowZero: false),
+            ReadDecimal(fields, "retirementMicroseconds", allowZero: true),
+            Optional("audioPacketsRead"), Optional("audioFramesDecoded"), Optional("audioSamplesSubmitted"),
+            Optional("audioUnderflowSamples"), Optional("audioOverflowSamplesDropped"), Optional("audioPcmPeakSamples"),
+            Optional("videoFramesDecoded"), Optional("controlMessagesWritten"),
+            Optional("processWorkingSetBytes"), Optional("processPrivateBytes"));
+    }
+
+    private static void WriteGenerationMetrics(Utf8JsonWriter writer, NativeGenerationMetrics metrics)
+    {
+        writer.WriteStartObject("generationMetrics");
+        writer.WriteString("nativeGeneration", Decimal(metrics.NativeGeneration));
+        writer.WriteString("retirementMicroseconds", Decimal(metrics.RetirementMicroseconds));
+
+        void Optional(string name, ulong? value)
+        {
+            if (value is { } measured)
+            {
+                writer.WriteString(name, Decimal(measured));
+            }
+        }
+        Optional("audioPacketsRead", metrics.AudioPacketsRead);
+        Optional("audioFramesDecoded", metrics.AudioFramesDecoded);
+        Optional("audioSamplesSubmitted", metrics.AudioSamplesSubmitted);
+        Optional("audioUnderflowSamples", metrics.AudioUnderflowSamples);
+        Optional("audioOverflowSamplesDropped", metrics.AudioOverflowSamplesDropped);
+        Optional("audioPcmPeakSamples", metrics.AudioPcmPeakSamples);
+        Optional("videoFramesDecoded", metrics.VideoFramesDecoded);
+        Optional("controlMessagesWritten", metrics.ControlMessagesWritten);
+        Optional("processWorkingSetBytes", metrics.ProcessWorkingSetBytes);
+        Optional("processPrivateBytes", metrics.ProcessPrivateBytes);
+        writer.WriteEndObject();
     }
 
     /// <summary>Reads a required nonempty bounded JSON string.</summary>

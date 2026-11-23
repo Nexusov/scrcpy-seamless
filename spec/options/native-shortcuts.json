@@ -1,0 +1,350 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "home",
+      "group": "navigation",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+H"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "back",
+      "group": "navigation",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+B",
+        "MOD+Backspace"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "recent",
+      "group": "navigation",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+S"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "menu",
+      "group": "navigation",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+M"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "notifications",
+      "group": "navigation",
+      "context": "display",
+      "tap": 1,
+      "gestures": [
+        "MOD+N"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "quickSettings",
+      "group": "navigation",
+      "context": "display",
+      "tap": 2,
+      "gestures": [
+        "MOD+N"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "collapsePanels",
+      "group": "navigation",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+N"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "quitMirror",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Q",
+        "MOD+Shift+Q"
+      ],
+      "condition": ""
+    },
+    {
+      "id": "fullscreen",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+F",
+        "F11"
+      ],
+      "condition": ""
+    },
+    {
+      "id": "rotateLeft",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Left"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "rotateRight",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Right"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "flipHorizontal",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+Left",
+        "MOD+Shift+Right"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "flipVertical",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+Up",
+        "MOD+Shift+Down"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "pause",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Z"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "unpause",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+Z"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "resetVideo",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+R"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "pixelPerfect",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+G"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "removeBorders",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+W"
+      ],
+      "condition": "video"
+    },
+    {
+      "id": "fps",
+      "group": "window",
+      "context": "all",
+      "tap": 0,
+      "gestures": [
+        "MOD+I"
+      ],
+      "condition": "stdout"
+    },
+    {
+      "id": "rotateDevice",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+R"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "powerKey",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+P"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "screenOff",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+O"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "screenOn",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+O"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "volumeUp",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+Up"
+      ],
+      "condition": "deviceNonCamera"
+    },
+    {
+      "id": "volumeDown",
+      "group": "deviceScreen",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+Down"
+      ],
+      "condition": "deviceNonCamera"
+    },
+    {
+      "id": "copy",
+      "group": "clipboard",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+C"
+      ],
+      "condition": "android7"
+    },
+    {
+      "id": "cut",
+      "group": "clipboard",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+X"
+      ],
+      "condition": "android7"
+    },
+    {
+      "id": "paste",
+      "group": "clipboard",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+V"
+      ],
+      "condition": "paste"
+    },
+    {
+      "id": "pasteText",
+      "group": "clipboard",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+V"
+      ],
+      "condition": "device"
+    },
+    {
+      "id": "keyboardSettings",
+      "group": "special",
+      "context": "display",
+      "tap": 0,
+      "gestures": [
+        "MOD+K"
+      ],
+      "condition": "hid"
+    },
+    {
+      "id": "torchOn",
+      "group": "special",
+      "context": "camera",
+      "tap": 0,
+      "gestures": [
+        "MOD+T"
+      ],
+      "condition": "camera"
+    },
+    {
+      "id": "torchOff",
+      "group": "special",
+      "context": "camera",
+      "tap": 0,
+      "gestures": [
+        "MOD+Shift+T"
+      ],
+      "condition": "camera"
+    },
+    {
+      "id": "cameraZoomIn",
+      "group": "special",
+      "context": "camera",
+      "tap": 0,
+      "gestures": [
+        "MOD+Up"
+      ],
+      "condition": "camera"
+    },
+    {
+      "id": "cameraZoomOut",
+      "group": "special",
+      "context": "camera",
+      "tap": 0,
+      "gestures": [
+        "MOD+Down"
+      ],
+      "condition": "camera"
+    }
+  ]
+}

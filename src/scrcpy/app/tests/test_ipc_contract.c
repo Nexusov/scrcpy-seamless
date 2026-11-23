@@ -212,6 +212,88 @@ check_frame_edges(void) {
     sc_ipc_frame_reader_destroy(&reader);
 }
 
+static const char stream_session[] = "11111111-2222-3333-4444-555555555555";
+static const char *const stream_commands[] = {"Stop", "Focus", "Фокус"};
+enum {
+    STREAM_CAPACITY = 1024,
+    STREAM_COMMAND_COUNT = sizeof(stream_commands) / sizeof(stream_commands[0]),
+};
+
+static void
+check_stream_chunk_size(const uint8_t *stream, size_t stream_length,
+                        size_t chunk_size) {
+    struct sc_ipc_frame_reader reader;
+    sc_ipc_frame_reader_init(&reader);
+    size_t offset = 0;
+    size_t received = 0;
+
+    while (offset < stream_length) {
+        size_t chunk_end = offset + chunk_size;
+
+        if (chunk_end > stream_length) {
+            chunk_end = stream_length;
+        }
+
+        while (offset < chunk_end) {
+            size_t consumed, length;
+            uint8_t *payload;
+            enum sc_ipc_frame_status status = sc_ipc_frame_reader_feed(
+                &reader, stream + offset, chunk_end - offset, &consumed,
+                &payload, &length);
+            assert(consumed && consumed <= chunk_end - offset);
+            offset += consumed;
+
+            if (status == SC_IPC_FRAME_MORE) {
+                assert(!payload && offset == chunk_end);
+                continue;
+            }
+
+            assert(status == SC_IPC_FRAME_READY && received < STREAM_COMMAND_COUNT);
+            struct sc_ipc_message decoded;
+            assert(sc_ipc_json_decode(payload, length, &decoded) == SC_IPC_JSON_OK);
+            assert(decoded.type == SC_IPC_COMMAND && decoded.request_id == received + 1);
+            assert(!strcmp(decoded.command, stream_commands[received]));
+            assert(!strcmp(decoded.session_id, stream_session));
+            ++received;
+            free(payload);
+        }
+    }
+
+    assert(received == STREAM_COMMAND_COUNT);
+    assert(sc_ipc_frame_reader_eof(&reader) == SC_IPC_FRAME_READY);
+    sc_ipc_frame_reader_destroy(&reader);
+}
+
+/** The same ordered command stream survives fragmentation or coalescing. */
+static void
+check_command_stream(void) {
+    uint8_t stream[STREAM_CAPACITY];
+    size_t length = 0;
+
+    for (size_t index = 0; index < STREAM_COMMAND_COUNT; ++index) {
+        struct sc_ipc_message command = {
+            .type = SC_IPC_COMMAND,
+            .request_id = index + 1,
+        };
+        strcpy(command.session_id, stream_session);
+        strcpy(command.command, stream_commands[index]);
+        uint8_t *payload, *frame;
+        size_t payload_length, frame_length;
+        assert(sc_ipc_json_encode(&command, &payload, &payload_length) == SC_IPC_JSON_OK);
+        assert(sc_ipc_frame_encode(payload, payload_length, &frame, &frame_length)
+               == SC_IPC_FRAME_READY);
+        assert(frame_length <= sizeof(stream) - length);
+        memcpy(stream + length, frame, frame_length);
+        length += frame_length;
+        free(frame);
+        free(payload);
+    }
+
+    for (size_t chunk_size = 1; chunk_size <= length; ++chunk_size) {
+        check_stream_chunk_size(stream, length, chunk_size);
+    }
+}
+
 /** Confirms strict semantic and JSON rejection without echoing input. */
 static void
 check_invalid_messages(void) {
@@ -406,6 +488,7 @@ main(int argc, char **argv) {
         check_golden(argv[2], argc >= 4 ? argv[3] : NULL, &golden[index]);
     }
     check_frame_edges();
+    check_command_stream();
     check_invalid_messages();
     check_conformance(argv[2], argc == 5 ? argv[4] : NULL);
     return 0;

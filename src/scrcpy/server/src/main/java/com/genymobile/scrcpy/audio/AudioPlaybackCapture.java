@@ -38,24 +38,10 @@ public final class AudioPlaybackCapture implements AudioCapture {
             // AudioMixingRule.Builder audioMixingRuleBuilder = new AudioMixingRule.Builder();
             Object audioMixingRuleBuilder = audioMixingRuleBuilderClass.getConstructor().newInstance();
 
-            // audioMixingRuleBuilder.setTargetMixRole(AudioMixingRule.MIX_ROLE_PLAYERS);
             int mixRolePlayersConstant = audioMixingRuleClass.getField("MIX_ROLE_PLAYERS").getInt(null);
-            Method setTargetMixRoleMethod = audioMixingRuleBuilderClass.getMethod("setTargetMixRole", int.class);
-            setTargetMixRoleMethod.invoke(audioMixingRuleBuilder, mixRolePlayersConstant);
-
-            AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build();
-
-            // audioMixingRuleBuilder.addMixRule(AudioMixingRule.RULE_MATCH_ATTRIBUTE_USAGE, attributes);
             int ruleMatchAttributeUsageConstant = audioMixingRuleClass.getField("RULE_MATCH_ATTRIBUTE_USAGE").getInt(null);
-            Method addMixRuleMethod = audioMixingRuleBuilderClass.getMethod("addMixRule", int.class, Object.class);
-            addMixRuleMethod.invoke(audioMixingRuleBuilder, ruleMatchAttributeUsageConstant, attributes);
-
-            // AudioMixingRule audioMixingRule = builder.build();
-            Object audioMixingRule = audioMixingRuleBuilderClass.getMethod("build").invoke(audioMixingRuleBuilder);
-
-            // audioMixingRuleBuilder.voiceCommunicationCaptureAllowed(true);
-            Method voiceCommunicationCaptureAllowedMethod = audioMixingRuleBuilderClass.getMethod("voiceCommunicationCaptureAllowed", boolean.class);
-            voiceCommunicationCaptureAllowedMethod.invoke(audioMixingRuleBuilder, true);
+            Object audioMixingRule = AudioPlaybackRule.build(audioMixingRuleBuilder, mixRolePlayersConstant, ruleMatchAttributeUsageConstant,
+                    usage -> new AudioAttributes.Builder().setUsage(usage).build());
 
             Class<?> audioMixClass = Class.forName("android.media.audiopolicy.AudioMix");
             Class<?> audioMixBuilderClass = Class.forName("android.media.audiopolicy.AudioMix$Builder");

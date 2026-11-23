@@ -14,6 +14,7 @@ sc_timeout_init(struct sc_timeout *timeout) {
 
     ok = sc_cond_init(&timeout->cond);
     if (!ok) {
+        sc_mutex_destroy(&timeout->mutex);
         return false;
     }
 
@@ -43,18 +44,18 @@ run_timeout(void *data) {
 bool
 sc_timeout_start(struct sc_timeout *timeout, sc_tick deadline,
                  const struct sc_timeout_callbacks *cbs, void *cbs_userdata) {
+    // Publish the complete borrowed callback context before the worker can run.
+    timeout->deadline = deadline;
+    assert(cbs && cbs->on_timeout);
+    timeout->cbs = cbs;
+    timeout->cbs_userdata = cbs_userdata;
+
     bool ok = sc_thread_create(&timeout->thread, run_timeout, "scrcpy-timeout",
                                timeout);
     if (!ok) {
         LOGE("Timeout: could not start thread");
         return false;
     }
-
-    timeout->deadline = deadline;
-
-    assert(cbs && cbs->on_timeout);
-    timeout->cbs = cbs;
-    timeout->cbs_userdata = cbs_userdata;
 
     return true;
 }

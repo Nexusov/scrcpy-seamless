@@ -1,12 +1,14 @@
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Core.Adb;
 using ScrcpySeamless.Core.Application.NativeHost;
+using ScrcpySeamless.Core.Application.Updates;
 using ScrcpySeamless.Desktop.Presentation;
 using ScrcpySeamless.Infrastructure.Adb;
 using ScrcpySeamless.Infrastructure.Configuration;
 using ScrcpySeamless.Infrastructure.NativeHost;
 using ScrcpySeamless.Infrastructure.Runtime;
 using Avalonia.Threading;
+using System.Reflection;
 
 namespace ScrcpySeamless.Desktop;
 
@@ -17,6 +19,7 @@ public sealed class NormalDesktopComposition
     private bool closeSaveActive;
     private bool exitReserved;
     private bool liveShutdownPending;
+    private readonly DeviceSessionViewModel? initialDeviceSession;
 
     public NormalDesktopComposition(
         ShellViewModel shell,
@@ -27,7 +30,9 @@ public sealed class NormalDesktopComposition
         DevicesViewModel devices,
         DeviceSessionViewModel? deviceSession,
         ApplicationDataPaths dataPaths,
-        PresentationText text)
+        PresentationText text,
+        SessionsWorkspaceViewModel? sessions = null,
+        ReleaseCheckViewModel? releases = null)
     {
         Shell = shell;
         Settings = settings;
@@ -35,7 +40,9 @@ public sealed class NormalDesktopComposition
         Configuration = configuration;
         Preferences = preferences;
         Devices = devices;
-        DeviceSession = deviceSession;
+        initialDeviceSession = deviceSession;
+        Sessions = sessions;
+        Releases = releases;
         DataPaths = dataPaths;
         this.text = text;
         Configuration.AttachCloseSaveGuard(() => closeSaveActive || exitReserved);
@@ -49,18 +56,20 @@ public sealed class NormalDesktopComposition
     public ConfigurationWorkspaceViewModel Configuration { get; }
     public DesktopPreferencesViewModel Preferences { get; }
     public DevicesViewModel Devices { get; }
-    public DeviceSessionViewModel? DeviceSession { get; }
+    public DeviceSessionViewModel? DeviceSession => Sessions is null ? initialDeviceSession : Sessions.SelectedSession;
+    public SessionsWorkspaceViewModel? Sessions { get; }
+    internal ReleaseCheckViewModel? Releases { get; }
     public ApplicationDataPaths DataPaths { get; }
     public bool HasDirtyGroups => Configuration.IsDirty || Profiles.HasUnstagedChanges || Preferences.IsDirty;
     public bool IsBusy => Configuration.IsBusy || Preferences.IsBusy;
     public bool IsCloseSaveActive => closeSaveActive || exitReserved;
     public bool IsLiveShutdownPending => liveShutdownPending;
-    public bool HasLiveOperations => DeviceSession is not null;
+    public bool HasLiveOperations => Sessions is not null || initialDeviceSession is not null;
 
     /// <summary>Stops the owned native child and settles explicit ADB operations after exit acceptance.</summary>
     public async Task<bool> ShutdownLiveAsync()
     {
-        if (DeviceSession is null)
+        if (DeviceSession is null && Sessions is null)
         {
             return true;
         }
@@ -69,12 +78,20 @@ public sealed class NormalDesktopComposition
         Configuration.RefreshCloseSaveState();
         Preferences.RefreshCloseSaveState();
         Shell.RefreshThemeEditState();
-        bool stopped = await DeviceSession.ShutdownAsync();
+        bool stopped = Sessions is not null
+            ? await Sessions.ShutdownAsync() : await DeviceSession!.ShutdownAsync();
 
         if (!stopped)
         {
             liveShutdownPending = false;
-            DeviceSession.ResumeAfterFailedShutdown();
+            if (Sessions is not null)
+            {
+                Sessions.ResumeAfterFailedShutdown();
+            }
+            else
+            {
+                DeviceSession!.ResumeAfterFailedShutdown();
+            }
             exitReserved = false;
             Configuration.RefreshCloseSaveState();
             Preferences.RefreshCloseSaveState();
@@ -209,7 +226,10 @@ public static class NormalDesktopFactory
         Action<DesktopShortcutPreferences> activateShortcuts,
         Func<string?, string?> resolveEffectiveFont,
         Func<CancellationToken, Task>? beforePreferencesCommit = null,
-        Func<string, Task>? copySessionEvidence = null)
+        Func<string, Task>? copySessionEvidence = null,
+        RuntimeBundleResult? validatedRuntime = null,
+        IReleaseChecker? releaseChecker = null,
+        Func<Uri, CancellationToken, Task>? openReleaseLink = null)
     {
         if (options.Preview || options.StorageMode == DesktopStorageMode.None)
         {
@@ -221,9 +241,10 @@ public static class NormalDesktopFactory
         InMemoryOptionDraft optionDraft = new();
         VersionedConfigurationStore store = new(paths.ConfigurationFile);
         ConfigurationEditSession session = new(store);
-        LegacyMigrationCoordinator? migration = options.LegacyDevelopmentDirectory is null
+        string? legacyDirectory = options.LegacyImportDirectory ?? options.LegacyDevelopmentDirectory;
+        LegacyMigrationCoordinator? migration = legacyDirectory is null
             ? null
-            : new LegacyMigrationCoordinator(options.LegacyDevelopmentDirectory, store);
+            : new LegacyMigrationCoordinator(legacyDirectory, store);
         ConfigurationWorkspaceViewModel configuration = new(session, optionDraft, migration);
         ProfilesViewModel profiles = new(text, session);
         profiles.AttachWorkspace(configuration);
@@ -268,10 +289,13 @@ public static class NormalDesktopFactory
         }
 
         DeviceSessionViewModel? deviceSession = null;
+        SessionsWorkspaceViewModel? sessions = null;
 
-        if (options.DeviceRuntimeDirectory is not null)
+        string? runtimeDirectory = ResolveDeviceRuntimeDirectory(options, AppContext.BaseDirectory);
+
+        if (runtimeDirectory is not null)
         {
-            RuntimeBundleResult runtime = DeviceRuntimeBundle.Validate(options.DeviceRuntimeDirectory);
+            RuntimeBundleResult runtime = validatedRuntime ?? ValidateRuntime(options, runtimeDirectory, default);
             bool enableOpenScreenMdnsCompatibility = runtime.Bundle is { } validatedBundle &&
                 BundledAdbCompatibility.RequiresOpenScreenMdns(validatedBundle.Manifest.Files["adb.exe"]);
             // Only a validated machine-capable bundle can supply the normal device-enabled host.
@@ -279,10 +303,12 @@ public static class NormalDesktopFactory
                 ? new MachineNativeHost(bundle.NativeExecutablePath, bundle.ServerPath,
                     bundle.AdbExecutablePath, enableOpenScreenMdnsCompatibility)
                 : null;
-            deviceSession = new DeviceSessionViewModel(devices, profiles, configuration, store,
-                runtime, nativeHost, action => Dispatcher.UIThread.Post(action),
-                options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null);
-            devices.AttachSessionActions(deviceSession);
+            sessions = new SessionsWorkspaceViewModel(() => new DeviceSessionViewModel(devices, profiles,
+                configuration, store, runtime, nativeHost, action => Dispatcher.UIThread.Post(action),
+                options.StorageMode == DesktopStorageMode.Development ? copySessionEvidence : null),
+                devices.SelectSessionActions, text);
+            deviceSession = sessions.SelectedSession;
+            devices.AttachSessionsWorkspace(sessions, shell.ShowProfilesCommand);
 
             if (runtime.Bundle is { } readyBundle)
             {
@@ -298,9 +324,54 @@ public static class NormalDesktopFactory
             }
         }
 
+        ReleaseCheckViewModel? releases = null;
+
+        if (releaseChecker is not null && openReleaseLink is not null)
+        {
+            string productVersion = typeof(NormalDesktopFactory).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty;
+            releases = new ReleaseCheckViewModel(releaseChecker, productVersion, text, openReleaseLink);
+        }
+
+        if (sessions is not null || releases is not null)
+        {
+            shell.AttachSessionWorkspaces(sessions, new DiagnosticsWorkspaceViewModel(sessions, text, releases));
+        }
+
         return new NormalDesktopComposition(shell, settings, profiles, configuration, preferences,
-            devices, deviceSession, paths, text);
+            devices, deviceSession, paths, text, sessions, releases);
     }
+
+    /// <summary>Uses the package runtime for normal modes and only an explicit runtime for DEV.</summary>
+    internal static string? ResolveDeviceRuntimeDirectory(DesktopLaunchOptions options, string applicationDirectory)
+    {
+        if (options.Preview)
+        {
+            return null;
+        }
+
+        if (options.StorageMode == DesktopStorageMode.Development)
+        {
+            return options.DeviceRuntimeDirectory;
+        }
+
+        return options.StorageMode is DesktopStorageMode.Portable or DesktopStorageMode.Installed
+            ? Path.Combine(applicationDirectory, "runtime") : null;
+    }
+
+    internal static Task<RuntimeBundleResult?> ValidateRuntimeAsync(DesktopLaunchOptions options,
+        CancellationToken cancellationToken)
+    {
+        string? directory = ResolveDeviceRuntimeDirectory(options, AppContext.BaseDirectory);
+        return directory is null
+            ? Task.FromResult<RuntimeBundleResult?>(null)
+            : Task.Run<RuntimeBundleResult?>(() => ValidateRuntime(options, directory, cancellationToken), cancellationToken);
+    }
+
+    private static RuntimeBundleResult ValidateRuntime(DesktopLaunchOptions options, string directory,
+        CancellationToken cancellationToken) => options.StorageMode == DesktopStorageMode.Development
+        ? DeviceRuntimeBundle.Validate(directory, cancellationToken)
+        : DeviceRuntimeBundle.ValidateProduction(directory, cancellationToken);
 
     /// <summary>Resolves paths from selected application and user roots, never from working directory.</summary>
     public static ApplicationDataPaths ResolveDataPaths(DesktopLaunchOptions options)

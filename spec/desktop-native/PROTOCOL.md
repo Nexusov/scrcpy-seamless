@@ -76,14 +76,15 @@ process's machine stream and must not reset on reconnect.
 | `helloResult` native → Desktop, first response | `messageType`, `product`, `protocolMajor`, `protocolMinor`, `status`, `capabilities` | none | Native accepts or states a typed mismatch. |
 | `command` Desktop → native | `messageType`, `requestId`, `sessionId`, `command` | none | One named request. |
 | `commandResult` native → Desktop | `messageType`, `requestId`, `sessionId`, `command`, `status` | none | Correlates with exactly one request; not a process-exit receipt. |
-| `lifecycle` native → Desktop | `messageType`, `sequence`, `utc`, `monotonicMicroseconds`, `sessionId`, `connectionAttemptId`, `subsystem`, `eventType`, `reason`, `error` | `connectionAttemptId` only | An observation at the stated native emission boundary. |
+| `lifecycle` native → Desktop | `messageType`, `sequence`, `utc`, `monotonicMicroseconds`, `sessionId`, `connectionAttemptId`, `subsystem`, `eventType`, `reason`, `error`, `generationMetrics` (only for `GenerationRetired`) | `connectionAttemptId` only, when permitted for the event | An observation at the stated native emission boundary. |
 
 `product` is `scrcpy-seamless`; protocol version is major 1, minor 0. Version
 fields are unsigned decimal JSON integer tokens containing only ASCII digits,
 with value 0..65535, independent of product and configuration versions.
 Negative-zero spelling, decimal points and exponent notation are invalid
 version tokens. Capabilities in v1 are `stop`, `focus-window` and
-`lifecycle-v1`. Native
+`lifecycle-v1`, and the optional `generation-metrics-v1` extension. The
+runtime sidecar continues to list the three mandatory capabilities. Native
 accepts the same major if all required capabilities are supported, ignores
 unknown *optional* supported capabilities, and negotiates the smaller minor.
 Every required capability must also appear in `supportedCapabilities`;
@@ -112,14 +113,15 @@ selected machine route.
 
 Lifecycle `eventType` is one of `NativeReady`, `Connecting`, `StreamStarted`,
 `TransportLost`, `ReconnectScheduled`, `Reconnecting`, `StreamResumed`,
-`CapabilityDegraded`, `SessionStopped`, `FatalError`. `subsystem` is one of
+`CapabilityDegraded`, `SessionStopped`, `FatalError` and negotiated
+`GenerationRetired`. `subsystem` is one of
 `protocol`, `native`, `connection`, `video`, `audio`, `control`. `reason` is
 one of `none`, `userStop`, `windowClosed`, `transportLost`, `protocolError`,
 `nativeFailure`, `unknown`. `error` is one of `none`, `unknown`,
 `invalidMessage`, `unsupported`, `internalFailure`. `unknown` or
 `unsupported` is an explicit limit of evidence, never a success assertion.
 `Connecting`, `StreamStarted`, `TransportLost`, `Reconnecting` and
-`StreamResumed` require a real `connectionAttemptId`; for other events it may
+`StreamResumed` and `GenerationRetired` require a real `connectionAttemptId`; for other events it may
 be null when no attempt exists. A reconnect attempt is distinct from the
 application-lifetime `sessionId` and the protocol connection.
 
@@ -135,6 +137,29 @@ application-lifetime `sessionId` and the protocol connection.
 | `CapabilityDegraded` | Named native channel capability is unavailable; not a blanket media failure. |
 | `SessionStopped` | Native session teardown completed; process exit remains independently observable. |
 | `FatalError` | Native terminal error with typed reason/error; does not imply cleanup completed. |
+| `GenerationRetired` | Native connection owner has joined its workers and released its resources. Emits measured counters for that owner on a negotiated connection when the writer is idle. It reports no session terminal reason. |
+
+`GenerationRetired` is legal only after both parties negotiate
+`generation-metrics-v1`. It uses subsystem `native` with reason and error `none`.
+Its `generationMetrics` object requires positive `nativeGeneration` and
+nonnegative `retirementMicroseconds` (time from the retirement request to the main-thread
+settlement observation). The optional keys, in canonical wire order after
+those two, are `audioPacketsRead`, `audioFramesDecoded`,
+`audioSamplesSubmitted`, `audioUnderflowSamples`,
+`audioOverflowSamplesDropped`, `audioPcmPeakSamples`, `videoFramesDecoded`,
+`controlMessagesWritten`, `processWorkingSetBytes`, and `processPrivateBytes`.
+Every value uses the existing exact unsigned decimal string syntax. Null,
+unknown keys and duplicate keys are invalid. An absent optional key means no
+measurement at that boundary. This object is invalid on other events and on
+other message types. The native generation is local to its native process
+and distinct from the attempt and session IDs. See the
+[runtime diagnostics guide](../../docs/development/desktop-native-runtime.md#explicit-local-jsonl-diagnostics)
+for measurement limits.
+
+The native writer may omit this optional record when already busy, when
+admission closes or when the record cannot be encoded. Omission does not
+change the outcome or use another protocol reader. Older peers retain the
+previous lifecycle vocabulary and framing.
 
 Audio packet receipt or decoding never proves audible Windows output.
 `SessionStopped` and observed process exit may arrive in either order on a

@@ -47,6 +47,7 @@ struct sc_screen {
     struct sc_fps_counter fps_counter;
 
     struct sc_video_ingress ingress;
+    struct sc_dispatcher *dispatcher; // application-owned, outlives this screen
     sc_dispatcher_generation generation; // SDL main thread
     bool event_watch_installed;
     bool resize_in_progress; // reject reentrant resize effects
@@ -96,6 +97,9 @@ struct sc_screen {
     bool disconnected;
     bool disconnect_started;
     struct sc_disconnect disconnect;
+    // Application-scoped helper borrows this stable screen until its join.
+    void *disconnect_icon; // SDL atomic pointer; at most one owned surface
+    SDL_AtomicInt disconnect_timed_out;
 
     // Track resize requests caused by frame-size changes
     struct sc_resize_tracker {
@@ -121,6 +125,7 @@ struct sc_screen_params {
     bool legacy_paste;
     bool clipboard_autosync;
     uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
+    const struct sc_shortcut_bindings *shortcut_bindings;
 
     const char *window_title;
     bool always_on_top;
@@ -168,6 +173,10 @@ sc_screen_clear_pending_frames(struct sc_screen *screen);
 // must be called before sc_screen_join()
 void
 sc_screen_interrupt(struct sc_screen *screen);
+
+/* Stop all app-owned helpers before asynchronous final presentation join. */
+void
+sc_screen_interrupt_helpers(struct sc_screen *screen);
 
 // join any inner thread
 void

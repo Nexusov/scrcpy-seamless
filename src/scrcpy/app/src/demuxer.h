@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "trait/packet_source.h"
 #include "util/net.h"
@@ -16,6 +17,7 @@ struct sc_demuxer {
 
     sc_socket socket;
     sc_thread thread;
+    uint64_t packets_read; // demux worker only until join
 
     const struct sc_demuxer_callbacks *cbs;
     void *cbs_userdata;
@@ -25,6 +27,8 @@ enum sc_demuxer_status {
     SC_DEMUXER_STATUS_EOS,
     SC_DEMUXER_STATUS_DISABLED,
     SC_DEMUXER_STATUS_ERROR,
+    SC_DEMUXER_STATUS_PROTOCOL_ERROR,
+    SC_DEMUXER_STATUS_SINK_ERROR,
 };
 
 struct sc_demuxer_callbacks {

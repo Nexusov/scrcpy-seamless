@@ -145,6 +145,17 @@
           </StackPanel>
         </Border>
       </StackPanel>
+      <Border Classes="card" IsVisible="{Binding HasSessionsWorkspace}">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="sectionTitle" Text="{Binding GuidedSetupTitle}" />
+          <TextBlock Text="{Binding GuidedSetupDescription}" TextWrapping="Wrap" />
+          <Button Content="{Binding SetupProfilesLabel}" Command="{Binding SetupProfilesCommand}" HorizontalAlignment="Left"
+                  AutomationProperties.AutomationId="devices.setupProfiles" />
+          <Button Content="{Binding SessionsWorkspace.NewLabel}" Command="{Binding SessionsWorkspace.NewSessionCommand}"
+                  IsEnabled="{Binding SessionsWorkspace.CanAdd}" HorizontalAlignment="Left"
+                  AutomationProperties.AutomationId="devices.newSession" />
+        </StackPanel>
+      </Border>
       <ContentControl Content="{Binding SessionActions}" IsVisible="{Binding HasSessionActions}" />
       <Border Classes="card" IsVisible="{Binding IsEmpty}"
               AutomationProperties.AutomationId="devices.empty">

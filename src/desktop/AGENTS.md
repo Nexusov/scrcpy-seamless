@@ -1,13 +1,41 @@
 # Desktop scaffold agent guide
 
+Settings → Shortcuts edits native keyboard overrides in the existing detached
+mirroring option draft. Keep Apply/Cancel and committed launch snapshots; do
+not create another preference store. Generate action/default/condition data
+from `spec/options/native-shortcuts.json`. The separate control-center editor
+retains its own focus scope. Native edits apply only at the next launch, never
+through Desktop input injection. Hash-valid older runtime archives can remain
+integrity-verifiable while incompatible with current host invocation claims.
+
+Normal no-argument startup defaults to portable storage and validates only the
+adjacent package runtime. Installed mode also uses that runtime; DEV keeps its
+explicit opt-in runtime selection and isolated root. Preview never resolves
+persistent adapters. Do not search the working directory/PATH for a runtime or
+substitute the legacy host when the machine bundle is missing/incompatible.
+Normal startup waits asynchronously for activation, runtime validation and the
+initial configuration read before handing ownership to the visible shell. Keep
+the waiting startup window cancellable. Normal close settles activation and
+the explicit release check and diagnostic export before disposing their
+adapters. Both Diagnostics actions must remain manual. Historical managed launcher adapters are
+test fixtures only.
+
 Phase 6A adds Infrastructure framing and JSON codecs. Phase 6B adds the
 owned `MachineNativeHost` and typed Core interactive-session observations.
 Phase 6C selects it for a compatible explicit device-enabled DEV runtime;
 the separate legacy launcher/package stays available. One Desktop owner must
 drain the bounded lifecycle stream regardless of the visible page.
+The concurrent Sessions workspace retains at most eight independent child
+entries. Selection and navigation never transfer ownership; keep one lifecycle
+consumer per child and its profile reservation until exact cleanup settles.
+Control-center shutdown settles every owned entry, including failed cleanup
+and late acquisition. Diagnostics reads those owners' bounded snapshots only.
 The explicit DEV evidence action reads an immutable allowlisted snapshot from
 that owner; never add a second lifecycle reader or serialize live configuration,
 exceptions or process objects. Retain typed completion/cleanup before release.
+JSONL export uses a separate allowlist with export-local identity ordinals and
+CreateNew semantics. Optional negotiated generation counters use the same
+bounded lifecycle projection. A missing measurement stays unavailable.
 Preview must remain side-effect free. Exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md and process policy in
 ../../docs/development/desktop-native-runtime.md.

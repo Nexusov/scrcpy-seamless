@@ -95,6 +95,8 @@ enum {
     OPT_SEAMLESS_SESSION_ID = 1090,
     OPT_SEAMLESS_PARENT_PID = 1091,
     OPT_SEAMLESS_PARENT_CREATED = 1092,
+    OPT_SEAMLESS_CONNECTION_PLAN = 1093,
+    OPT_SHORTCUT_BINDINGS = 1094,
 };
 
 static const struct sc_option options[] = {
@@ -563,6 +565,12 @@ static const struct sc_option options[] = {
         .text = "Set the screen off timeout while scrcpy is running (restore the initial value on exit).",
     },
     {
+        .longopt_id = OPT_SHORTCUT_BINDINGS,
+        .longopt = "shortcut-bindings",
+        .argdesc = "json",
+        .text = "Override focused mirror keyboard actions with a bounded JSON object of action IDs to gestures. An empty gesture disables an action; omitted actions keep their defaults. Use Settings Shortcuts for the action list and validation. This does not install global shortcuts.",
+    },
+    {
         .longopt_id = OPT_SHORTCUT_MOD,
         .longopt = "shortcut-mod",
         .argdesc = "key[+...][,...]",
@@ -724,5 +732,10 @@ static const struct sc_option options[] = {
         .longopt_id = OPT_SEAMLESS_PARENT_CREATED,
         .longopt = "seamless-parent-created",
         .argdesc = "filetime",
+    },
+    {
+        .longopt_id = OPT_SEAMLESS_CONNECTION_PLAN,
+        .longopt = "seamless-connection-plan",
+        .argdesc = "json",
     },
 };

@@ -205,8 +205,8 @@ process_msgs(struct sc_receiver *receiver, const uint8_t *buf, size_t len) {
     for (;;) {
         struct sc_device_msg msg;
         ssize_t r = sc_device_msg_deserialize(&buf[head], len - head, &msg);
-        if (r == -1) {
-            return -1;
+        if (r < 0) {
+            return r;
         }
         if (r == 0) {
             return head;
@@ -239,23 +239,27 @@ run_receiver(void *data) {
     static uint8_t buf[DEVICE_MSG_MAX_SIZE];
     size_t head = 0;
 
-    bool error = false;
+    enum sc_control_status status = SC_CONTROL_STATUS_TRANSPORT_LOST;
 
     for (;;) {
-        assert(head < DEVICE_MSG_MAX_SIZE);
+        if (head == DEVICE_MSG_MAX_SIZE) {
+            status = SC_CONTROL_STATUS_PROTOCOL_ERROR;
+            break;
+        }
+
         ssize_t r = net_recv(receiver->control_socket, buf + head,
                              DEVICE_MSG_MAX_SIZE - head);
         if (r <= 0) {
             LOGD("Receiver stopped");
-            // device disconnected: keep error=false
+            // EOF and socket errors are transport loss, not malformed input.
             break;
         }
 
         head += r;
         ssize_t consumed = process_msgs(receiver, buf, head);
-        if (consumed == -1) {
-            // an error occurred
-            error = true;
+        if (consumed < 0) {
+            status = consumed == SC_DEVICE_MSG_NO_MEMORY ? SC_CONTROL_STATUS_LOCAL_ERROR
+                                                       : SC_CONTROL_STATUS_PROTOCOL_ERROR;
             break;
         }
 
@@ -266,7 +270,7 @@ run_receiver(void *data) {
         }
     }
 
-    receiver->cbs->on_ended(receiver, error, receiver->cbs_userdata);
+    receiver->cbs->on_ended(receiver, status, receiver->cbs_userdata);
 
     return 0;
 }

@@ -972,11 +972,12 @@ public sealed partial class DeviceSessionViewModelTests
         public bool FailStopAfterExit { get; set; }
 
         public async Task EmitAsync(ulong sequence, NativeLifecycleEventType eventType,
-            ConnectionAttemptId? attempt = null, NativeLifecycleReason reason = NativeLifecycleReason.None)
+            ConnectionAttemptId? attempt = null, NativeLifecycleReason reason = NativeLifecycleReason.None,
+            NativeLifecycleSubsystem subsystem = NativeLifecycleSubsystem.Connection)
         {
             NativeLifecycleObservation observation = new(SessionId, sequence,
                 new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), sequence, attempt,
-                NativeLifecycleSubsystem.Connection, eventType, reason, NativeLifecycleError.None);
+                subsystem, eventType, reason, NativeLifecycleError.None);
             await lifecycle.Writer.WriteAsync(observation, TestContext.Current.CancellationToken);
         }
 

@@ -1305,6 +1305,21 @@
     "Pattern": "^\\d+$"
   },
   {
+    "Name": "shortcut-bindings",
+    "Label": "Mirror shortcut bindings",
+    "Group": "Control",
+    "Kind": "value",
+    "Description": "Edit focused mirror action bindings in Settings Shortcuts. Saved mappings apply to the next launch.",
+    "Values": [],
+    "Basic": false,
+    "Availability": "editable",
+    "Reason": "",
+    "SeamlessCompatible": false,
+    "ArgumentOptional": false,
+    "ArgumentHint": "json",
+    "Pattern": ""
+  },
+  {
     "Name": "shortcut-mod",
     "Label": "Shortcut mod",
     "Group": "Control",

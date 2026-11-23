@@ -1,5 +1,5 @@
-#ifndef SC_DISPLAY_H
-#define SC_DISPLAY_H
+#ifndef SC_TEXTURE_H
+#define SC_TEXTURE_H
 
 #include "common.h"
 
@@ -26,7 +26,7 @@ struct sc_texture {
     struct sc_opengl gl;
 
     bool mipmaps;
-    uint32_t texture_id; // only set if mipmaps is enabled
+    uint32_t texture_ids[3]; // one OpenGL texture per YV12 plane
 };
 
 bool

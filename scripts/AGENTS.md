@@ -59,6 +59,15 @@ Phase 6C staging reads `spec/desktop-native/runtime-contract.json` for its
 machine compatibility claim, requires a source-built machine native client and
 includes the yyjson MIT notice. A new archive requires that claim; read-only
 verification of an older archive still checks its old schema and hashes.
+ConnectionPlanVersion separately guards the new launch-plan bootstrap. New
+archives require it; read-only verification preserves older machine claims that
+predate it without treating their unchanged artifacts as current-host compatible.
+
+For 2.0, use stage-portable.ps1 and package-portable.ps1 with the
+[Windows x64 portable package guide](../docs/development/portable-packaging.md).
+Run tests/portable-package.Tests.ps1 for the offline archive regressions.
+Verify and extract the same archive stream using bounded entries/files. Record
+reviewed tool identities in provenance without copying local paths or logs.
 
 ## Provenance
 
@@ -85,6 +94,10 @@ documented build; do not weaken the reviewed runtime hashes.
 Android server lockfiles and Gradle verification metadata are checked-in build
 inputs. Normal build and CI paths verify them; regenerate them only during a
 reviewed dependency update described in `docs/development/server-build.md`.
+
+Windows CI validates its provisioned JDK and Android SDK before the wire
+contract and source-built server checks. The local default uses the pinned
+bootstrap. Keep SDK license review outside unattended builds.
 
 ## Tests
 

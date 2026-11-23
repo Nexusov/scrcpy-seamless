@@ -140,7 +140,7 @@ public enum NativeLifecycleSubsystem { Protocol, Native, Connection, Video, Audi
 public enum NativeLifecycleEventType
 {
     NativeReady, Connecting, StreamStarted, TransportLost, ReconnectScheduled,
-    Reconnecting, StreamResumed, CapabilityDegraded, SessionStopped, FatalError,
+    Reconnecting, StreamResumed, CapabilityDegraded, SessionStopped, FatalError, GenerationRetired,
 }
 
 /// <summary>Typed limit of evidence for the observed transition.</summary>
@@ -159,7 +159,8 @@ public sealed record NativeLifecycleObservation(
     NativeLifecycleSubsystem Subsystem,
     NativeLifecycleEventType EventType,
     NativeLifecycleReason Reason,
-    NativeLifecycleError Error);
+    NativeLifecycleError Error,
+    NativeGenerationMetrics? GenerationMetrics = null);
 
 /// <summary>Optional machine-session operations; legacy native sessions remain valid INativeSession instances.</summary>
 public interface INativeInteractiveSession : INativeSession

@@ -1,0 +1,226 @@
+#include "common.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <libavutil/buffer.h>
+
+#include "decoder.h"
+#include "trait/packet_source.h"
+
+#define TEST_SINK_COUNT 2
+#define TEST_FRAME_WIDTH 32
+#define TEST_FRAME_HEIGHT 24
+
+struct frame_endpoint {
+    struct sc_frame_sink sink;
+    AVFrame *frame;
+    bool fail_open;
+    unsigned opens;
+    unsigned closes;
+    unsigned releases;
+};
+
+struct packet_endpoint {
+    struct sc_packet_sink sink;
+    bool fail_open;
+    unsigned opens;
+    unsigned closes;
+    unsigned disables;
+};
+
+/** Count final buffer release through the actual FFmpeg reference API. */
+static void
+release_buffer(void *userdata, uint8_t *bytes) {
+    struct frame_endpoint *endpoint = userdata;
+    ++endpoint->releases;
+    av_free(bytes);
+}
+
+/** Acquire a real frame reference only when this external sink opens. */
+static bool
+open_frame(struct sc_frame_sink *sink, const AVCodecContext *context,
+            const struct sc_stream_session *metadata) {
+    struct frame_endpoint *endpoint = container_of(sink, struct frame_endpoint, sink);
+    assert(context->codec_type == AVMEDIA_TYPE_VIDEO);
+    assert(metadata->video.width == TEST_FRAME_WIDTH);
+    ++endpoint->opens;
+
+    if (endpoint->fail_open) {
+        return false;
+    }
+    endpoint->frame = av_frame_alloc();
+    assert(endpoint->frame);
+    uint8_t *bytes = av_malloc(1);
+    assert(bytes);
+    endpoint->frame->buf[0] = av_buffer_create(bytes, 1, release_buffer, endpoint, 0);
+    assert(endpoint->frame->buf[0]);
+    return true;
+}
+
+/** Release only the successfully opened downstream frame endpoint. */
+static void
+close_frame(struct sc_frame_sink *sink) {
+    struct frame_endpoint *endpoint = container_of(sink, struct frame_endpoint, sink);
+    assert(endpoint->frame);
+    ++endpoint->closes;
+    av_frame_free(&endpoint->frame);
+}
+
+/** Control a second packet sink after the actual decoder and frame graph. */
+static bool
+open_packet(struct sc_packet_sink *sink, AVCodecContext *context,
+             const struct sc_stream_session *metadata) {
+    (void) context;
+    (void) metadata;
+    struct packet_endpoint *endpoint = container_of(sink, struct packet_endpoint, sink);
+    ++endpoint->opens;
+    return !endpoint->fail_open;
+}
+
+/** Count close cascade ownership without closing an unopened packet endpoint. */
+static void
+close_packet(struct sc_packet_sink *sink) {
+    struct packet_endpoint *endpoint = container_of(sink, struct packet_endpoint, sink);
+    assert(!endpoint->fail_open);
+    ++endpoint->closes;
+}
+
+/* Model the recorder's uninitialized-audio waiter, not its worker state machine. */
+static void
+disable_packet(struct sc_packet_sink *sink) {
+    struct packet_endpoint *endpoint = container_of(sink, struct packet_endpoint, sink);
+    assert(!endpoint->closes);
+    assert(!endpoint->opens || endpoint->fail_open);
+    ++endpoint->disables;
+}
+
+/** Exercise the real packet-source → decoder → frame-source open/close path. */
+static void
+test_graph(int failing_frame, bool failing_packet) {
+    static const struct sc_frame_sink_ops frame_operations = {
+        .open = open_frame,
+        .close = close_frame,
+    };
+    static const struct sc_packet_sink_ops packet_operations = {
+        .open = open_packet,
+        .close = close_packet,
+        .disable = disable_packet,
+    };
+    struct frame_endpoint endpoints[TEST_SINK_COUNT] = {0};
+    struct sc_decoder decoder;
+    sc_decoder_init(&decoder, "graph-test");
+
+    for (unsigned index = 0; index < TEST_SINK_COUNT; ++index) {
+        endpoints[index].sink.ops = &frame_operations;
+        endpoints[index].fail_open = failing_frame == (int) index;
+        sc_frame_source_add_sink(&decoder.frame_source, &endpoints[index].sink);
+    }
+    struct packet_endpoint packet = {
+        .sink.ops = &packet_operations,
+        .fail_open = failing_packet,
+    };
+    struct sc_packet_source source;
+    sc_packet_source_init(&source);
+    sc_packet_source_add_sink(&source, &decoder.packet_sink);
+    sc_packet_source_add_sink(&source, &packet.sink);
+    AVCodecContext *context = avcodec_alloc_context3(NULL);
+    assert(context);
+    context->codec_type = AVMEDIA_TYPE_VIDEO;
+    struct sc_stream_session metadata = {
+        .video = {.width = TEST_FRAME_WIDTH, .height = TEST_FRAME_HEIGHT},
+    };
+    bool opened = sc_packet_source_sinks_open(&source, context, &metadata);
+    assert(opened == (failing_frame < 0 && !failing_packet));
+
+    if (opened) {
+        assert(decoder.frame);
+        sc_packet_source_sinks_close(&source);
+    }
+
+    for (unsigned index = 0; index < TEST_SINK_COUNT; ++index) {
+        bool visited = failing_frame < 0 || index <= (unsigned) failing_frame;
+        bool acquired = visited && !endpoints[index].fail_open;
+        assert(endpoints[index].opens == visited);
+        assert(endpoints[index].closes == acquired);
+        assert(endpoints[index].releases == acquired);
+        assert(!endpoints[index].frame);
+    }
+    assert(!decoder.frame);
+    assert(packet.opens == (failing_frame < 0));
+    assert(packet.closes == opened);
+    assert(packet.disables == !opened);
+    avcodec_free_context(&context);
+}
+
+static bool
+open_audio_frame(struct sc_frame_sink *sink, const AVCodecContext *context,
+                 const struct sc_stream_session *metadata) {
+    (void) sink;
+    assert(context->codec_type == AVMEDIA_TYPE_AUDIO && !metadata);
+    return true;
+}
+
+static void
+close_audio_frame(struct sc_frame_sink *sink) {
+    (void) sink;
+}
+
+static bool
+push_audio_frame(struct sc_frame_sink *sink, const AVFrame *frame) {
+    (void) sink;
+    assert(frame->nb_samples == 1);
+    return true;
+}
+
+static void
+test_decoded_frames_count(void) {
+    const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_PCM_S16LE);
+    assert(codec);
+    AVCodecContext *context = avcodec_alloc_context3(codec);
+    assert(context);
+    context->sample_rate = 48000;
+#ifdef SCRCPY_LAVU_HAS_CHLAYOUT
+    av_channel_layout_default(&context->ch_layout, 1);
+#else
+    context->channels = 1;
+    context->channel_layout = AV_CH_LAYOUT_MONO;
+#endif
+    assert(!avcodec_open2(context, codec, NULL));
+
+    struct sc_decoder decoder;
+    sc_decoder_init(&decoder, "decoded-frame-test");
+    static const struct sc_frame_sink_ops frame_operations = {
+        .open = open_audio_frame,
+        .close = close_audio_frame,
+        .push = push_audio_frame,
+    };
+    struct sc_frame_sink frame_sink = {.ops = &frame_operations};
+    sc_frame_source_add_sink(&decoder.frame_source, &frame_sink);
+    struct sc_packet_sink *sink = &decoder.packet_sink;
+    assert(sink->ops->open(sink, context, NULL));
+    AVPacket *packet = av_packet_alloc();
+    assert(packet);
+    assert(!av_new_packet(packet, sizeof(int16_t)));
+    memset(packet->data, 0, packet->size);
+    assert(sink->ops->push(sink, packet));
+    assert(!decoder.frames_decoded);
+    packet->pts = 0;
+    assert(sink->ops->push(sink, packet));
+    assert(decoder.frames_decoded == 1);
+
+    sink->ops->close(sink);
+    av_packet_free(&packet);
+    avcodec_free_context(&context);
+}
+
+/** Verify the actual decoder and graph open/close ownership. */
+int
+main(void) {
+    test_graph(0, false);
+    test_graph(1, false);
+    test_graph(-1, true);
+    test_graph(-1, false);
+    test_decoded_frames_count();
+    puts("session sink graph: four cascade cases and PCM decode accounting passed");
+    return 0;
+}

@@ -1,0 +1,9 @@
+# direction<TAB>id<TAB>literal prefix hex<TAB>repeated octet hex<TAB>count
+# Independently authored compact golden bytes, not a codec-generated expectation.
+control	text-max	010000012c	78	300
+control	text-utf8-cut	010000012b	78	299
+control	set-clipboard-max	09fedcba9876543210010003fff2	78	262130
+control	set-clipboard-utf8-cut	09fedcba9876543210010003fff1	78	262129
+device	clipboard-max	000003fffb	78	262139
+device	clipboard-utf8-cut	000003fffa	78	262138
+device	uhid-output-max	02ffffffff	a5	65535

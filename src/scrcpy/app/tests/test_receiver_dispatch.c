@@ -287,7 +287,7 @@ test_receiver_count_pressure_and_bounded_drain(void) {
     finish_generation(&dispatcher);
 }
 
-/** Count full wire allocation including bytes beyond embedded clipboard NULs. */
+/** Bound valid full-wire allocations and reject invalid NUL text before ownership. */
 static void
 test_maximum_clipboard_and_retained_byte_pressure(bool embedded_null) {
     reset_observations();
@@ -302,6 +302,18 @@ test_maximum_clipboard_and_retained_byte_pressure(bool embedded_null) {
 
     if (embedded_null) {
         message[5] = 0;
+        capture_payload = true;
+        ssize_t consumed = sc_receiver_test_process_messages(&receiver, message,
+                                                               DEVICE_MSG_MAX_SIZE);
+        capture_payload = false;
+        assert(consumed == SC_DEVICE_MSG_MALFORMED);
+        struct sc_dispatcher_stats stats = sc_dispatcher_get_stats(&dispatcher);
+        assert(!stats.retained_count && !stats.retained_payload_bytes);
+        assert(!payload_allocations && !record_allocations && !task_attempts);
+        assert(!clipboard_effects);
+        __real_free(message);
+        finish_generation(&dispatcher);
+        return;
     }
 
     unsigned sent = 0;

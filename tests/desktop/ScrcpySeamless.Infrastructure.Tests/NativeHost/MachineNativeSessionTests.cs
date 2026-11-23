@@ -590,6 +590,113 @@ public sealed class MachineNativeSessionTests
         }
     }
 
+    [Fact]
+    public async Task NegotiatedGenerationMetricsUseTheExistingSingleLifecycleConsumer()
+    {
+        string directory = CreateScratchDirectory();
+        SessionId identity = SessionId.New();
+        string scriptPath = Path.Combine(directory, "metrics-fixture.ps1");
+        File.WriteAllText(scriptPath, FixtureScript);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(identity,
+                CreateStartInfo(scriptPath, identity, "generation-metrics"), TestContext.Current.CancellationToken);
+            Assert.Contains("generation-metrics-v1", session.AcceptedHandshake!.Capabilities);
+            await using IAsyncEnumerator<NativeLifecycleObservation> reader = session.ObserveLifecycleAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+            Assert.True(await reader.MoveNextAsync());
+            Assert.Equal(NativeLifecycleEventType.NativeReady, reader.Current.EventType);
+            Assert.Null(reader.Current.GenerationMetrics);
+            Assert.Equal(NativeFocusOutcome.Applied, await session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.True(await reader.MoveNextAsync());
+            NativeLifecycleObservation retired = reader.Current;
+            Assert.Equal(NativeLifecycleEventType.GenerationRetired, retired.EventType);
+            Assert.Equal(identity, retired.SessionId);
+            Assert.NotNull(retired.ConnectionAttemptId);
+            Assert.Equal(new NativeGenerationMetrics(9007199254740993, 7, AudioSamplesSubmitted: 0), retired.GenerationMetrics);
+            Assert.False(session.Completion.IsCompleted);
+            await session.StopAsync(NativeTerminationReason.UserStop, TestContext.Current.CancellationToken);
+            Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("generation-metrics-full", 128, 130)]
+    [InlineData("generation-metrics-busy", 1, 3)]
+    public async Task OptionalGenerationMetricsUseOnlyIdleLifecycleCapacity(string mode, int retainedCount, int terminalSequence)
+    {
+        string directory = CreateScratchDirectory();
+        SessionId identity = SessionId.New();
+        string scriptPath = Path.Combine(directory, "full-metrics-fixture.ps1");
+        File.WriteAllText(scriptPath, FixtureScript);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(identity,
+                CreateStartInfo(scriptPath, identity, mode), TestContext.Current.CancellationToken);
+            Assert.Equal(NativeFocusOutcome.Applied, await session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            await using IAsyncEnumerator<NativeLifecycleObservation> reader = session.ObserveLifecycleAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+
+            for (ulong sequence = 1; sequence <= (ulong)retainedCount; sequence++)
+            {
+                Assert.True(await reader.MoveNextAsync());
+                Assert.Equal(sequence, reader.Current.Sequence);
+                Assert.Null(reader.Current.GenerationMetrics);
+            }
+            await session.StopAsync(NativeTerminationReason.UserStop, TestContext.Current.CancellationToken);
+            Assert.True(await reader.MoveNextAsync());
+            Assert.Equal((ulong)terminalSequence, reader.Current.Sequence);
+            Assert.Equal(NativeLifecycleEventType.SessionStopped, reader.Current.EventType);
+            Assert.Equal(NativeTerminationReason.UserStop, (await session.Completion).Reason);
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UnnegotiatedGenerationMetricsFailTheOwnedChannel()
+    {
+        string directory = CreateScratchDirectory();
+        SessionId identity = SessionId.New();
+        string scriptPath = Path.Combine(directory, "unnegotiated-metrics-fixture.ps1");
+        File.WriteAllText(scriptPath, FixtureScript);
+        MachineNativeSession? session = null;
+
+        try
+        {
+            session = await MachineNativeSession.StartAsync(identity,
+                CreateStartInfo(scriptPath, identity, "generation-metrics-unnegotiated"), TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("generation-metrics-v1", session.AcceptedHandshake!.Capabilities);
+            await Assert.ThrowsAnyAsync<Exception>(() => session.FocusWindowAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(NativeTerminationReason.NativeFailure, (await session.Completion).Reason);
+            Assert.False(IsAlive(session.ProcessId));
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     /// <summary>Creates an isolated PowerShell fixture with no ADB or device access.</summary>
     private static ProcessStartInfo CreateStartInfo(string scriptPath, SessionId sessionId,
         string mode = "normal", string markerPath = "", string focusReadyName = "",
@@ -676,13 +783,26 @@ public sealed class MachineNativeSessionTests
         if ($hello.messageType -ne 'hello') { exit 12 }
         $product = if ($mode -eq 'wrong-product') { 'different-product' } else { 'scrcpy-seamless' }
         $minor = if ($mode -eq 'bad-minor') { 1 } else { 0 }
-        $capabilities = if ($mode -eq 'extra-capability') { '["focus-window","lifecycle-v1","pairing-code-synthetic-secret","stop"]' } else { '["focus-window","lifecycle-v1","stop"]' }
+        $capabilities = if ($mode -eq 'extra-capability') { '["focus-window","lifecycle-v1","pairing-code-synthetic-secret","stop"]' } elseif ($mode -in @('generation-metrics','generation-metrics-full','generation-metrics-busy')) { '["focus-window","generation-metrics-v1","lifecycle-v1","stop"]' } else { '["focus-window","lifecycle-v1","stop"]' }
         SendFrame ('{"messageType":"helloResult","product":"' + $product + '","protocolMajor":1,"protocolMinor":' + $minor + ',"status":"accepted","capabilities":' + $capabilities + '}')
         if ($mode -eq 'wrong-product' -or $mode -eq 'bad-minor') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 13 }
         if ($mode -eq 'missing-ready') { exit 0 }
         SendFrame ('{"messageType":"lifecycle","sequence":"1","utc":"2026-01-01T00:00:00.000Z","monotonicMicroseconds":"0","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"NativeReady","reason":"none","error":"none"}')
+        $terminalSequence = 2
         while ($true) {
             $command = ReadFrame
+            if ($mode.StartsWith('generation-metrics') -and $command.command -eq 'FocusWindow') {
+                $retirementSequence = 2
+                if ($mode -eq 'generation-metrics-full') {
+                    for ($sequence = 2; $sequence -le 128; $sequence++) {
+                        SendFrame ('{"messageType":"lifecycle","sequence":"' + $sequence + '","utc":"2026-01-01T00:00:00.001Z","monotonicMicroseconds":"7","sessionId":"' + $sessionId + '","connectionAttemptId":"22222222-2222-4222-8222-222222222222","subsystem":"connection","eventType":"Connecting","reason":"none","error":"none"}')
+                    }
+                    $retirementSequence = 129
+                }
+                SendFrame ('{"messageType":"lifecycle","sequence":"' + $retirementSequence + '","utc":"2026-01-01T00:00:00.001Z","monotonicMicroseconds":"7","sessionId":"' + $sessionId + '","connectionAttemptId":"22222222-2222-4222-8222-222222222222","subsystem":"native","eventType":"GenerationRetired","reason":"none","error":"none","generationMetrics":{"nativeGeneration":"9007199254740993","retirementMicroseconds":"7","audioSamplesSubmitted":"0"}}')
+                $terminalSequence = $retirementSequence + 1
+                if ($mode -eq 'generation-metrics-unnegotiated') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 18 }
+            }
             if ($mode -eq 'record-order') { [IO.File]::AppendAllText($markerPath, $command.requestId + [Environment]::NewLine) }
             if ($mode -eq 'no-result') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 14 }
             if ($mode -eq 'no-stop-result' -and $command.command -eq 'Stop') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 16 }
@@ -707,7 +827,7 @@ public sealed class MachineNativeSessionTests
             if ($mode -eq 'wrong-session' -or $mode -eq 'invalid-focus-result') { [Threading.ManualResetEventSlim]::new($false).Wait(); exit 15 }
             if ($mode -eq 'no-terminal' -and $command.command -eq 'Stop') { exit 0 }
             if ($command.command -eq 'Stop') {
-                SendFrame ('{"messageType":"lifecycle","sequence":"2","utc":"2026-01-01T00:00:01.000Z","monotonicMicroseconds":"1000000","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"SessionStopped","reason":"userStop","error":"none"}')
+                SendFrame ('{"messageType":"lifecycle","sequence":"' + $terminalSequence + '","utc":"2026-01-01T00:00:01.000Z","monotonicMicroseconds":"1000000","sessionId":"' + $sessionId + '","connectionAttemptId":null,"subsystem":"native","eventType":"SessionStopped","reason":"userStop","error":"none"}')
                 exit 0
             }
         }

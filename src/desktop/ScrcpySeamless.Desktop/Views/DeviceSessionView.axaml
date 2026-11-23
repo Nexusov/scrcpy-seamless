@@ -32,7 +32,18 @@
       <TextBlock Text="{Binding FocusStatus}" TextWrapping="Wrap" Classes="muted" />
       <TextBlock Text="{Binding EvidenceCopyStatus}" TextWrapping="Wrap" Classes="muted"
                  IsVisible="{Binding CanCopySessionEvidence}" />
-      <TextBlock Text="{Binding ChannelEvidence}" Classes="muted" />
+      <WrapPanel ItemSpacing="8"><TextBlock Text="{Binding VideoLabel}" />
+      <TextBlock Text="{Binding VideoEvidence}" Classes="muted" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="session.video" />
+      </WrapPanel>
+      <WrapPanel ItemSpacing="8"><TextBlock Text="{Binding AudioLabel}" />
+      <TextBlock Text="{Binding AudioEvidence}" Classes="muted" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="session.audio" />
+      </WrapPanel>
+      <WrapPanel ItemSpacing="8"><TextBlock Text="{Binding ControlLabel}" />
+      <TextBlock Text="{Binding ControlEvidence}" Classes="muted" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="session.control" />
+      </WrapPanel>
       <TextBlock Text="{Binding ProcessId, StringFormat='Owned native PID: {0}'}" Classes="muted" />
       <TextBlock Text="{Binding WindowHandle, StringFormat='Observed HWND: {0}'}"
                  IsVisible="{Binding HasObservedWindowHandle}" Classes="muted" />

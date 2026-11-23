@@ -4,8 +4,10 @@
 #include "common.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "control_msg.h"
+#include "control_status.h"
 #include "receiver.h"
 #include "util/acksync.h"
 #include "util/net.h"
@@ -20,6 +22,7 @@ struct sc_controller {
     sc_mutex mutex;
     sc_cond msg_cond;
     bool stopped;
+    uint64_t messages_written; // writer only until join
 
     struct sc_control_msg_queue queue;
 
@@ -38,7 +41,7 @@ struct sc_controller {
 };
 
 struct sc_controller_callbacks {
-    void (*on_ended)(struct sc_controller *controller, bool error,
+    void (*on_ended)(struct sc_controller *controller, enum sc_control_status status,
                      void *userdata);
 };
 

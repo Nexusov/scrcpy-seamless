@@ -6,6 +6,29 @@ namespace ScrcpySeamless.Infrastructure.Tests.Configuration;
 /// <summary>Protects validation-first migration and unchanged legacy files.</summary>
 public sealed class LegacyMigrationCoordinatorTests
 {
+    [Fact]
+    public async Task OversizedLegacySourceCannotBePreparedOrReplacePreparedBytes()
+    {
+        using TemporaryDirectory directory = new();
+        string source = Path.Combine(directory.Path, "phone.json");
+        string destination = Path.Combine(directory.Path, "configuration.v2.json");
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        LegacyMigrationCoordinator coordinator = new(directory.Path, new VersionedConfigurationStore(destination));
+        string original = Fixture("legacy-phone-usb.json");
+        await File.WriteAllTextAsync(source, original.PadRight(ConfigurationDocument.MaximumBytes), cancellationToken);
+        LegacyMigrationOperation ready = await coordinator.PrepareAsync(cancellationToken);
+        Assert.Equal(LegacyMigrationStatus.Ready, ready.Status);
+
+        await File.AppendAllTextAsync(source, " ", cancellationToken);
+        LegacyMigrationOperation rejected = await coordinator.PrepareAsync(cancellationToken);
+        LegacyMigrationOperation changed = coordinator.CommitPrepared(ready.Proposal!, cancellationToken);
+
+        Assert.Equal(LegacyMigrationStatus.InvalidLegacy, rejected.Status);
+        Assert.Equal(LegacyMigrationStatus.LegacyChanged, changed.Status);
+        Assert.Equal(ConfigurationDocument.MaximumBytes + 1, new FileInfo(source).Length);
+        Assert.False(File.Exists(destination));
+    }
+
     /// <summary>A successful migration leaves both v1 sources intact and becomes idempotent.</summary>
     [Fact]
     public async Task MigrationPreservesLegacyInputsAndRepeatedRunUsesV2()

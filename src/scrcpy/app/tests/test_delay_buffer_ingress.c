@@ -713,6 +713,7 @@ test_reference_and_queue_rejection(void) {
         sc_mutex_lock(&fixture.delay.mutex);
         assert(sc_vecdeque_is_empty(&fixture.delay.queue));
         assert(!fixture.delay.clock.range);
+        assert(!fixture.delay.retained_items && !fixture.delay.retained_bytes);
         sc_mutex_unlock(&fixture.delay.mutex);
         assert(sc_frame_source_sinks_push(&fixture.producer, frame));
         wait_calls(&fixture, 0, 1);
@@ -741,10 +742,88 @@ test_partial_open_and_worker_start(void) {
     }
 }
 
+/** A popped callback retains its slot until the real sink call returns. */
+static void
+test_retained_item_limit(void) {
+    const unsigned retained_limit = 256;
+    struct fixture fixture;
+    fixture_init(&fixture);
+    fixture.hold_frame = true;
+    atomic_uint releases = 0;
+    AVFrame *frame = create_frame(&releases, 0);
+    assert(sc_frame_source_sinks_push(&fixture.producer, frame));
+    gate_wait(&fixture.frame_entered);
+
+    for (unsigned index = 1; index < retained_limit; ++index) {
+        assert(sc_frame_source_sinks_push(&fixture.producer, frame));
+    }
+
+    bool overflow = sc_frame_source_sinks_push(&fixture.producer, frame);
+    printf("delay retained-count probe: %u admissions including blocked callback; overflow=%d\n",
+           retained_limit, overflow);
+    fflush(stdout);
+    assert(!overflow);
+    assert(av_buffer_get_ref_count(frame->buf[0]) == (int) retained_limit + 1);
+    gate_open(&fixture.frame_release);
+    fixture_destroy(&fixture);
+    __wrap_av_frame_free(&frame);
+    assert(atomic_load(&releases) == 1);
+}
+
+/** Count complete aliased backing buffers and side data, not visible pixels. */
+static void
+test_retained_byte_limit(void) {
+    struct fixture fixture;
+    fixture_init(&fixture);
+    fixture.hold_frame = true;
+    atomic_uint releases = 0;
+    AVFrame *frame = create_frame(&releases, 0);
+    const size_t backing_bytes = 4 * 1024 * 1024;
+    frame->buf[1] = av_buffer_alloc(backing_bytes);
+    assert(frame->buf[1]);
+    AVFrameSideData *side = av_frame_new_side_data(frame, AV_FRAME_DATA_SEI_UNREGISTERED,
+                                                  backing_bytes);
+    assert(side);
+    AVBufferRef *backing_probe = av_buffer_ref(frame->buf[1]);
+    AVBufferRef *side_probe = av_buffer_ref(side->buf);
+    assert(backing_probe && side_probe);
+    assert(sc_frame_source_sinks_push(&fixture.producer, frame));
+    gate_wait(&fixture.frame_entered);
+    unsigned accepted = 1;
+
+    while (sc_frame_source_sinks_push(&fixture.producer, frame)) {
+        ++accepted;
+    }
+
+    assert(accepted < SC_DELAY_BUFFER_MAX_RETAINED_ITEMS);
+    sc_mutex_lock(&fixture.delay.mutex);
+    assert(fixture.delay.retained_items == accepted);
+    assert(fixture.delay.retained_bytes <= SC_DELAY_BUFFER_MAX_RETAINED_BYTES);
+    assert(fixture.delay.retained_bytes >= accepted * 2 * backing_bytes);
+    sc_mutex_unlock(&fixture.delay.mutex);
+    assert(av_buffer_get_ref_count(backing_probe) == (int) accepted + 2);
+    assert(av_buffer_get_ref_count(side_probe) == (int) accepted + 2);
+    gate_open(&fixture.frame_release);
+    fixture_destroy(&fixture);
+    __wrap_av_frame_free(&frame);
+    assert(av_buffer_get_ref_count(backing_probe) == 1);
+    assert(av_buffer_get_ref_count(side_probe) == 1);
+    av_buffer_unref(&backing_probe);
+    av_buffer_unref(&side_probe);
+    assert(atomic_load(&releases) == 1);
+}
+
 /** Run the actual production composition without visible windows or devices. */
 int
 main(int argc, char **argv) {
     assert(SDL_Init(SDL_INIT_EVENTS));
+
+    if (argc == 2 && !strcmp(argv[1], "--limits")) {
+        test_retained_item_limit();
+        test_retained_byte_limit();
+        SDL_Quit();
+        return 0;
+    }
 
     if (argc == 2 && !strcmp(argv[1], "--admission")) {
         test_failed_frame_admission();
@@ -761,9 +840,11 @@ main(int argc, char **argv) {
     test_failed_frame_admission();
     test_reference_and_queue_rejection();
     test_partial_open_and_worker_start();
+    test_retained_item_limit();
+    test_retained_byte_limit();
     assert(atomic_load(&frame_headers_allocated) ==
            atomic_load(&frame_headers_released));
-    puts("delay buffer ingress: 9 production-composition groups passed");
+    puts("delay buffer ingress: 11 production-composition groups passed");
     SDL_Quit();
     return 0;
 }

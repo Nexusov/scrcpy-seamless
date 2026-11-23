@@ -12,7 +12,7 @@ function Assert-Catalog {
 }
 
 $catalog = @(Get-ScrcpyOptionCatalog)
-Assert-Catalog ($catalog.Count -eq 106) 'The legacy catalogue changed size; review current native CLI coverage and update the characterization.'
+Assert-Catalog ($catalog.Count -eq 107) 'The legacy catalogue changed size; review current native CLI coverage and update the characterization.'
 Assert-Catalog (@($catalog.Name | Select-Object -Unique).Count -eq $catalog.Count) 'Duplicate CLI metadata.'
 
 foreach ($option in $catalog) {
@@ -36,6 +36,11 @@ $byName = @{}
 foreach ($option in $catalog) {
     $byName[$option.Name] = $option
 }
+
+# The canonical projection includes the new focused shortcut value. The old
+# seamless path must not treat this option as compatible with its own launcher.
+$shortcuts = $byName['shortcut-bindings']
+Assert-Catalog ($null -ne $shortcuts -and $shortcuts.Kind -eq 'value' -and -not $shortcuts.SeamlessCompatible) 'The focused shortcut option lost its legacy projection boundary.'
 
 foreach ($name in @('max-size', 'max-fps', 'video-bit-rate', 'no-audio')) {
     Assert-Catalog $byName[$name].Basic "Everyday option must remain visible: $name"

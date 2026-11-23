@@ -3,7 +3,8 @@ param(
     [string] $CompilerPath,
     [Parameter(Mandatory)]
     [string] $DotnetPath,
-    [string] $OutputDirectory = '.\work\ipc-contract'
+    [string] $OutputDirectory = '.\work\ipc-contract',
+    [string] $ConnectionPlanHarnessPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +26,12 @@ $originalCFrames = $env:SC_IPC_C_FRAMES
 $originalManagedFrames = $env:SC_IPC_MANAGED_FRAMES
 $originalCConformanceFrames = $env:SC_IPC_C_CONFORMANCE_FRAMES
 $originalManagedConformanceFrames = $env:SC_IPC_MANAGED_CONFORMANCE_FRAMES
+$originalManagedConnectionPlans = $env:SC_CONNECTION_PLAN_MANAGED
+$connectionPlanHarness = $null
+
+if ($ConnectionPlanHarnessPath) {
+    $connectionPlanHarness = (Resolve-Path -LiteralPath $ConnectionPlanHarnessPath).Path
+}
 
 New-Item -ItemType Directory -Force -Path $cFrames, $managedFrames, $roundTrip,
     $cConformanceFrames, $managedConformanceFrames, $conformanceRoundTrip |
@@ -98,6 +105,26 @@ try {
         }
     }
     Write-Host "IPC contract passed: 9 canonical vectors and $expectedConformance conformance frames, C -> C# and C# -> C."
+
+    if ($connectionPlanHarness) {
+        $plans = Join-Path $output 'managed-connection-plans'
+        New-Item -ItemType Directory -Force -Path $plans | Out-Null
+        Get-ChildItem -LiteralPath $plans -Filter '*.json' -File | Remove-Item -Force
+        $env:SC_CONNECTION_PLAN_MANAGED = $plans
+        & $dotnet test $testProject '--no-restore' '--configuration' 'Release' '--filter-class' '*NativeConnectionPlanSerializerTests'
+
+        if ($LASTEXITCODE) { throw "Managed connection-plan tests failed: $LASTEXITCODE" }
+
+        if (@(Get-ChildItem -LiteralPath $plans -Filter '*.json' -File).Count -ne 5) {
+            throw 'Expected five committed managed connection plans.'
+        }
+
+        & $connectionPlanHarness '--managed' $plans
+
+        if ($LASTEXITCODE) { throw "Native could not validate managed connection plans: $LASTEXITCODE" }
+
+        Write-Host 'Launch-plan check passed: five C# -> C plans and 15 native rejection mutations; separate from wire-v1 conformance.'
+    }
 }
 finally {
     $env:PATH = $originalPath
@@ -105,4 +132,5 @@ finally {
     $env:SC_IPC_MANAGED_FRAMES = $originalManagedFrames
     $env:SC_IPC_C_CONFORMANCE_FRAMES = $originalCConformanceFrames
     $env:SC_IPC_MANAGED_CONFORMANCE_FRAMES = $originalManagedConformanceFrames
+    $env:SC_CONNECTION_PLAN_MANAGED = $originalManagedConnectionPlans
 }

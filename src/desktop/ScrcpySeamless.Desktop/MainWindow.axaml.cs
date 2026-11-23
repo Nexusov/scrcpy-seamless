@@ -15,6 +15,7 @@ namespace ScrcpySeamless.Desktop;
 public partial class MainWindow : Window
 {
     private NormalDesktopComposition? normalComposition;
+    private Func<Task>? settleApplication;
     private bool closeApproved;
     private bool closePromptOpen;
     private readonly PresentationText closeText = new();
@@ -33,9 +34,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Enables the normal-only dirty-draft close guard after composition.</summary>
-    public void AttachNormalComposition(NormalDesktopComposition composition)
+    public void AttachNormalComposition(NormalDesktopComposition composition, Func<Task>? settleApplication = null)
     {
         normalComposition = composition;
+        this.settleApplication = settleApplication;
     }
 
     /// <summary>Activates only committed Desktop command bindings in the local window.</summary>
@@ -113,7 +115,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!composition.HasDirtyGroups && !composition.HasLiveOperations)
+        if (!composition.HasDirtyGroups && !composition.HasLiveOperations && settleApplication is null)
         {
             return;
         }
@@ -160,6 +162,21 @@ public partial class MainWindow : Window
             {
                 await ShowStopFailureAsync();
                 return;
+            }
+
+            if (settleApplication is { } settle)
+            {
+                try
+                {
+                    await settle();
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.TraceError("Application shutdown settlement failed: {0}", exception.GetType().Name);
+                }
+
+                // An immediately completed application settlement must not reenter Closing.
+                await Task.Yield();
             }
 
             closeApproved = true;

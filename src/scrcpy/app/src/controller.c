@@ -8,13 +8,13 @@
 #define SC_CONTROL_MSG_QUEUE_LIMIT 60
 
 static void
-sc_controller_receiver_on_ended(struct sc_receiver *receiver, bool error,
+sc_controller_receiver_on_ended(struct sc_receiver *receiver, enum sc_control_status status,
                                 void *userdata) {
     (void) receiver;
 
     struct sc_controller *controller = userdata;
     // Forward the event to the controller listener
-    controller->cbs->on_ended(controller, error, controller->cbs_userdata);
+    controller->cbs->on_ended(controller, status, controller->cbs_userdata);
 }
 
 bool
@@ -58,6 +58,7 @@ sc_controller_init(struct sc_controller *controller, sc_socket control_socket,
 
     controller->control_socket = control_socket;
     controller->stopped = false;
+    controller->messages_written = 0;
 
     controller->resize_display.width = 0;
     controller->resize_display.height = 0;
@@ -147,21 +148,22 @@ sc_controller_resize_display(struct sc_controller *controller,
 
 static bool
 process_msg(struct sc_controller *controller,
-            const struct sc_control_msg *msg, bool *eos) {
+            const struct sc_control_msg *msg, enum sc_control_status *status) {
     static uint8_t serialized_msg[SC_CONTROL_MSG_MAX_SIZE];
     size_t length = sc_control_msg_serialize(msg, serialized_msg);
     if (!length) {
-        *eos = false;
+        *status = SC_CONTROL_STATUS_LOCAL_ERROR;
         return false;
     }
 
     ssize_t w =
         net_send_all(controller->control_socket, serialized_msg, length);
     if ((size_t) w != length) {
-        *eos = true;
+        *status = SC_CONTROL_STATUS_TRANSPORT_LOST;
         return false;
     }
 
+    ++controller->messages_written;
     return true;
 }
 
@@ -169,7 +171,7 @@ static int
 run_controller(void *data) {
     struct sc_controller *controller = data;
 
-    bool error = false;
+    enum sc_control_status status = SC_CONTROL_STATUS_STOPPED;
 
     for (;;) {
         sc_mutex_lock(&controller->mutex);
@@ -205,19 +207,18 @@ run_controller(void *data) {
             sc_control_msg_log(&msg);
         }
 
-        bool eos;
-        bool ok = process_msg(controller, &msg, &eos);
+        bool sent = process_msg(controller, &msg, &status);
         sc_control_msg_destroy(&msg);
-        if (!ok) {
-            if (eos) {
+
+        if (!sent) {
+            if (status == SC_CONTROL_STATUS_TRANSPORT_LOST) {
                 LOGD("Controller stopped (socket closed)");
             } // else error already logged
-            error = !eos;
             break;
         }
     }
 
-    controller->cbs->on_ended(controller, error, controller->cbs_userdata);
+    controller->cbs->on_ended(controller, status, controller->cbs_userdata);
 
     return 0;
 }

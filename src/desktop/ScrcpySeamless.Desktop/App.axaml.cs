@@ -4,11 +4,15 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Input.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using ScrcpySeamless.Core.Application.Activation;
+using ScrcpySeamless.Core.Application.NativeHost;
 using ScrcpySeamless.Core.Configuration;
 using ScrcpySeamless.Infrastructure.Activation;
+using ScrcpySeamless.Infrastructure.Diagnostics;
+using ScrcpySeamless.Infrastructure.Updates;
 using ControlCenterActivationKind = ScrcpySeamless.Core.Application.Activation.ActivationKind;
 
 namespace ScrcpySeamless.Desktop;
@@ -43,8 +47,8 @@ public partial class App : Application
                     Height = 180,
                     Content = new TextBlock
                     {
-                        Text = "Select --preview, --portable, --installed, or one absolute --dev-data-dir=<path>. " +
-                            "Do not combine storage modes.",
+                        Text = "Start normally for portable mode, or select --preview, --installed, " +
+                            "or one absolute --dev-data-dir=<path>. Do not combine storage modes.",
                         TextWrapping = TextWrapping.Wrap,
                         Margin = new Thickness(24),
                     },
@@ -62,75 +66,204 @@ public partial class App : Application
             }
             else
             {
-                WindowsControlCenterActivation activation = new(
-                    NormalDesktopFactory.ResolveDataPaths(options).Directory);
-                ActivationDisposition disposition;
-
-                try
-                {
-                    disposition = activation.AcquireOrForwardAsync(
-                        new ActivationRequest(ControlCenterActivationKind.ShowControlCenter), CancellationToken.None)
-                        .GetAwaiter().GetResult();
-                }
-                catch
-                {
-                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    throw;
-                }
-
-                if (disposition == ActivationDisposition.ForwardedToPrimary)
-                {
-                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    Dispatcher.UIThread.Post(() => desktopLifetime.Shutdown());
-                    base.OnFrameworkInitializationCompleted();
-                    return;
-                }
-
-                MainWindow? normalWindow = null;
-                NormalDesktopComposition composition = NormalDesktopFactory.Create(options,
-                    ApplyAppearance,
-                    shortcuts => normalWindow?.ApplyShortcuts(shortcuts),
-                    ResolveEffectiveFont,
-                    copySessionEvidence: async evidence =>
-                    {
-                        // Resolve the existing window clipboard only when the DEV action is invoked.
-                        var clipboard = normalWindow?.Clipboard ??
-                            throw new InvalidOperationException("Clipboard is unavailable.");
-                        await clipboard.SetTextAsync(evidence);
-                    });
-                normalWindow = new MainWindow(composition.Shell);
-                normalWindow.AttachNormalComposition(composition);
-                desktopLifetime.MainWindow = normalWindow;
-                CancellationTokenSource activationCancellation = new();
-                Task activationObservation = ObserveActivationAsync(activation, normalWindow,
-                    composition, activationCancellation.Token);
-                desktopLifetime.Exit += (_, _) =>
-                {
-                    activationCancellation.Cancel();
-                    activation.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    // Observe any unexpected task fault before the owner exits.
-                    if (activationObservation.IsFaulted)
-                    {
-                        System.Diagnostics.Trace.TraceError("Control-center activation task failed: {0}",
-                            activationObservation.Exception?.GetType().Name);
-                    }
-                    activationCancellation.Dispose();
-                };
-                normalWindow.Opened += async (_, _) =>
-                {
-                    try
-                    {
-                        await composition.InitializeAsync(CancellationToken.None);
-                    }
-                    catch (Exception exception)
-                    {
-                        normalWindow.ShowStartupFailure(exception.GetType().Name);
-                    }
-                };
+                StartNormalDesktop(desktopLifetime, options);
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void StartNormalDesktop(IClassicDesktopStyleApplicationLifetime lifetime, DesktopLaunchOptions options)
+    {
+        var status = new TextBlock
+        {
+            Text = "Opening scrcpy Seamless…",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(24),
+        };
+        var loading = new Window { Title = "scrcpy Seamless", Width = 440, Height = 130, Content = status };
+        lifetime.MainWindow = loading;
+        loading.Opened += OpenNormalAsync;
+
+        async void OpenNormalAsync(object? sender, EventArgs eventArgs)
+        {
+            loading.Opened -= OpenNormalAsync;
+            using var startupCancellation = new CancellationTokenSource();
+            bool closeRequested = false;
+
+            void RequestClose(object? owner, WindowClosingEventArgs args)
+            {
+                args.Cancel = true;
+                closeRequested = true;
+                startupCancellation.Cancel();
+            }
+
+            loading.Closing += RequestClose;
+            WindowsControlCenterActivation? activation = null;
+            CancellationTokenSource? activationCancellation = null;
+            Task? observation = null;
+            GitHubReleaseChecker? releaseChecker = null;
+            bool transferred = false;
+            bool forwarded = false;
+
+            try
+            {
+                CancellationToken token = startupCancellation.Token;
+                activation = new WindowsControlCenterActivation(NormalDesktopFactory.ResolveDataPaths(options).Directory);
+                ActivationDisposition disposition = await activation.AcquireOrForwardAsync(
+                    new ActivationRequest(ControlCenterActivationKind.ShowControlCenter), token);
+                forwarded = disposition == ActivationDisposition.ForwardedToPrimary;
+
+                if (!forwarded)
+                {
+                    var runtime = await NormalDesktopFactory.ValidateRuntimeAsync(options, token);
+                    token.ThrowIfCancellationRequested();
+                    MainWindow? window = null;
+                    GitHubReleaseChecker checker = new();
+                    releaseChecker = checker;
+                    NormalDesktopComposition composition = NormalDesktopFactory.Create(options, ApplyAppearance,
+                        shortcuts => window?.ApplyShortcuts(shortcuts), ResolveEffectiveFont,
+                        copySessionEvidence: async evidence =>
+                        {
+                            var clipboard = window?.Clipboard ??
+                                throw new InvalidOperationException("Clipboard is unavailable.");
+                            await clipboard.SetTextAsync(evidence);
+                        },
+                        validatedRuntime: runtime,
+                        releaseChecker: checker,
+                        openReleaseLink: async (uri, cancellationToken) =>
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (window is null || !await window.Launcher.LaunchUriAsync(uri))
+                            {
+                                throw new InvalidOperationException("The release link could not be opened.");
+                            }
+                        });
+                    window = new MainWindow(composition.Shell);
+                    var diagnostics = composition.Shell.Diagnostics;
+                    diagnostics?.AttachExport(new LocalDiagnosticWriter(),
+                        cancellationToken => SelectDiagnosticDestinationAsync(window, cancellationToken));
+
+                    try
+                    {
+                        await composition.InitializeAsync(token);
+                    }
+                    catch (Exception exception) when (!token.IsCancellationRequested)
+                    {
+                        window.ShowStartupFailure(exception.GetType().Name);
+                    }
+
+                    token.ThrowIfCancellationRequested();
+                    var observerLifetime = new CancellationTokenSource();
+                    activationCancellation = observerLifetime;
+                    Task observer = ObserveActivationAsync(activation, window, composition, observerLifetime.Token);
+                    observation = observer;
+                    WindowsControlCenterActivation primary = activation;
+                    window.AttachNormalComposition(composition, async () =>
+                    {
+                        using (checker)
+                        {
+                            try
+                            {
+                                try
+                                {
+                                    if (diagnostics?.Export is { } export)
+                                    {
+                                        await export.CloseAsync();
+                                    }
+                                }
+                                finally
+                                {
+                                    if (composition.Releases is { } releases)
+                                    {
+                                        await releases.CloseAsync();
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                await SettleActivationAsync(primary, observerLifetime, observer);
+                            }
+                        }
+                    });
+                    lifetime.MainWindow = window;
+                    window.Show();
+                    transferred = true;
+                }
+            }
+            catch (OperationCanceledException) when (startupCancellation.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                status.Text = $"Could not open scrcpy Seamless ({exception.GetType().Name}).";
+            }
+            finally
+            {
+                try
+                {
+                    if (!transferred && activation is not null)
+                    {
+                        releaseChecker?.Dispose();
+                        await SettleActivationAsync(activation, activationCancellation, observation);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    status.Text = $"Could not release startup resources ({exception.GetType().Name}).";
+                }
+                finally
+                {
+                    loading.Closing -= RequestClose;
+                }
+            }
+
+            if (transferred || forwarded || closeRequested)
+            {
+                loading.Close();
+            }
+        }
+    }
+
+    private static async Task<string?> SelectDiagnosticDestinationAsync(Window window, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using IStorageFile? selected = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save session diagnostics to a new file",
+            SuggestedFileName = "scrcpy-seamless-diagnostics.jsonl",
+            DefaultExtension = "jsonl",
+            FileTypeChoices = [new FilePickerFileType("JSON Lines") { Patterns = ["*.jsonl"] }],
+        });
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (selected is null)
+        {
+            return null;
+        }
+
+        return selected.TryGetLocalPath() ?? throw new NotSupportedException("Select a local file.");
+    }
+
+    private static async Task SettleActivationAsync(WindowsControlCenterActivation activation,
+        CancellationTokenSource? cancellation, Task? observation)
+    {
+        using (cancellation)
+        {
+            cancellation?.Cancel();
+
+            try
+            {
+                if (observation is not null)
+                {
+                    await observation;
+                }
+            }
+            finally
+            {
+                await activation.DisposeAsync();
+            }
+        }
     }
 
     /// <summary>Separates control-center activation from exact-session native focus requests.</summary>
@@ -158,8 +291,10 @@ public partial class App : Application
                 {
                     try
                     {
-                        await Dispatcher.UIThread.InvokeAsync(
-                            () => deviceSession.FocusSessionAsync(sessionId, cancellationToken));
+                        Task<NativeFocusOutcome> focus = await Dispatcher.UIThread.InvokeAsync<Task<NativeFocusOutcome>>(
+                            () => composition.Sessions?.FocusSessionAsync(sessionId, cancellationToken)
+                                ?? deviceSession.FocusSessionAsync(sessionId, cancellationToken));
+                        await focus;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {

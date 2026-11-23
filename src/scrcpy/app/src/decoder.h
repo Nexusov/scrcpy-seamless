@@ -3,6 +3,7 @@
 
 #include "common.h"
 
+#include <stdint.h>
 #include <libavcodec/avcodec.h>
 
 #include "coords.h"
@@ -17,6 +18,7 @@ struct sc_decoder {
 
     AVCodecContext *ctx;
     AVFrame *frame;
+    uint64_t frames_decoded; // enclosing demux worker only until join
 
     struct sc_stream_session session; // only initialized for video stream
     struct sc_size frame_size;

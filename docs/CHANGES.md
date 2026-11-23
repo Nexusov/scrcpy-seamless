@@ -1,5 +1,68 @@
 # Changes from scrcpy 4.0
 
+## Autonomous bounded connection recovery
+
+One application-owned connection manager now executes finite candidate/retry
+policy through an interruptible resolver and sequential generation retirement.
+The committed Desktop plan is transported explicitly; a separate bootstrap
+version rejects older native runtimes without changing framed IPC v1. The
+selected initial network route is retained; later mDNS resolution can refresh
+its endpoint. USB requires positive ADB evidence, not serial spelling.
+
+Headless recovery, one invocation-wide deadline (zero disables it), optional
+channel degradation and exclusive part01/part02 recording replace the earlier
+compatibility restrictions. Recorder publication, packet-reference cleanup and
+joined finalization outcomes are checked independently of user Stop intent and
+notification revocation. Local, protocol and real recording failures are not
+retried as transport loss. See the [connection contract](architecture/CONNECTION_MANAGER.md)
+for bounds, source-derived corrections and validation limits. No changed source
+or future package inherits a historical hardware pass.
+
+## Autonomous P7.5 coordinator and consolidated owner checks
+
+One application coordinator now owns connecting, streaming, retiring, waiting
+and stopped states. The entry shim delegates to it; the server receives explicit
+resolved target inputs from an invocation-captured recovery adapter. This step
+preserves characterized retry behavior while Phase 8 replaces policy. Production-
+linked checks cover list-route wiring, scoped notification consumption and
+101 real generation owners under one dispatcher; the latter is not 100 network
+reconnects or hardware evidence.
+
+## Autonomous P7.4 retirement migration
+
+Normal mirroring reserves one bounded persistent retirement worker before any
+generation is acquired. The main thread detaches/revokes, then keeps pumping
+application and window events while the worker signals stop, joins borrowers
+and releases external resources. Notification filtering, owner free and SDL
+presentation destruction remain on main after settlement; presentation helper
+joins also run in the worker. Actual SDL thread completion precedes final reap.
+No timeout frees live state and no replacement overlaps retirement. A late Quit
+cannot rewrite an earlier terminal failure. This is not final Phase 7 or 2.0
+acceptance; later coordinator/reconnect/product/hardening work remains open.
+
+## Phase 7 P7.3 connection-generation graph
+
+The native application retains presentation/input routing and one current
+`sc_session` pointer. Stable generation storage owns the actual server, control,
+media, recorder/deadline and conditional USB/V4L2 graph. Shipping orchestration
+uses create/start/request-stop/join/destroy with successful-acquisition flags;
+sink-open rollback and downstream close remain module-owned. Retirement remains
+sequential with synchronous joins, not the later asynchronous coordinator.
+
+Remaining server/media/control/deadline/AOA/OTG outcomes now carry generation
+values through a fixed two-slot handoff and exact SDL FIFO wakes. Late values
+are rejected before target resolution; critical results survive wake failure
+without a growable queue. Screen disconnection helpers belong to the persistent
+screen and retain their icon/timeout without queued owner pointers or broad
+event flushing. Application Stop/Focus/quit and the existing transport policy
+remain separate. ACK release now follows both direct receiver and AOA joins.
+Deadline callback publication, file-pusher queue release and the locally owned
+SDL joystick-list release have deterministic regressions. Existing SDL stream
+destruction already settles audio callbacks; production audio close is retained.
+See the [P7.3 contract](architecture/PHASE_7_NATIVE_LIFETIME_PLAN.md#p73-implementation-contract-recorded-before-production-changes)
+for the source/runtime proof, test boundaries and remaining platform limits.
+No frozen DEV package is rebuilt or gains these source changes.
+
 ## Phase 7 P7.2 presentation and input ownership
 
 The persistent screen now owns presentation and an application video ingress;

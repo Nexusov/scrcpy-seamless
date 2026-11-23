@@ -70,7 +70,7 @@ sc_decoder_push(struct sc_decoder *decoder, const AVPacket *packet) {
             return false;
         }
 
-        // a frame was received
+        ++decoder->frames_decoded;
 
         if (decoder->ctx->codec_type == AVMEDIA_TYPE_VIDEO) {
             assert(decoder->frame->width >= 0);
@@ -147,6 +147,7 @@ sc_decoder_packet_sink_push_session(struct sc_packet_sink *sink,
 void
 sc_decoder_init(struct sc_decoder *decoder, const char *name) {
     decoder->name = name; // statically allocated
+    decoder->frames_decoded = 0;
     sc_frame_source_init(&decoder->frame_source);
 
     static const struct sc_packet_sink_ops ops = {
