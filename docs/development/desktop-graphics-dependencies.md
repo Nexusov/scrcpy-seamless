@@ -81,3 +81,20 @@ package notices, record their hashes/origin and retain other imported runtime
 notices. Missing or unidentified notice evidence remains a release gate rather
 than an invented SPDX license. The software-renderer tests are not a complete
 license audit or a signed/reproducible-build attestation.
+
+## HarfBuzz servicing
+
+The matched managed and native HarfBuzzSharp packages are fixed at 14.4.0.2.
+The transitive Avalonia baseline was 8.3.1.3. The published HarfBuzz
+[advisory](https://github.com/harfbuzz/harfbuzz/security/advisories/GHSA-q4gc-p4hh-3765)
+identifies a fix in HarfBuzz 14.0. The engine version and the .NET package
+version are distinct. The change uses the official NuGet packages, with locks
+and paired companion versions. Windows package metadata identifies commit
+`bae2bd1738735d78625e81cc51c9e60240b6cbd5` and MIT package license. The Win-x64
+native component hash is
+`1324c8527006483df5e1b79c1c7f5df88260dffe87da3159fc20a6e64d64466b`.
+
+With this pair, locked restore and all eight real graphics checks passed,
+including ordinary LTR and RTL text shaping. These checks establish the tested
+runtime compatibility. The advisory review does not establish application
+reachability of the upstream defect or complete coverage of HarfBuzz subsetting.
