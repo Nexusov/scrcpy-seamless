@@ -20,3 +20,39 @@ No v4.1 VP8/VP9 feature, media scan addition or dependency-library upgrade is
 adopted by this early fix audit. They require separate Phase 9 or dependency
 provenance decisions. The reviewed 1.x imported runtime remains pinned until
 an explicit compatibility/provenance transition is tested.
+
+## Autonomous selective texture ports — 2026-11-23
+
+The latest stable release inspected through the official GitHub API is
+[v5.0.1](https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1), published
+2026-10-08, resolving to
+`a60891aea193d92e7e5c3942700eca63f9d19a5f`. This is an audit reference, not a
+wholesale source/dependency upgrade. The complete v4.0-to-stable comparison
+contains 113 commits; earlier Phase 2 decisions above remain historical.
+
+| Exact upstream source | Adaptation in this fork | Evidence and boundary |
+| --- | --- | --- |
+| [95ae3bb17d678c3dc0e0f31f50ee5a50ff2c269e](https://github.com/Genymobile/scrcpy/commit/95ae3bb17d678c3dc0e0f31f50ee5a50ff2c269e), [5022743a2a68701b7bde06cefbcc7c77ffc8f59e](https://github.com/Genymobile/scrcpy/commit/5022743a2a68701b7bde06cefbcc7c77ffc8f59e), `app/src/texture.c` | Map unspecified/YCGCO colorspaces to BT709, preserving full/limited range. | Actual texture-property construction failed the expected colorspace assertion before production changes; four mapping cases pass afterward. |
+| [730604ffba45cbaabac8336aeb59c44a6c8dc4c9](https://github.com/Genymobile/scrcpy/commit/730604ffba45cbaabac8336aeb59c44a6c8dc4c9), [483de65ea78dc2c22b3f975bf0847afaeb682d9a](https://github.com/Genymobile/scrcpy/commit/483de65ea78dc2c22b3f975bf0847afaeb682d9a), `app/src/texture.c` | Do not destroy borrowed texture properties. Retain the fork's existing texture destruction on failed property lookup instead of reproducing the intermediate upstream error-path leak. | The pre-fix ownership case observed premature destruction of borrowed properties. Current lookup/missing-chroma/update failure cases require exactly one texture release. |
+| [562999e9f08a4f3e0ac8bb48b04513ccac2d9c69](https://github.com/Genymobile/scrcpy/commit/562999e9f08a4f3e0ac8bb48b04513ccac2d9c69), `app/src/texture.c` and `.h` | Retain all three YV12 plane texture IDs; apply filtering and generate mipmaps for each plane, with the existing OpenGL/OpenGLES property namespaces. | The pre-fix plane case failed because only one plane received parameters. Current OpenGL and OpenGLES cases verify all three plane operations. |
+| [2e41f47c3b76825eff22d9358a3227ca1b561de0](https://github.com/Genymobile/scrcpy/commit/2e41f47c3b76825eff22d9358a3227ca1b561de0), `app/src/texture.h` | Replace the unrelated display header guard with the texture guard. | Mechanical header correction; the linked target compiles with the real production header. |
+
+Original project: Genymobile/scrcpy; the selected commits are authored by Romain
+Vimont. The pinned upstream
+[LICENSE](https://github.com/Genymobile/scrcpy/blob/a60891aea193d92e7e5c3942700eca63f9d19a5f/LICENSE)
+is Apache-2.0; the selected files were inspected without conflicting per-file
+notices. The destinations remain the corresponding existing upstream-derived
+`src/scrcpy/app/src/texture.c` and `.h`; no external assets/dependencies were
+added and existing project notices remain. Adaptation preserves the fork's
+generation ingress and renderer ownership, using its `ARRAY_LEN` convention.
+
+`test_texture_ports` links actual production texture code, real SDL property
+objects and real FFmpeg frame buffers, with controlled renderer/GL external
+effects. Its ten internal cases are one registered Meson check, not ten targets
+or hardware tests. Three isolated pre-fix invocations retained distinct
+ownership/plane/colorspace assertion failures; they are not historical device
+incidents. Controlled doubles intentionally prevent a premature property-release
+attempt from invalidating fixture storage while recording the ownership breach.
+No physical OpenGL/display/device validation is claimed. The full stable audit
+and remaining recorder/input/server/dependency findings remain in the local
+autonomous evidence; these texture ports do not close those separate items.

@@ -240,6 +240,21 @@ if get_option('buildtype') == 'debug'
     # Link shipping ownership and orchestration; only external effects are wrapped.
     # These Windows cases also cover the existing machine Stop intent boundary.
     if host_machine.system() == 'windows'
+        texture_wraps = [
+            'SDL_GetRendererName', 'SDL_CreateTextureWithProperties',
+            'SDL_GetTextureProperties', 'SDL_DestroyProperties',
+            'SDL_DestroyTexture', 'SDL_UpdateYUVTexture',
+        ]
+        texture_link_args = []
+        foreach symbol : texture_wraps
+            texture_link_args += '-Wl,--wrap=' + symbol
+        endforeach
+        texture_test = executable('test_texture_ports', [
+            'tests/test_texture_ports.c', 'src/texture.c', 'src/util/log.c',
+        ], include_directories: src_dir, dependencies: dependencies,
+           link_args: texture_link_args)
+        test('test_texture_ports', texture_test)
+
         session_sources = []
         foreach index : range(1, src.length())
             session_sources += src[index]
