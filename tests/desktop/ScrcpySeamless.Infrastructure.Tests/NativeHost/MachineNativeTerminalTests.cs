@@ -10,6 +10,7 @@ namespace ScrcpySeamless.Infrastructure.Tests.NativeHost;
 public sealed class MachineNativeTerminalTests
 {
     private static readonly TimeSpan WriteFailureWatchdog = TimeSpan.FromSeconds(7);
+    private static readonly TimeSpan FixtureSetupWatchdog = TimeSpan.FromSeconds(15);
 
     /// <summary>A terminal observation settles an already received command without inventing success.</summary>
     [Theory]
@@ -160,8 +161,10 @@ public sealed class MachineNativeTerminalTests
     }
 
     /// <summary>A queued command write failing after native termination cannot rewrite the observed exit.</summary>
-    [Fact]
-    public async Task OutgoingWriteFailureAfterTerminalPreservesWindowClose()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OutgoingWriteFailureAfterTerminalPreservesWindowClose(bool holdFixtureSetup)
     {
         string directory = Path.Combine(Path.GetTempPath(), "scrcpy-machine-late-write-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -169,31 +172,81 @@ public sealed class MachineNativeTerminalTests
         File.WriteAllText(scriptPath, TerminalFixture);
         string triggerName = "Local\\scrcpy-late-write-" + Guid.NewGuid().ToString("N");
         string exitReleaseName = "Local\\scrcpy-late-exit-" + Guid.NewGuid().ToString("N");
+        string readerReadyName = "Local\\scrcpy-late-reader-ready-" + Guid.NewGuid().ToString("N");
+        string setupReleaseName = "Local\\scrcpy-late-reader-release-" + Guid.NewGuid().ToString("N");
         using EventWaitHandle trigger = new(false, EventResetMode.ManualReset, triggerName);
         using EventWaitHandle exitRelease = new(false, EventResetMode.ManualReset, exitReleaseName);
+        using EventWaitHandle readerReady = new(false, EventResetMode.ManualReset, readerReadyName);
+        using EventWaitHandle setupRelease = new(!holdFixtureSetup, EventResetMode.ManualReset, setupReleaseName);
         using CancellationTokenSource writeRelease = new();
+        TaskCompletionSource waitingForFixture = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<bool> helloWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource injectedWriteFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         MachineNativeSession? session = null;
 
         try
         {
             SessionId sessionId = SessionId.New();
-            session = await MachineNativeSession.StartAsync(sessionId,
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+            Task<MachineNativeSession> acquisition = Task.Run(() => MachineNativeSession.StartAsync(sessionId,
                 CreateStartInfo(scriptPath, sessionId, string.Empty, string.Empty,
-                    exitReleaseName: exitReleaseName, terminalTriggerName: triggerName),
-                TestContext.Current.CancellationToken,
-                wrapStandardInput: stream => new LateFailWriteStream(stream, trigger, writeRelease.Token));
-            Task<NativeFocusOutcome> focus = session.FocusWindowAsync(TestContext.Current.CancellationToken);
+                    exitReleaseName: exitReleaseName, terminalTriggerName: triggerName,
+                    readerReadyName: readerReadyName, setupReleaseName: setupReleaseName),
+                cancellationToken,
+                wrapStandardInput: stream =>
+                {
+                    // Constructor setup precedes the production handshake deadline.
+                    waitingForFixture.TrySetResult();
+                    int signal = WaitHandle.WaitAny([readerReady, cancellationToken.WaitHandle], FixtureSetupWatchdog);
+                    if (signal == WaitHandle.WaitTimeout)
+                    {
+                        throw new TimeoutException("The terminal fixture did not prepare its hello reader.");
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new LateFailWriteStream(stream, trigger, writeRelease.Token,
+                        readerReady, helloWriteStarted, injectedWriteFailed);
+                }), cancellationToken);
+            Task? firstSetupStage = null;
+
+            try
+            {
+                if (holdFixtureSetup)
+                {
+                    firstSetupStage = await Task.WhenAny(waitingForFixture.Task, helloWriteStarted.Task)
+                        .WaitAsync(FixtureSetupWatchdog, cancellationToken);
+                }
+            }
+            finally
+            {
+                setupRelease.Set();
+                session = await acquisition;
+            }
+
+            if (holdFixtureSetup)
+            {
+                Assert.True(ReferenceEquals(waitingForFixture.Task, firstSetupStage),
+                    "The hello write began before the fixture setup gate was released.");
+            }
+
+            Assert.True(await helloWriteStarted.Task.WaitAsync(WriteFailureWatchdog, cancellationToken),
+                "The hello write began before the fixture advertised an initialized reader.");
+            Task<NativeFocusOutcome> focus = session.FocusWindowAsync(cancellationToken);
             using CancellationTokenSource terminalDeadline = new(TimeSpan.FromSeconds(5));
+            bool terminalObserved = false;
             await foreach (NativeLifecycleObservation observation in
                 session.ObserveLifecycleAsync(terminalDeadline.Token))
             {
                 if (observation.EventType == NativeLifecycleEventType.SessionStopped)
                 {
+                    terminalObserved = true;
                     break;
                 }
             }
 
+            Assert.True(terminalObserved);
             writeRelease.Cancel();
+            await injectedWriteFailed.Task.WaitAsync(WriteFailureWatchdog, cancellationToken);
             exitRelease.Set();
             Assert.Equal(NativeTerminationReason.WindowClosed,
                 (await session.Completion.WaitAsync(TimeSpan.FromSeconds(5),
@@ -460,7 +513,8 @@ public sealed class MachineNativeTerminalTests
 
     /// <summary>Holds one Focus write until the synthetic child has emitted SessionStopped.</summary>
     private sealed class LateFailWriteStream(Stream inner, EventWaitHandle trigger,
-        CancellationToken release) : Stream
+        CancellationToken release, EventWaitHandle readerReady, TaskCompletionSource<bool> helloWriteStarted,
+        TaskCompletionSource injectedWriteFailed) : Stream
     {
         private int writeCount;
         public override bool CanRead => false;
@@ -477,6 +531,11 @@ public sealed class MachineNativeTerminalTests
             CancellationToken cancellationToken = default)
         {
             int currentWrite = Interlocked.Increment(ref writeCount);
+
+            if (currentWrite == 1)
+            {
+                helloWriteStarted.TrySetResult(readerReady.WaitOne(0));
+            }
 
             if (currentWrite <= 2)
             {
@@ -495,6 +554,7 @@ public sealed class MachineNativeTerminalTests
                 // The test explicitly released this previously queued write.
             }
 
+            injectedWriteFailed.TrySetResult();
             throw new IOException("The test released a queued write after native termination.");
         }
 
@@ -520,7 +580,7 @@ public sealed class MachineNativeTerminalTests
     private static ProcessStartInfo CreateStartInfo(string scriptPath, SessionId sessionId,
         string receivedName, string releaseName, string terminalReason = "windowClosed",
         int exitCode = 0, string expectedCommand = "FocusWindow", string exitReleaseName = "",
-        string terminalTriggerName = "")
+        string terminalTriggerName = "", string readerReadyName = "", string setupReleaseName = "")
     {
         ProcessStartInfo startInfo = new()
         {
@@ -545,11 +605,13 @@ public sealed class MachineNativeTerminalTests
         startInfo.ArgumentList.Add(expectedCommand);
         startInfo.ArgumentList.Add(exitReleaseName);
         startInfo.ArgumentList.Add(terminalTriggerName);
+        startInfo.ArgumentList.Add(readerReadyName);
+        startInfo.ArgumentList.Add(setupReleaseName);
         return startInfo;
     }
 
     private const string TerminalFixture = """
-        param([string]$sessionId, [string]$receivedName, [string]$releaseName, [string]$terminalReason, [int]$exitCode, [string]$expectedCommand, [string]$exitReleaseName, [string]$terminalTriggerName)
+        param([string]$sessionId, [string]$receivedName, [string]$releaseName, [string]$terminalReason, [int]$exitCode, [string]$expectedCommand, [string]$exitReleaseName, [string]$terminalTriggerName, [string]$readerReadyName, [string]$setupReleaseName)
         $inputPipe = [Console]::OpenStandardInput()
         $outputPipe = [Console]::OpenStandardOutput()
         function ReadExactly([int]$count) {
@@ -574,6 +636,17 @@ public sealed class MachineNativeTerminalTests
             $outputPipe.Write($header, 0, $header.Length)
             $outputPipe.Write($body, 0, $body.Length)
             $outputPipe.Flush()
+        }
+        if ($readerReadyName) {
+            $setupRelease = [Threading.EventWaitHandle]::OpenExisting($setupReleaseName)
+            $readerReady = [Threading.EventWaitHandle]::OpenExisting($readerReadyName)
+            try {
+                $setupRelease.WaitOne() | Out-Null
+                $readerReady.Set() | Out-Null
+            } finally {
+                $readerReady.Dispose()
+                $setupRelease.Dispose()
+            }
         }
         $hello = ReadFrame
         if ($hello.messageType -ne 'hello') { exit 12 }
