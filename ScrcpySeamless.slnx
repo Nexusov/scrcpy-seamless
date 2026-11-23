@@ -12,6 +12,7 @@
   <Folder Name="/tests/desktop/">
     <Project Path="tests/desktop/ScrcpySeamless.Core.Tests/ScrcpySeamless.Core.Tests.csproj" />
     <Project Path="tests/desktop/ScrcpySeamless.Desktop.Tests/ScrcpySeamless.Desktop.Tests.csproj" />
+    <Project Path="tests/desktop/ScrcpySeamless.Graphics.Tests/ScrcpySeamless.Graphics.Tests.csproj" />
     <Project Path="tests/desktop/ScrcpySeamless.Infrastructure.Tests/ScrcpySeamless.Infrastructure.Tests.csproj" />
     <Project Path="tests/desktop/ScrcpySeamless.SpecGen.Tests/ScrcpySeamless.SpecGen.Tests.csproj" />
   </Folder>

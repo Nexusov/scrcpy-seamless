@@ -307,3 +307,14 @@ They inventory current wire behavior separately from upstream feature adoption,
 Desktop/native IPC and untested media/device effects. None of these source
 decisions establishes a historical hardware failure or explains the retained
 geometry and activation observations.
+
+## Desktop renderer dependency servicing
+
+The SkiaSharp 3.119.4 component reproduction and bounded 4.155.2 dependency
+correction are documented in the
+[software-renderer servicing boundary](../development/desktop-graphics-dependencies.md).
+This is a verified dependency update, not source copied from the scrcpy ports.
+The existing Avalonia/HarfBuzz route is retained and exercised against the new
+native software renderer. Package/native hashes, exact resolved companions and
+actual notices remain distinct from the limited API tests and from physical
+graphics/hardware acceptance.
