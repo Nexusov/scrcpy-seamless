@@ -178,3 +178,75 @@ camera failure. Tests exercise the production stop-effect helper; source review
 separately verifies its position in the real posted callback before field
 release. Actual Android Handler/backend execution and the checked framework
 CameraAccessException branch are not established by these controlled JVM cases.
+
+## Encoder capabilities and capture geometry - 2026-11-23
+
+Coherently adapted these Genymobile/scrcpy commits, authored by Romain Vimont
+under Apache-2.0, retaining existing notices:
+
+- [71c6bf4a87a8eee7f203d71e030375845fff34e2](https://github.com/Genymobile/scrcpy/commit/71c6bf4a87a8eee7f203d71e030375845fff34e2):
+  `model/Size.java`, `video/VideoConstraints.java`, `video/SurfaceEncoder.java`
+  and new `util/BinarySearch.java`; use coupled encoder capabilities instead of
+  treating their two extreme sizes as one maximum rectangle.
+- [f457fd4cf5ff4e91853159cbbbbbb98efa8f30b3](https://github.com/Genymobile/scrcpy/commit/f457fd4cf5ff4e91853159cbbbbbb98efa8f30b3):
+  apply declared encoder constraints only after an actual failed attempt.
+- [856e97dce4c6c2999a5ead6f15ceba45f54bc243](https://github.com/Genymobile/scrcpy/commit/856e97dce4c6c2999a5ead6f15ceba45f54bc243)
+  and [6f743be989ca6e003b6e95dcdda169c55e48d30a](https://github.com/Genymobile/scrcpy/commit/6f743be989ca6e003b6e95dcdda169c55e48d30a):
+  `video/CameraCapture.java`; after camera selection apply only final alignment,
+  and use an intermediate identity GL transform when the surface size differs.
+- [83c0e6a1a241a3190bd5c95b7f1b544ee1d05700](https://github.com/Genymobile/scrcpy/commit/83c0e6a1a241a3190bd5c95b7f1b544ee1d05700)
+  and [4954415cc34807ea3f086e2bf91106d31f5469cf](https://github.com/Genymobile/scrcpy/commit/4954415cc34807ea3f086e2bf91106d31f5469cf):
+  `video/NewDisplayCapture.java`; allow independent resize dimensions and use
+  the current DisplayInfo DPI instead of the earlier creation value.
+
+Destinations retain these paths under `src/scrcpy/server/src/main/java/`.
+The pinned v5.0.1 source for Size/BinarySearch was inspected at
+`a60891aea193d92e7e5c3942700eca63f9d19a5f`. A narrow numeric
+`VideoSizeCapabilities` boundary and actual Android delegate allow production
+Size/SurfaceEncoder code to be tested without inventing Android framework
+objects. The initial extrema behavior was preserved through that extraction:
+two behavioral reds then showed a valid square lost by the extreme-rectangle
+approximation and declared limits already applied before failure. These are
+controlled post-extraction source reproductions, not pristine historical full
+builds or executed codec failures.
+
+The upstream sizing algorithm required bounded local adaptations: widened scale
+products, an aligned legal minimum, upper-bound search followed by actual size
+validation so minimum block counts do not form a false predicate prefix, and
+no dependent SDK query with an unsupported no-match fallback. Four additional
+numeric reds established those gaps in the adapted upstream path. Expected
+unsupported-width queries remain candidate rejection; unexpected SDK failures
+propagate. No compatible declared size still uses the explicit validation
+fallback, not a claim that every vendor tuple is supported. The actual
+[Android 14 capability implementation](https://android.googlesource.com/platform/frameworks/base/+/android-14.0.0_r1/media/java/android/media/MediaCodecInfo.java)
+was inspected separately for lower block-count ranges and throwing dependent
+queries; no AOSP implementation was copied. BinarySearch uses a local primitive
+callback to keep the existing API-21 physical-display route free of the API-24
+`java.util.function.Predicate` library dependency.
+
+Retry precedence is explicit and production-tested: before first output,
+opt-out fails without applying capabilities; opt-in first tries the declared
+capabilities, then the existing smaller-size fallback if rejected. After output,
+the original two waits remain; at the original error limit, opt-in may apply one
+previously untried capability update, then fails on another error. Opt-out never
+adds that update. The original limit and 50-ms timing effect are unchanged;
+tests replace only the wait effect. Broken-pipe, transport and Stop handling
+are not changed.
+
+Four geometry reds were retained with the extracted old calculations. Tests
+exercise the actual camera static calculations and the actual virtual-display
+owner's preparation over its current state. The same preparation feeds the
+shipping tracker/resize call, keeping logical size, physical rotation and DPI
+together. Android Handler, MediaCodec, GL and virtual-display service effects
+are not executed by these JVM fixtures. The exact inherited size expectation
+400x418 becomes 400x419 because 419 is the largest major dimension whose scaled
+width still floors to the supported 400; no tolerance assertion replaces it.
+
+The final relevant fixtures comprise retained Size cases, capability/minimum/
+overflow/rejection cases, seven real SurfaceEncoder retry cases, two search
+cases and six capture-geometry cases. An independent exhaustive numeric oracle
+checks 2507 valid shapes inside one test; orientation combinations likewise are
+inside one test. These counts are not additional tests, targets or hardware
+passes. Full server unit/build/style results are recorded separately from the
+controlled red experiments. No physical codec/camera/display compatibility or
+explanation of the historical P7.2 geometry observation follows from this port.

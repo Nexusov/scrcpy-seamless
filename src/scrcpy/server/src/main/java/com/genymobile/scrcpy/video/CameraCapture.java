@@ -152,7 +152,21 @@ public class CameraCapture extends SurfaceCapture {
         filter.addAngle(angle);
 
         transform = filter.getInverseTransform();
-        videoSize = filter.getOutputSize().constrain(videoConstraints);
+        videoSize = alignVideoSize(filter.getOutputSize(), videoConstraints);
+        transform = adaptVideoTransform(captureSize, videoSize, transform);
+    }
+
+    static Size alignVideoSize(Size output, VideoConstraints constraints) {
+        return output.align(constraints.getAlignment());
+    }
+
+    static AffineMatrix adaptVideoTransform(Size input, Size output, AffineMatrix existingTransform) {
+
+        if (!input.equals(output) && existingTransform == null) {
+            // Camera surfaces must match capture size; GL adapts the aligned output.
+            return AffineMatrix.IDENTITY;
+        }
+        return existingTransform;
     }
 
     private static String selectCamera(String explicitCameraId, CameraFacing cameraFacing) throws CameraAccessException, ConfigurationException {
