@@ -63,6 +63,10 @@ ConnectionPlanVersion separately guards the new launch-plan bootstrap. New
 archives require it; read-only verification preserves older machine claims that
 predate it without treating their unchanged artifacts as current-host compatible.
 
+For 2.0, use stage-portable.ps1 and package-portable.ps1 with the
+[Windows x64 portable package guide](../docs/development/portable-packaging.md).
+Run tests/portable-package.Tests.ps1 for the offline archive regressions.
+
 ## Provenance
 
 Do not bypass a provenance/hash failure by merely updating expected hashes.

@@ -1,5 +1,8 @@
 # Building for Windows x64
 
+For the 2.0 product archive and source-build requirements, see the
+[Windows x64 portable package guide](development/portable-packaging.md).
+
 The portable 1.x application does not require a compiler. This guide covers
 development and rebuilding the modified client. The Phase 2 source-build paths
 are documented separately:

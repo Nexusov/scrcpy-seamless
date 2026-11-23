@@ -11,6 +11,16 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryDirectory = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'provenance.ps1')
+$sourceHead = $null
+
+if (Test-Path -LiteralPath (Join-Path $repositoryDirectory '.git')) {
+    $sourceHead = & git -C $repositoryDirectory rev-parse --verify HEAD
+
+    if ($LASTEXITCODE) {
+        throw 'Could not identify the native build source commit.'
+    }
+}
+
 $sourceFingerprintBeforeBuild = Get-NativeSourceFingerprint -RepositoryDirectory $repositoryDirectory
 $sourceDirectory = Join-Path $repositoryDirectory 'src\scrcpy'
 $distributionDirectory = Join-Path $repositoryDirectory 'dist'
@@ -165,6 +175,14 @@ try {
         return
     }
 
+    if ($sourceHead) {
+        $finishedHead = & git -C $repositoryDirectory rev-parse --verify HEAD
+
+        if ($LASTEXITCODE -or $finishedHead -cne $sourceHead) {
+            throw 'The native build source commit changed during compilation.'
+        }
+    }
+
     $compiledExecutable = Join-Path $buildDirectory 'app\scrcpy.exe'
 
     if (!(Test-Path -LiteralPath $compiledExecutable -PathType Leaf)) {
@@ -175,7 +193,7 @@ try {
     $outputExecutable = Join-Path $distributionDirectory 'scrcpy.exe'
     Copy-Item -LiteralPath $compiledExecutable -Destination $outputExecutable -Force
 
-    Write-NativeBuildManifest -RepositoryDirectory $repositoryDirectory -ExecutablePath $outputExecutable -SourceFingerprint $sourceFingerprintBeforeBuild
+    Write-NativeBuildManifest -RepositoryDirectory $repositoryDirectory -ExecutablePath $outputExecutable -SourceFingerprint $sourceFingerprintBeforeBuild -SourceHead $sourceHead
     Write-Host "Built: $outputExecutable"
     Write-Host 'This executable requires compatible runtime DLLs and the scrcpy server. The installed portable application was not modified.'
 }
