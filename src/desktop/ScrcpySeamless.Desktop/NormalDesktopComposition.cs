@@ -241,9 +241,10 @@ public static class NormalDesktopFactory
         InMemoryOptionDraft optionDraft = new();
         VersionedConfigurationStore store = new(paths.ConfigurationFile);
         ConfigurationEditSession session = new(store);
-        LegacyMigrationCoordinator? migration = options.LegacyDevelopmentDirectory is null
+        string? legacyDirectory = options.LegacyImportDirectory ?? options.LegacyDevelopmentDirectory;
+        LegacyMigrationCoordinator? migration = legacyDirectory is null
             ? null
-            : new LegacyMigrationCoordinator(options.LegacyDevelopmentDirectory, store);
+            : new LegacyMigrationCoordinator(legacyDirectory, store);
         ConfigurationWorkspaceViewModel configuration = new(session, optionDraft, migration);
         ProfilesViewModel profiles = new(text, session);
         profiles.AttachWorkspace(configuration);

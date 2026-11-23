@@ -140,9 +140,12 @@ the complete dictionary, even when the visible editor is filtered.
 Saved profiles share the configuration draft and keep stable `ProfileId` values.
 The editor stages changes before Apply; a profile's displayed fields are saved
 identities, not evidence of an available phone. Global mirroring options do
-not become per-profile preferences. Explicit `--legacy-dev-dir=<absolute app
-directory>` enables inspection of synthetic/selected DEV legacy files; the UI
-shows counts for a prepared proposal and requires confirmation. Migration uses
+not become per-profile preferences. Start portable or installed Desktop with
+`--import-legacy=<absolute app directory>` to offer a one-way import in Settings.
+For example, use `ScrcpySeamless.Desktop.exe "--import-legacy=C:\Legacy copy\app" --page=settings`.
+An isolated DEV root uses `--legacy-dev-dir=<absolute app directory>` instead.
+The selection alone performs no import. The UI shows counts for a prepared
+proposal and requires a separate confirmation. Migration uses
 `LegacyMigrationCoordinator`, rechecks v1 snapshots under its established lock
 order and reloads committed v2 before further editing. It never rewrites v1.
 Preparation and confirmation both refuse an unstaged profile edit, including

@@ -51,4 +51,20 @@ public sealed class PortableStartupTests
         Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(
             ["--portable", "--device-runtime=" + options.DeviceRuntimeDirectory]));
     }
+
+    [Fact]
+    public void LegacyImportRequiresOneExplicitAbsoluteSourceOutsidePreviewAndDevModes()
+    {
+        string source = Path.GetFullPath(Path.Combine("synthetic", "legacy app"));
+        string argument = "--import-legacy=" + source;
+
+        DesktopLaunchOptions portable = DesktopLaunchOptions.Parse([argument, "--page=settings"]);
+        Assert.Equal(source, portable.LegacyImportDirectory);
+        Assert.Equal(DesktopStorageMode.Portable, portable.StorageMode);
+        Assert.Equal(source, DesktopLaunchOptions.Parse(["--installed", argument]).LegacyImportDirectory);
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--preview", argument]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--dev-data-dir=" + source, argument]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse(["--import-legacy=relative"]));
+        Assert.Throws<ArgumentException>(() => DesktopLaunchOptions.Parse([argument, argument]));
+    }
 }
