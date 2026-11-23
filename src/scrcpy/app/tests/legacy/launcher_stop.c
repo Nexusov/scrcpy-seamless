@@ -3,7 +3,7 @@
 #ifdef _WIN32
 # include <SDL3/SDL_events.h>
 # include "events.h"
-# include "log.h"
+# include "util/log.h"
 
 // Translate the owning launcher's request into the normal native quit path.
 static int

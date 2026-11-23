@@ -17,12 +17,7 @@
 #define SC_RECORDER_MAX_RETAINED_PACKETS 4096
 #define SC_RECORDER_MAX_RETAINED_BYTES ((size_t) 64 * 1024 * 1024)
 
-struct sc_recorder_packet {
-    AVPacket *packet;
-    size_t charge;
-};
-
-struct sc_recorder_queue SC_VECDEQUE(struct sc_recorder_packet);
+struct sc_recorder_queue SC_VECDEQUE(AVPacket *);
 
 struct sc_recorder_stream {
     int index;

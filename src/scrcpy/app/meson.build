@@ -1,7 +1,6 @@
 src = [
     'src/main.c',
     'src/app.c',
-    'src/recovery_adapter.c',
     'src/recording_segments.c',
     'src/connection_manager.c',
     'src/connection_plan.c',
@@ -64,7 +63,6 @@ src = [
     'src/util/file.c',
     'src/util/intmap.c',
     'src/util/intr.c',
-    'src/util/launcher_stop.c',
     'src/util/log.c',
     'src/util/memory.c',
     'src/util/net.c',
@@ -367,7 +365,7 @@ if get_option('buildtype') == 'debug'
             'src/util/log.c',
         ]],
         ['test_recovery_adapter', [
-            'tests/test_recovery_adapter.c', 'src/recovery_adapter.c',
+            'tests/legacy/test_recovery_adapter.c', 'tests/legacy/recovery_adapter.c',
         ]],
         ['test_recording_segments', [
             'tests/test_recording_segments.c', 'src/recording_segments.c',
@@ -428,8 +426,8 @@ if get_option('buildtype') == 'debug'
             'src/util/strbuf.c',
         ]],
         ['test_launcher_stop', [
-            'tests/test_launcher_stop.c',
-            'src/util/launcher_stop.c',
+            'tests/legacy/test_launcher_stop.c',
+            'tests/legacy/launcher_stop.c',
             'src/events.c',
             'src/util/thread.c',
             'src/util/tick.c',
@@ -513,6 +511,14 @@ if get_option('buildtype') == 'debug'
                          c_args: ['-DSC_TEST'])
         test(t[0], exe)
     endforeach
+
+    recorder_mux_test = executable('test_recorder_mux_retention', [
+        'tests/test_recorder_mux_retention.c', 'src/options.c',
+        'src/util/str.c', 'src/util/strbuf.c', 'src/util/memory.c',
+        'src/util/thread.c', 'src/util/tick.c', 'src/util/log.c', 'src/compat.c',
+    ], include_directories: src_dir, dependencies: dependencies)
+    test('test_recorder_mux_retention', recorder_mux_test)
+    test('test_recorder_mux_drain', recorder_mux_test, args: ['--within-limit'])
 
     adb_query_test = executable('test_adb_query', [
         'tests/test_adb_query.c', 'src/adb/adb_parser.c',

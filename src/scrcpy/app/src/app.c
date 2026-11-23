@@ -31,7 +31,6 @@
 #include "util/rand.h"
 #include "session.h"
 #include "session_retirement.h"
-#include "recovery_adapter.h"
 
 #define SC_APP_STARTUP_TIMEOUT SC_TICK_FROM_SEC(30)
 
@@ -366,14 +365,21 @@ sc_app_wait(struct sc_app *s, bool has_screen, bool reconnect,
     }
 }
 
+struct sc_app_target {
+    const char *req_serial;
+    const char *tcpip_dst;
+    bool select_usb;
+    bool select_tcpip;
+    bool tcpip;
+};
+
 /** Poll value-only policy while keeping application events responsive. */
 static bool
 sc_app_acquire_target(struct sc_app *s, struct sc_dispatcher *dispatcher,
                        bool has_screen,
                        const struct sc_connection_launch_plan *plan,
-                       const struct sc_recovery_adapter *legacy,
                        const struct scrcpy_options *options,
-                       struct sc_recovery_target *target,
+                       struct sc_app_target *target,
                        struct sc_transport_result *resolved) {
     struct sc_transport_resolver resolver = {0};
     bool cancelled = false;
@@ -394,13 +400,23 @@ sc_app_acquire_target(struct sc_app *s, struct sc_dispatcher *dispatcher,
             case SC_CONNECTION_ACTION_RESOLVE:
 
                 if (!plan) {
-                    bool retrying = action.attempt > 1;
-                    bool success = sc_recovery_adapter_resolve(legacy, options,
-                                                               retrying, target);
+                    const char *serial = options->serial;
+
+                    if (!serial && !options->select_usb && !options->select_tcpip
+                            && !options->tcpip_dst) {
+                        serial = getenv("ANDROID_SERIAL");
+                    }
+
+                    *target = (struct sc_app_target) {
+                        .req_serial = serial,
+                        .tcpip_dst = options->tcpip_dst,
+                        .select_usb = options->select_usb,
+                        .select_tcpip = options->select_tcpip,
+                        .tcpip = options->tcpip,
+                    };
                     sc_connection_manager_resolved(&s->connection, action.attempt,
-                        success ? SC_CONNECTION_FAILURE_NONE
-                                : SC_CONNECTION_FAILURE_INVALID_CONFIGURATION,
-                        sc_tick_now());
+                                                  SC_CONNECTION_FAILURE_NONE,
+                                                  sc_tick_now());
                     break;
                 }
 
@@ -416,7 +432,7 @@ sc_app_acquire_target(struct sc_app *s, struct sc_dispatcher *dispatcher,
             case SC_CONNECTION_ACTION_START:
 
                 if (plan) {
-                    *target = (struct sc_recovery_target) {
+                    *target = (struct sc_app_target) {
                         .req_serial = resolved->serial,
                     };
                 }
@@ -472,7 +488,6 @@ scrcpy_generate_scid(void) {
     return sc_rand_u32(&rand) & 0x7FFFFFFF;
 }
 
-/** Retain sequential legacy attempts with explicitly scoped receiver work. */
 enum scrcpy_exit_code
 sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatcher) {
     static struct sc_app scrcpy;
@@ -482,12 +497,8 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
 #endif
     struct sc_app *s = &scrcpy;
 
-    const char *reconnect_serial = getenv("SCRCPY_RECONNECT_SERIAL");
-    struct sc_recovery_adapter recovery;
-    sc_recovery_adapter_init(&recovery, reconnect_serial, getenv("ANDROID_SERIAL"));
     const struct sc_connection_launch_plan *plan = options->connection_plan;
-    bool reconnect = plan ? plan->reconnect
-                          : sc_recovery_adapter_enabled(&recovery);
+    bool reconnect = plan && plan->reconnect;
     bool incompatible = options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA
                      || options->mouse_input_mode == SC_MOUSE_INPUT_MODE_AOA
                      || options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_AOA;
@@ -498,11 +509,9 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
     }
     struct sc_connection_plan policy = plan ? plan->policy
         : (struct sc_connection_plan) {
-            .candidates = {SC_CONNECTION_USB, SC_CONNECTION_NETWORK},
-            .candidate_count = reconnect ? 2 : 1,
-            .allow_fallback = reconnect,
-            .retry_enabled = reconnect,
-            .maximum_attempts = 3,
+            .candidates = {SC_CONNECTION_USB},
+            .candidate_count = 1,
+            .maximum_attempts = 1,
             .initial_backoff = SC_TICK_FROM_SEC(1),
             .maximum_backoff = SC_TICK_FROM_SEC(8),
         };
@@ -562,11 +571,11 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             goto finish_screen;
         }
 #endif
-        struct sc_recovery_target target;
+        struct sc_app_target target;
         struct sc_transport_result resolved;
 
         if (!sc_app_acquire_target(s, dispatcher, screen_initialized, plan,
-                                    &recovery, options, &target, &resolved)) {
+                                    options, &target, &resolved)) {
             ret = s->failure == SC_CONNECTION_FAILURE_USER_STOP
                 || s->failure == SC_CONNECTION_FAILURE_WINDOW_CLOSED
                 || s->failure == SC_CONNECTION_FAILURE_DEADLINE
@@ -605,7 +614,6 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
         struct sc_server_params params = {
             .scid = scid,
             .req_serial = target.req_serial,
-            .connect_requested_serial = target.connect_requested_serial,
             .select_usb = target.select_usb,
             .select_tcpip = target.select_tcpip,
             .log_level = options->log_level,

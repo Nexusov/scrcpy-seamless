@@ -2,7 +2,8 @@
 
 Phase 6B links vendored MIT yyjson and the IPC codecs into the native client.
 Only explicit `--seamless-machine` activation uses framed binary stdio;
-ordinary CLI and the accepted legacy Desktop host remain separate. Native
+ordinary CLI uses its usual selectors and one attempt. The private legacy
+launcher Stop and reconnect adapters live in `app/tests/legacy/` only. Native
 machine-mode ownership and event boundaries are documented in
 ../../docs/development/desktop-native-runtime.md; exact wire rules live in
 ../../spec/desktop-native/PROTOCOL.md.

@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -30,6 +31,15 @@
 static const AVRational SCRCPY_TIME_BASE = {1, 1000000}; // timestamps in us
 
 enum { SC_RECORDER_IO_BUFFER_SIZE = 32768 };
+
+struct sc_recorder_packet_lease {
+    struct sc_recorder *recorder;
+    AVBufferRef *previous_opaque;
+    AVBufferRef *previous_buffer;
+    size_t charge;
+    atomic_uint guards;
+    bool committed;
+};
 
 static const AVOutputFormat *
 find_muxer(const char *name) {
@@ -73,30 +83,82 @@ sc_recorder_release_charge(struct sc_recorder *recorder, size_t charge) {
     sc_mutex_unlock(&recorder->mutex);
 }
 
-/** Release external payloads before taking the accounting mutex. */
+/** Public packet properties carry quota through copies and muxer retention. */
 static void
-sc_recorder_packet_free(struct sc_recorder *recorder, AVPacket **packet,
-                         size_t charge) {
+sc_recorder_packet_lease_release(void *userdata, uint8_t *data) {
+    (void) data;
+    struct sc_recorder_packet_lease *lease = userdata;
 
-    if (*packet) {
-        av_packet_free(packet);
+    if (atomic_fetch_sub(&lease->guards, 1) != 1) {
+        return;
+    }
+
+    struct sc_recorder *recorder = lease->recorder;
+    size_t charge = lease->charge;
+    bool committed = lease->committed;
+
+    if (committed) {
+        // Both public guards settled, including payload destruction after opaque.
+        av_buffer_unref(&lease->previous_buffer);
+        av_buffer_unref(&lease->previous_opaque);
+    }
+
+    free(lease);
+
+    if (committed) {
         sc_recorder_release_charge(recorder, charge);
     }
 }
 
-static AVPacket *
-sc_recorder_queue_take(struct sc_recorder_queue *queue, size_t *charge) {
-    struct sc_recorder_packet owned = sc_vecdeque_pop(queue);
-    *charge = owned.charge;
-    return owned.packet;
+static bool
+sc_recorder_packet_lease_attach(struct sc_recorder *recorder, AVPacket *packet,
+                                 size_t charge) {
+    struct sc_recorder_packet_lease *lease = malloc(sizeof(*lease));
+
+    if (!lease) {
+        return false;
+    }
+
+    AVBufferRef *previous = packet->opaque_ref;
+    *lease = (struct sc_recorder_packet_lease) {
+        .recorder = recorder, .previous_opaque = previous,
+        .previous_buffer = packet->buf, .charge = charge,
+    };
+    atomic_init(&lease->guards, 1);
+    AVBufferRef *reference = av_buffer_create(previous ? previous->data : NULL,
+        previous ? previous->size : 0, sc_recorder_packet_lease_release, lease, 0);
+
+    if (!reference) {
+        // Creation failure leaves the prior opaque reference with the packet.
+        free(lease);
+        return false;
+    }
+
+    AVBufferRef *buffer = NULL;
+
+    if (packet->buf) {
+        buffer = av_buffer_create(packet->buf->data, packet->buf->size,
+            sc_recorder_packet_lease_release, lease, AV_BUFFER_FLAG_READONLY);
+
+        if (!buffer) {
+            av_buffer_unref(&reference);
+            return false;
+        }
+
+        atomic_store(&lease->guards, 2);
+    }
+
+    lease->committed = true;
+    packet->opaque_ref = reference;
+    packet->buf = buffer;
+    return true;
 }
 
 static void
-sc_recorder_queue_clear(struct sc_recorder *recorder,
-                         struct sc_recorder_queue *queue) {
+sc_recorder_queue_clear(struct sc_recorder_queue *queue) {
     while (!sc_vecdeque_is_empty(queue)) {
-        struct sc_recorder_packet owned = sc_vecdeque_pop(queue);
-        sc_recorder_packet_free(recorder, &owned.packet, owned.charge);
+        AVPacket *packet = sc_vecdeque_pop(queue);
+        av_packet_free(&packet);
     }
 }
 
@@ -113,7 +175,8 @@ sc_recorder_charge_add(size_t *charge, size_t bytes) {
 
 static bool
 sc_recorder_packet_charge(const AVPacket *packet, size_t *charge) {
-    *charge = sizeof(AVPacket) + sizeof(struct sc_recorder_packet);
+    *charge = sizeof(AVPacket) + sizeof(AVPacket *)
+        + sizeof(struct sc_recorder_packet_lease) + 2 * sizeof(AVBufferRef);
 
     if (packet->size < 0 || packet->side_data_elems < 0) {
         return false;
@@ -205,17 +268,24 @@ sc_recorder_queue_push(struct sc_recorder *recorder,
         return false;
     }
 
+    if (!sc_recorder_packet_lease_attach(recorder, reference, charge)) {
+        sc_recorder_admission_failed(recorder);
+        av_packet_free(&reference);
+        sc_recorder_release_charge(recorder, charge);
+        LOG_OOM();
+        return false;
+    }
+
     reference->stream_index = stream_index;
-    struct sc_recorder_packet owned = {.packet = reference, .charge = charge};
     sc_mutex_lock(&recorder->mutex);
 
     if (recorder->stopped) {
         sc_mutex_unlock(&recorder->mutex);
-        sc_recorder_packet_free(recorder, &reference, charge);
+        av_packet_free(&reference);
         return false;
     }
 
-    bool admitted = sc_vecdeque_push(queue, owned);
+    bool admitted = sc_vecdeque_push(queue, reference);
 
     if (admitted) {
         sc_cond_signal(&recorder->cond);
@@ -228,7 +298,7 @@ sc_recorder_queue_push(struct sc_recorder *recorder,
     sc_mutex_unlock(&recorder->mutex);
 
     if (!admitted) {
-        sc_recorder_packet_free(recorder, &reference, charge);
+        av_packet_free(&reference);
         LOG_OOM();
     }
 
@@ -544,18 +614,16 @@ sc_recorder_process_header(struct sc_recorder *recorder) {
     }
 
     AVPacket *video_pkt = NULL;
-    size_t video_charge = 0;
     if (!sc_vecdeque_is_empty(&recorder->video_queue)) {
         assert(recorder->video);
-        video_pkt = sc_recorder_queue_take(&recorder->video_queue, &video_charge);
+        video_pkt = sc_vecdeque_pop(&recorder->video_queue);
     }
 
     AVPacket *audio_pkt = NULL;
-    size_t audio_charge = 0;
     if (recorder->audio_expects_config_packet &&
             !sc_vecdeque_is_empty(&recorder->audio_queue)) {
         assert(recorder->audio);
-        audio_pkt = sc_recorder_queue_take(&recorder->audio_queue, &audio_charge);
+        audio_pkt = sc_vecdeque_pop(&recorder->audio_queue);
     }
 
     sc_mutex_unlock(&recorder->mutex);
@@ -602,10 +670,10 @@ sc_recorder_process_header(struct sc_recorder *recorder) {
 
 end:
     if (video_pkt) {
-        sc_recorder_packet_free(recorder, &video_pkt, video_charge);
+        av_packet_free(&video_pkt);
     }
     if (audio_pkt) {
-        sc_recorder_packet_free(recorder, &audio_pkt, audio_charge);
+        av_packet_free(&audio_pkt);
     }
 
     return result;
@@ -623,12 +691,10 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
 
     AVPacket *video_pkt = NULL;
     AVPacket *audio_pkt = NULL;
-    size_t video_charge = 0, audio_charge = 0;
 
     // We can write a video packet only once we received the next one so that
     // we can set its duration (next_pts - current_pts)
     AVPacket *video_pkt_previous = NULL;
-    size_t previous_charge = 0;
 
     bool error = false;
 
@@ -663,13 +729,11 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
                 && sc_vecdeque_is_empty(&recorder->audio_queue)));
 
         if (!video_pkt && !sc_vecdeque_is_empty(&recorder->video_queue)) {
-            video_pkt = sc_recorder_queue_take(&recorder->video_queue,
-                                                &video_charge);
+            video_pkt = sc_vecdeque_pop(&recorder->video_queue);
         }
 
         if (!audio_pkt && !sc_vecdeque_is_empty(&recorder->audio_queue)) {
-            audio_pkt = sc_recorder_queue_take(&recorder->audio_queue,
-                                                &audio_charge);
+            audio_pkt = sc_vecdeque_pop(&recorder->audio_queue);
         }
 
         if (recorder->stopped && !video_pkt && !audio_pkt) {
@@ -687,12 +751,12 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
         // change). The next non-config packet will have the config packet
         // data prepended.
         if (video_pkt && video_pkt->pts == AV_NOPTS_VALUE) {
-            sc_recorder_packet_free(recorder, &video_pkt, video_charge);
+            av_packet_free(&video_pkt);
             video_pkt = NULL;
         }
 
         if (audio_pkt && audio_pkt->pts == AV_NOPTS_VALUE) {
-            sc_recorder_packet_free(recorder, &audio_pkt, audio_charge);
+            av_packet_free(&audio_pkt);
             audio_pkt = NULL;
         }
 
@@ -732,8 +796,7 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
                                              - video_pkt_previous->pts;
 
                 bool ok = sc_recorder_write_video(recorder, video_pkt_previous);
-                sc_recorder_packet_free(recorder, &video_pkt_previous,
-                                          previous_charge);
+                av_packet_free(&video_pkt_previous);
                 if (!ok) {
                     LOGE("Could not record video packet");
                     error = true;
@@ -742,7 +805,6 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
             }
 
             video_pkt_previous = video_pkt;
-            previous_charge = video_charge;
             video_pkt = NULL;
         }
 
@@ -757,7 +819,7 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
                 goto end;
             }
 
-            sc_recorder_packet_free(recorder, &audio_pkt, audio_charge);
+            av_packet_free(&audio_pkt);
             audio_pkt = NULL;
         }
     }
@@ -771,7 +833,7 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
             LOGE("Could not record last video packet");
             error = true;
         }
-        sc_recorder_packet_free(recorder, &video_pkt_previous, previous_charge);
+        av_packet_free(&video_pkt_previous);
     }
 
     int ret = av_write_trailer(recorder->ctx);
@@ -781,13 +843,13 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
     }
 
 end:
-    sc_recorder_packet_free(recorder, &video_pkt_previous, previous_charge);
+    av_packet_free(&video_pkt_previous);
 
     if (video_pkt) {
-        sc_recorder_packet_free(recorder, &video_pkt, video_charge);
+        av_packet_free(&video_pkt);
     }
     if (audio_pkt) {
-        sc_recorder_packet_free(recorder, &audio_pkt, audio_charge);
+        av_packet_free(&audio_pkt);
     }
 
     return error ? SC_RECORDER_RESULT_FAILED : SC_RECORDER_RESULT_SUCCEEDED;
@@ -822,8 +884,8 @@ run_recorder(void *data) {
     sc_cond_broadcast(&recorder->cond);
     // Discard pending packets
     sc_mutex_unlock(&recorder->mutex);
-    sc_recorder_queue_clear(recorder, &recorder->video_queue);
-    sc_recorder_queue_clear(recorder, &recorder->audio_queue);
+    sc_recorder_queue_clear(&recorder->video_queue);
+    sc_recorder_queue_clear(&recorder->audio_queue);
 
     if (result == SC_RECORDER_RESULT_SUCCEEDED) {
         const char *format_name = sc_recorder_get_format_name(recorder->format);

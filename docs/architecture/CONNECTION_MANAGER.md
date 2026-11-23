@@ -188,10 +188,13 @@ more than once deliberately. Arithmetic checks available budget before addition.
 Supported software producers expose their owned buffer's full retained size in
 AVBufferRef.size. An artificially narrowed reference does not reveal a larger
 opaque allocation, nor does a hardware-context wrapper reveal its GPU pool.
-Queue backing is also bounded by the item ceiling; these byte charges are not
-allocator, codec, muxer, GPU-pool or total-process memory measurements. In
-particular, packet ownership transferred to a muxer is outside this queue's
-retained-reference budget.
+Queue backing is also bounded by the item ceiling. Recorder-owned references
+carry the same quota through public FFmpeg packet copies and moves. One lease
+chains both the opaque reference and the payload buffer. The last guard releases
+the original references before returning quota. The recorder mutex remains alive
+through muxer destruction and producer settlement. This accounts for retained
+packet references across interleaving. Allocator overhead, copied muxer blocks,
+codec state, GPU pools and total process memory have distinct limits.
 
 Overflow closes that owner's admission and returns failure through the existing
 sink/demux/owner path. Extreme buffering duration, frame backing or packet rates
@@ -208,6 +211,11 @@ has closed its output. Its retained failure then overrides the final receipt,
 without rewriting the earlier callback observation. A successful late reference
 rejected only by Stop does not become a recording failure. Session ownership
 already joins publishers before retaining this joined recorder result.
+
+The interleaving fixture observes real FFmpeg public writes and buffer releases.
+Before the lease it observed 80 MiB of live packet backing against about 2 MiB
+of recorder charge. The same workload now rejects admission within the quota
+and releases all owned references. A smaller workload drains normally.
 
 Demux ingress rejects an announced payload above 16 MiB before av_new_packet or
 payload read. Zero and invalid lengths remain protocol errors. The exact limit

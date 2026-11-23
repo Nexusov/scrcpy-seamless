@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <wchar.h>
 #include <SDL3/SDL.h>
-#include "util/launcher_stop.h"
+#include "launcher_stop.h"
 
 // Exercise real Windows events and the production SDL quit bridge.
 int

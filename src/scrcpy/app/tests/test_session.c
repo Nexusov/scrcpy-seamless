@@ -333,7 +333,6 @@ __wrap_sc_server_init(struct sc_server *server,
             assert(!strcmp(params->tcpip_dst, expected->tcpip_dst));
         }
 
-        assert(params->connect_requested_serial == expected->connect_requested_serial);
         assert(params->select_usb == expected->select_usb);
         assert(params->select_tcpip == expected->select_tcpip);
         assert(params->tcpip == expected->tcpip);

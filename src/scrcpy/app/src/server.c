@@ -969,17 +969,6 @@ run_server(void *data) {
         goto error_connection_failed;
     }
 
-    // Application policy has already resolved whether this route needs connect.
-    if (params->connect_requested_serial) {
-        assert(params->req_serial);
-        ok = sc_adb_connect(&server->intr, params->req_serial, SC_ADB_SILENT);
-
-        if (!ok) {
-            server->failure = SC_SERVER_FAILURE_TRANSIENT_CONNECTION;
-            goto error_connection_failed;
-        }
-    }
-
     // params->tcpip_dst implies params->tcpip
     assert(!params->tcpip_dst || params->tcpip);
 
