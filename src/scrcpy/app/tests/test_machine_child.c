@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <SDL3/SDL.h>
 
+#include "ipc/ipc_json.h"
 #include "ipc/machine.h"
 
 #define SC_FIXTURE_PATH_CAPACITY 1024
@@ -320,9 +321,25 @@ main(int argc, char *argv[]) {
     struct sc_machine_config config;
     if (!sc_fixture_parse_bootstrap(argc, argv, &config) ||
             !sc_fixture_before_guard() ||
-            !sc_machine_init(&config) || !sc_machine_handshake() ||
-            !SDL_Init(focus_window_enabled ? SDL_INIT_VIDEO | SDL_INIT_EVENTS :
-                                            SDL_INIT_EVENTS)) {
+            !sc_machine_init(&config) || !sc_machine_handshake()) {
+        return 11;
+    }
+    wchar_t metrics_mode[2];
+    if (sc_fixture_environment(L"SCRCPY_IPC_TEST_GENERATION_METRICS",
+                               metrics_mode, 2) && metrics_mode[0] == L'1') {
+        // The hello writer has completed, so this fixture has an idle writer.
+        const char attempt[] = "66666666-7777-8888-9999-aaaaaaaaaaaa";
+        struct sc_ipc_generation_metrics metrics = {0};
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_NATIVE_GENERATION, 2);
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_RETIREMENT_US, 17);
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_PACKETS_READ, 8);
+        sc_machine_emit_generation_metrics(attempt, &metrics);
+        sc_machine_destroy();
+        return 0;
+    }
+    if (!SDL_Init(focus_window_enabled ? SDL_INIT_VIDEO | SDL_INIT_EVENTS :
+                                        SDL_INIT_EVENTS)) {
+        sc_machine_destroy();
         return 11;
     }
     HANDLE stop = CreateEventW(NULL, TRUE, FALSE, NULL);

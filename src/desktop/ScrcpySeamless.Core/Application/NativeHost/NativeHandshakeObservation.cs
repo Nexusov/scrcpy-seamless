@@ -19,7 +19,7 @@ public sealed record NativeHandshakeObservation
         ProtocolMajor = protocolMajor;
         ProtocolMinor = protocolMinor;
         string[] knownCapabilities = capabilities.Where(capability =>
-            capability is "focus-window" or "lifecycle-v1" or "stop").ToArray();
+            capability is "focus-window" or "lifecycle-v1" or "stop" or "generation-metrics-v1").ToArray();
         Capabilities = Array.AsReadOnly(knownCapabilities);
         OmittedCapabilityCount = capabilities.Count - knownCapabilities.Length;
     }

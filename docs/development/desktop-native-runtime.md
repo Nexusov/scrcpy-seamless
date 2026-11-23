@@ -345,7 +345,8 @@ Copy evidence format above: it excludes source/profile/device/path values and
 raw session, attempt and process identifiers. Session and attempt correlations
 are export-local ordinals, reset for every export. Resource text, commands,
 stderr, clipboard content, exception text and error payloads are never inputs
-to the serializer. The existing Copy action and its historical snapshots are
+to the serializer. The Copy action retains its existing scope and may append
+negotiated metrics with local generation ordinals; historical files remain
 unchanged.
 
 [`DiagnosticExportFormatter`](../../src/desktop/ScrcpySeamless.Desktop/Presentation/DiagnosticExportFormatter.cs)
@@ -370,11 +371,44 @@ the start. These intervals are not complete outage measurements when earlier
 history was omitted. Non-monotonic samples remain exported, with derived
 durations unavailable.
 
-Native generation, queue/process/native-retained memory metrics, video-frame
-and audio packet/sample/underflow counters, audible readiness, process exit
-code, wire Stop acknowledgement and foreground-permission return remain
-explicitly `null`/`NotRecorded`. Channel lifecycle events do not establish
-packet counts, decoded frames, audible readiness or physical transport truth.
+An optional `generation-metrics-v1` negotiation appends `GenerationRetired`
+observations without changing the three required capabilities or protocol 1.0.
+The strict two-level `generationMetrics` wire object has exactly two mandatory
+and ten optional recognized fields, using the existing exact unsigned decimal
+string syntax. Missing optional fields are unknown; explicit wire nulls,
+duplicates and unknown fields are rejected. This event requires a nonnull
+attempt, native subsystem and none reason/error. It is not session termination.
+
+Only measured values from a joined/released generation are projected: complete
+audio packets read, decoded audio/video frames, submitted PCM sample frames
+(including silence), underflow/overflow sample frames, highest producer PCM
+queue observation before trimming and complete control writes. Software SDL
+submission is not audible output or device-side control acceptance.
+`retirementMicroseconds` covers the retirement request through main-thread
+settlement, including dispatcher receipt and handoff. Optional Windows working
+set/private-byte values are post-retirement samples after resource release,
+not peaks or a universal RSS certificate. Raw native generation remains typed
+internal data; both formats expose only export-local generation ordinals,
+independent of session and attempt correlation.
+
+Generation metrics are optional best-effort observations. Native publication
+and managed lifecycle admission require their bounded queues to be idle;
+admission/encoding or writer pressure, or later history eviction, can omit them. They
+add no queue, reader, periodic file or larger capacity. A later critical burst
+still has the existing finite backpressure policy. Sequence validation still
+includes a received optional frame even if it is omitted from the projection;
+projection totals count delivered observations, not every wire frame.
+
+Retirement rows carry exact measured counters and nulls for absent counters.
+The legacy summary can report submitted PCM samples from its latest retained
+retired generation, with explicit scope and field availability. It does not
+map sample underflows to underflow-event counts, decoder frames to presented
+frames, or working/private samples to ambiguous generic memory. Older senders
+remain compatible and expose unknown counters rather than manufactured zeros.
+Audible readiness, native queue/retained bytes, video presentation counts,
+process exit code, wire Stop acknowledgement and permission return remain
+explicitly unavailable. Channel lifecycle events alone establish none of those
+measurements or physical transport truth.
 Terminal reason, initiating cleanup intent, managed cleanup outcome and actual
 exact-child observations remain distinct typed fields.
 

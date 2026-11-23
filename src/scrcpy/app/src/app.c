@@ -21,6 +21,7 @@
 #include "recording_segments.h"
 #include "events.h"
 #ifdef _WIN32
+# include "ipc/ipc_json.h"
 # include "ipc/machine.h"
 # include "ipc/machine_exit.h"
 #endif
@@ -59,6 +60,9 @@ struct sc_app {
     bool audio_initialized;
     bool gamepad_initialized;
     bool retirement_quit_is_terminal;
+#ifdef _WIN32
+    struct sc_session_metrics retired_metrics;
+#endif
 };
 
 /** Observe sticky process intent independently of SDL wake delivery. */
@@ -160,9 +164,57 @@ sc_retire_generation(void *userdata) {
         sc_session_recording_output_opened(s->current);
     s->has_recording_result =
         sc_session_get_recording_result(s->current, &s->recording_result);
+#ifdef _WIN32
+    s->retired_metrics = sc_session_get_metrics(s->current);
+#endif
     sc_session_release_resources(s->current);
 
 }
+
+#ifdef _WIN32
+static void
+sc_app_publish_retirement(const struct sc_session_metrics *settled,
+                          const char attempt_id[37], sc_tick elapsed) {
+    struct sc_ipc_generation_metrics metrics = {0};
+    sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_NATIVE_GENERATION,
+                                  settled->generation);
+    sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_RETIREMENT_US,
+                                  SC_TICK_TO_US(elapsed));
+
+    if (settled->available & SC_SESSION_METRIC_AUDIO_PACKETS) {
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_PACKETS_READ,
+                                      settled->audio_packets_read);
+    }
+
+    if (settled->available & SC_SESSION_METRIC_AUDIO_DECODE) {
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_FRAMES_DECODED,
+                                      settled->audio_frames_decoded);
+    }
+
+    if (settled->available & SC_SESSION_METRIC_AUDIO_PLAYBACK) {
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_SAMPLES_SUBMITTED,
+                                      settled->audio_samples_submitted);
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_UNDERFLOW_SAMPLES,
+                                      settled->audio_underflow_samples);
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_OVERFLOW_SAMPLES_DROPPED,
+                                      settled->audio_overflow_samples_dropped);
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_AUDIO_PCM_PEAK_SAMPLES,
+                                      settled->audio_pcm_peak_samples);
+    }
+
+    if (settled->available & SC_SESSION_METRIC_VIDEO_DECODE) {
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_VIDEO_FRAMES_DECODED,
+                                      settled->video_frames_decoded);
+    }
+
+    if (settled->available & SC_SESSION_METRIC_CONTROL_WRITES) {
+        sc_ipc_generation_metrics_set(&metrics, SC_IPC_METRIC_CONTROL_MESSAGES_WRITTEN,
+                                      settled->control_messages_written);
+    }
+
+    sc_machine_emit_generation_metrics(attempt_id, &metrics);
+}
+#endif
 
 static void
 sc_join_presentation(void *userdata) {
@@ -565,6 +617,7 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
         s->has_recording_result = false;
 #ifdef _WIN32
         bool reconnect_scheduled = false;
+        machine_attempt_id[0] = '\0';
 
         if (sc_machine_is_active() && sc_machine_stop_requested()) {
             ret = SCRCPY_EXIT_SUCCESS;
@@ -836,7 +889,17 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             }
             sc_screen_hide_window(&s->screen);
         }
+#ifdef _WIN32
+        bool measure_retirement = sc_machine_is_active() && machine_attempt_id[0];
+        sc_tick retirement_started = measure_retirement ? sc_tick_now() : 0;
+#endif
         sc_retire_current(s, screen_initialized, dispatcher);
+#ifdef _WIN32
+        if (measure_retirement) {
+            sc_app_publish_retirement(&s->retired_metrics, machine_attempt_id,
+                                       sc_tick_now() - retirement_started);
+        }
+#endif
         bool recording_failed = s->has_recording_result
             && s->recording_result == SC_RECORDER_RESULT_FAILED;
 

@@ -455,7 +455,7 @@
   "releaseCheck.status.ResponseTooLarge": "The response exceeded the bounded check limits. No release state was established.",
   "diagnostics.export.title": "Save redacted local diagnostics",
   "diagnostics.export.description": "Save one explicit JSONL snapshot to a new local file. Existing files are never replaced. Profile names, raw session/attempt/process identifiers, paths, device data, addresses, commands, stderr, clipboard and error payloads are excluded; correlations are local ordinals.",
-  "diagnostics.export.coverage": "At most 8 session projections, 64 retained events per session, 521 records and 512 KiB. Event counts and durations cover only retained observations. Native generation, audio sample/readiness, queue and memory metrics remain unavailable. There is no background log or automatic export.",
+  "diagnostics.export.coverage": "At most 8 session projections, 64 retained events per session, 521 records and 512 KiB. Counts and durations cover retained observations. Optional negotiated retirement telemetry records measured per-generation counters; missing telemetry, audible readiness and unmeasured metrics stay unknown. Raw generation identities are replaced by local ordinals. There is no background log or automatic export.",
   "diagnostics.export.save": "Save diagnostic snapshot…",
   "diagnostics.export.cancel": "Cancel export",
   "diagnostics.export.idle": "No export requested.",

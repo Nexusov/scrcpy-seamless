@@ -8,6 +8,7 @@
 #define SC_IPC_STRING_CAPACITY 257
 #define SC_IPC_CAPABILITY_CAPACITY 65
 #define SC_IPC_CAPABILITY_LIMIT 16
+#define SC_IPC_GENERATION_METRICS_CAPABILITY "generation-metrics-v1"
 
 enum sc_ipc_message_type {
     SC_IPC_HELLO,
@@ -31,6 +32,35 @@ struct sc_ipc_capabilities {
     size_t count;
 };
 
+enum sc_ipc_generation_metric {
+    SC_IPC_METRIC_NATIVE_GENERATION,
+    SC_IPC_METRIC_RETIREMENT_US,
+    SC_IPC_METRIC_AUDIO_PACKETS_READ,
+    SC_IPC_METRIC_AUDIO_FRAMES_DECODED,
+    SC_IPC_METRIC_AUDIO_SAMPLES_SUBMITTED,
+    SC_IPC_METRIC_AUDIO_UNDERFLOW_SAMPLES,
+    SC_IPC_METRIC_AUDIO_OVERFLOW_SAMPLES_DROPPED,
+    SC_IPC_METRIC_AUDIO_PCM_PEAK_SAMPLES,
+    SC_IPC_METRIC_VIDEO_FRAMES_DECODED,
+    SC_IPC_METRIC_CONTROL_MESSAGES_WRITTEN,
+    SC_IPC_METRIC_WORKING_SET_BYTES,
+    SC_IPC_METRIC_PRIVATE_BYTES,
+    SC_IPC_METRIC_COUNT,
+};
+
+struct sc_ipc_generation_metrics {
+    uint32_t available;
+    uint64_t values[SC_IPC_METRIC_COUNT];
+};
+
+static inline void
+sc_ipc_generation_metrics_set(struct sc_ipc_generation_metrics *metrics,
+                              enum sc_ipc_generation_metric metric,
+                              uint64_t value) {
+    metrics->available |= UINT32_C(1) << metric;
+    metrics->values[metric] = value;
+}
+
 struct sc_ipc_message {
     enum sc_ipc_message_type type;
     char product[SC_IPC_STRING_CAPACITY];
@@ -52,6 +82,7 @@ struct sc_ipc_message {
     char event_type[SC_IPC_STRING_CAPACITY];
     char reason[SC_IPC_STRING_CAPACITY];
     char error[SC_IPC_STRING_CAPACITY];
+    struct sc_ipc_generation_metrics generation_metrics;
 };
 
 /** Decodes and validates one bounded UTF-8 JSON payload. */

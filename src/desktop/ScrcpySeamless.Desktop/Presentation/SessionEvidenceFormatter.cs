@@ -27,6 +27,7 @@ public static class SessionEvidenceFormatter
         NativeHandshakeObservation? handshake = snapshot.AcceptedHandshake;
         NativeExit? terminal = snapshot.TerminalResult;
         SessionCleanupEvidence cleanup = snapshot.Cleanup;
+        Dictionary<ulong, int> generations = GenerationMetricProjection.Ordinals(snapshot.Events);
         var export = new
         {
             snapshot.FormatVersion,
@@ -76,6 +77,7 @@ public static class SessionEvidenceFormatter
                     EventType = observation.EventType.ToString(),
                     Reason = observation.Reason.ToString(),
                     Error = observation.Error.ToString(),
+                    GenerationMetrics = GenerationMetricProjection.Create(observation.GenerationMetrics, generations),
                 }).ToArray(),
             },
             SessionResult = new
@@ -162,7 +164,7 @@ public static class SessionEvidenceFormatter
             bool invalidHandshake = handshake.Product != "scrcpy-seamless" || handshake.ProtocolMajor < 0 ||
                 handshake.ProtocolMinor < 0 || handshake.OmittedCapabilityCount < 0 ||
                 handshake.Capabilities.Distinct(StringComparer.Ordinal).Count() != handshake.Capabilities.Count ||
-                handshake.Capabilities.Any(capability => capability is not ("focus-window" or "lifecycle-v1" or "stop"));
+                handshake.Capabilities.Any(capability => capability is not ("focus-window" or "lifecycle-v1" or "stop" or "generation-metrics-v1"));
 
             if (invalidHandshake)
             {
@@ -186,6 +188,17 @@ public static class SessionEvidenceFormatter
             RequireDefined(observation.EventType);
             RequireDefined(observation.Reason);
             RequireDefined(observation.Error);
+
+            bool retired = observation.EventType == NativeLifecycleEventType.GenerationRetired;
+
+            if (retired != (observation.GenerationMetrics is not null) ||
+                retired && (observation.ConnectionAttemptId is null || observation.Subsystem != NativeLifecycleSubsystem.Native ||
+                    observation.Reason != NativeLifecycleReason.None || observation.Error != NativeLifecycleError.None ||
+                    observation.GenerationMetrics!.NativeGeneration == 0 ||
+                    snapshot.AcceptedHandshake?.Capabilities.Contains("generation-metrics-v1", StringComparer.Ordinal) != true))
+            {
+                throw new EvidenceFormatException("InvalidGenerationMetricsEvidence");
+            }
             previousSequence = observation.Sequence;
         }
     }

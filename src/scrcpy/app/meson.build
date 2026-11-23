@@ -160,6 +160,7 @@ if host_machine.system() == 'windows'
     dependencies += cc.find_library('mingw32')
     dependencies += cc.find_library('ws2_32')
     dependencies += cc.find_library('rpcrt4')
+    dependencies += cc.find_library('psapi')
 endif
 
 check_functions = [
@@ -678,7 +679,8 @@ if get_option('buildtype') == 'debug'
             'src/ipc/ipc_json.c',
             'vendor/yyjson/yyjson.c',
         ], include_directories: src_dir,
-           dependencies: [dependency('sdl3'), cc.find_library('rpcrt4')],
+           dependencies: [dependency('sdl3'), cc.find_library('rpcrt4'),
+                          cc.find_library('psapi')],
            c_args: ['-DSC_TEST'])
     endif
 endif

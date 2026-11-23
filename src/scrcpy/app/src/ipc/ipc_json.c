@@ -15,12 +15,12 @@ static const char *const known_fields[] = {
     "requiredCapabilities", "supportedCapabilities", "capabilities",
     "status", "requestId", "sessionId", "command", "sequence", "utc",
     "monotonicMicroseconds", "connectionAttemptId", "subsystem",
-    "eventType", "reason", "error",
+    "eventType", "reason", "error", "generationMetrics",
 };
 static const char *const type_names[] = {
     "hello", "helloResult", "command", "commandResult", "lifecycle",
 };
-static const char *const type_fields[][11] = {
+static const char *const type_fields[][12] = {
     [SC_IPC_HELLO] = {"messageType", "product", "protocolMajor",
         "protocolMinor", "requiredCapabilities", "supportedCapabilities"},
     [SC_IPC_HELLO_RESULT] = {"messageType", "product", "protocolMajor",
@@ -30,7 +30,7 @@ static const char *const type_fields[][11] = {
         "command", "status"},
     [SC_IPC_LIFECYCLE] = {"messageType", "sequence", "utc",
         "monotonicMicroseconds", "sessionId", "connectionAttemptId",
-        "subsystem", "eventType", "reason", "error"},
+        "subsystem", "eventType", "reason", "error", "generationMetrics"},
 };
 static const char *const hello_statuses[] = {
     "accepted", "productMismatch", "majorMismatch",
@@ -46,11 +46,11 @@ static const char *const subsystems[] = {
 static const char *const events[] = {
     "NativeReady", "Connecting", "StreamStarted", "TransportLost",
     "ReconnectScheduled", "Reconnecting", "StreamResumed",
-    "CapabilityDegraded", "SessionStopped", "FatalError",
+    "CapabilityDegraded", "SessionStopped", "FatalError", "GenerationRetired",
 };
 static const char *const attempt_events[] = {
     "Connecting", "StreamStarted", "TransportLost", "Reconnecting",
-    "StreamResumed",
+    "StreamResumed", "GenerationRetired",
 };
 static const char *const reasons[] = {
     "none", "userStop", "windowClosed", "transportLost", "protocolError",
@@ -58,6 +58,21 @@ static const char *const reasons[] = {
 };
 static const char *const errors[] = {
     "none", "unknown", "invalidMessage", "unsupported", "internalFailure",
+};
+
+static const char *const generation_metric_names[SC_IPC_METRIC_COUNT] = {
+    [SC_IPC_METRIC_NATIVE_GENERATION] = "nativeGeneration",
+    [SC_IPC_METRIC_RETIREMENT_US] = "retirementMicroseconds",
+    [SC_IPC_METRIC_AUDIO_PACKETS_READ] = "audioPacketsRead",
+    [SC_IPC_METRIC_AUDIO_FRAMES_DECODED] = "audioFramesDecoded",
+    [SC_IPC_METRIC_AUDIO_SAMPLES_SUBMITTED] = "audioSamplesSubmitted",
+    [SC_IPC_METRIC_AUDIO_UNDERFLOW_SAMPLES] = "audioUnderflowSamples",
+    [SC_IPC_METRIC_AUDIO_OVERFLOW_SAMPLES_DROPPED] = "audioOverflowSamplesDropped",
+    [SC_IPC_METRIC_AUDIO_PCM_PEAK_SAMPLES] = "audioPcmPeakSamples",
+    [SC_IPC_METRIC_VIDEO_FRAMES_DECODED] = "videoFramesDecoded",
+    [SC_IPC_METRIC_CONTROL_MESSAGES_WRITTEN] = "controlMessagesWritten",
+    [SC_IPC_METRIC_WORKING_SET_BYTES] = "processWorkingSetBytes",
+    [SC_IPC_METRIC_PRIVATE_BYTES] = "processPrivateBytes",
 };
 
 /** Checks a token against a fixed vocabulary. */
@@ -321,6 +336,44 @@ decode_request(yyjson_val *root, struct sc_ipc_message *message) {
                       sizeof(message->command));
 }
 
+static bool
+decode_generation_metrics(yyjson_val *root, struct sc_ipc_message *message) {
+    yyjson_val *object = yyjson_obj_get(root, "generationMetrics");
+    if (strcmp(message->event_type, "GenerationRetired")) {
+        return object == NULL;
+    }
+
+    if (!yyjson_is_obj(object) || yyjson_obj_size(object) > SC_IPC_METRIC_COUNT ||
+        strcmp(message->subsystem, "native") || strcmp(message->reason, "none") ||
+        strcmp(message->error, "none")) {
+        return false;
+    }
+
+    size_t present = 0;
+    for (enum sc_ipc_generation_metric metric = 0; metric < SC_IPC_METRIC_COUNT;
+         ++metric) {
+        const char *name = generation_metric_names[metric];
+        if (!yyjson_obj_get(object, name)) {
+            if (metric <= SC_IPC_METRIC_RETIREMENT_US) {
+                return false;
+            }
+            continue;
+        }
+
+        uint64_t value;
+        if (!get_decimal(object, name, metric != SC_IPC_METRIC_NATIVE_GENERATION,
+                         &value)) {
+            return false;
+        }
+
+        sc_ipc_generation_metrics_set(&message->generation_metrics, metric, value);
+        ++present;
+    }
+
+    // Looking up each known property once leaves duplicates and unknown keys unmatched.
+    return present == yyjson_obj_size(object);
+}
+
 /** Parses within a bounded pool, then validates the accepted message shape. */
 enum sc_ipc_json_status
 sc_ipc_json_decode(const uint8_t *payload, size_t length,
@@ -433,8 +486,9 @@ sc_ipc_json_decode(const uint8_t *payload, size_t length,
                           decoded.connection_attempt_id)) {
                 goto cleanup;
             }
-            if (decoded.connection_attempt_null &&
-                IN_SET(decoded.event_type, attempt_events)) {
+            if ((decoded.connection_attempt_null &&
+                 IN_SET(decoded.event_type, attempt_events)) ||
+                !decode_generation_metrics(root, &decoded)) {
                 goto cleanup;
             }
             break;
@@ -459,6 +513,31 @@ add_decimal(yyjson_mut_doc *document, yyjson_mut_val *root,
     int count = snprintf(digits, sizeof(digits), "%" PRIu64, value);
     return count > 0 && count < (int) sizeof(digits) &&
            yyjson_mut_obj_add_strcpy(document, root, name, digits);
+}
+
+static bool
+add_generation_metrics(yyjson_mut_doc *document, yyjson_mut_val *root,
+                       const struct sc_ipc_generation_metrics *metrics) {
+    if (!metrics->available) {
+        return true;
+    }
+
+    yyjson_mut_val *object = yyjson_mut_obj_add_obj(document, root,
+                                                   "generationMetrics");
+    if (!object || metrics->available >> SC_IPC_METRIC_COUNT) {
+        return false;
+    }
+
+    for (enum sc_ipc_generation_metric metric = 0; metric < SC_IPC_METRIC_COUNT;
+         ++metric) {
+        if ((metrics->available & (UINT32_C(1) << metric)) &&
+            !add_decimal(document, object, generation_metric_names[metric],
+                         metrics->values[metric])) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /** Adds capability strings in canonical UTF-8 byte order. */
@@ -570,7 +649,8 @@ sc_ipc_json_encode(const struct sc_ipc_message *message,
                 yyjson_mut_obj_add_str(document, root, "reason",
                                        message->reason) &&
                 yyjson_mut_obj_add_str(document, root, "error",
-                                       message->error);
+                                       message->error) &&
+                add_generation_metrics(document, root, &message->generation_metrics);
             break;
     }
     enum sc_ipc_json_status status = SC_IPC_JSON_NO_MEMORY;
@@ -599,7 +679,7 @@ sc_ipc_hello_evaluate(const struct sc_ipc_message *hello,
         return SC_IPC_JSON_INVALID_MESSAGE;
     }
     static const char *const supported[] = {
-        "stop", "focus-window", "lifecycle-v1",
+        "stop", "focus-window", "lifecycle-v1", SC_IPC_GENERATION_METRICS_CAPABILITY,
     };
     memset(result, 0, sizeof(*result));
     result->type = SC_IPC_HELLO_RESULT;

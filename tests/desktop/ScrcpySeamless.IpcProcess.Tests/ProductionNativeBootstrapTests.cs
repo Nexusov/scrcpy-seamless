@@ -72,6 +72,56 @@ public sealed class ProductionNativeBootstrapTests
         Assert.Equal("productMismatch", response.RootElement.GetProperty("status").GetString());
     }
 
+    /// <summary>Exercises the negotiated extension through the production handshake and writer without starting a device.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GenerationMetricsAreOnlyEmittedForNegotiatedPeers(bool offerCapability)
+    {
+        using Process parent = Process.GetCurrentProcess();
+        string[] arguments = MachineArguments(parent.Id, parent.StartTime.ToFileTimeUtc());
+        string[] supported = offerCapability ? ["generation-metrics-v1"] : [];
+        byte[] payload = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            messageType = "hello",
+            product = "scrcpy-seamless",
+            protocolMajor = 1,
+            protocolMinor = 0,
+            requiredCapabilities = Array.Empty<string>(),
+            supportedCapabilities = supported,
+        });
+        byte[] frame = new byte[4 + payload.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(frame, (uint)payload.Length);
+        payload.CopyTo(frame.AsSpan(4));
+
+        NativeResult result = await RunNativeAsync(arguments, frame, useMetricsFixture: true);
+
+        Assert.Equal(0, result.ExitCode);
+        uint helloLength = BinaryPrimitives.ReadUInt32LittleEndian(result.StandardOutput);
+        int nextFrame = checked(4 + (int)helloLength);
+        using JsonDocument hello = JsonDocument.Parse(result.StandardOutput.AsMemory(4, (int)helloLength));
+        Assert.Equal("accepted", hello.RootElement.GetProperty("status").GetString());
+        Assert.Equal(supported, hello.RootElement.GetProperty("capabilities").EnumerateArray().Select(item => item.GetString()));
+
+        if (!offerCapability)
+        {
+            Assert.Equal(nextFrame, result.StandardOutput.Length);
+            return;
+        }
+
+        uint metricsLength = BinaryPrimitives.ReadUInt32LittleEndian(result.StandardOutput.AsSpan(nextFrame));
+        Assert.Equal((uint)(result.StandardOutput.Length - nextFrame - 4), metricsLength);
+        using JsonDocument report = JsonDocument.Parse(result.StandardOutput.AsMemory(nextFrame + 4));
+        JsonElement lifecycle = report.RootElement;
+        Assert.Equal("GenerationRetired", lifecycle.GetProperty("eventType").GetString());
+        Assert.Equal("66666666-7777-8888-9999-aaaaaaaaaaaa", lifecycle.GetProperty("connectionAttemptId").GetString());
+        JsonElement metrics = lifecycle.GetProperty("generationMetrics");
+        Assert.Equal("2", metrics.GetProperty("nativeGeneration").GetString());
+        Assert.Equal("17", metrics.GetProperty("retirementMicroseconds").GetString());
+        Assert.Equal("8", metrics.GetProperty("audioPacketsRead").GetString());
+        Assert.False(metrics.TryGetProperty("audioUnderflowSamples", out _));
+    }
+
     /// <summary>Supplies a valid session and the exact parent identity to the production option parser.</summary>
     private static string[] MachineArguments(int parentPid, long parentCreated) =>
     [
@@ -83,9 +133,12 @@ public sealed class ProductionNativeBootstrapTests
     ];
 
     /// <summary>Runs only explicitly bounded bootstrap paths and settles the exact started process.</summary>
-    private static async Task<NativeResult> RunNativeAsync(string[] arguments, byte[]? standardInput = null)
+    private static async Task<NativeResult> RunNativeAsync(string[] arguments, byte[]? standardInput = null,
+        bool useMetricsFixture = false)
     {
-        string executable = RequireProductionNative();
+        string executable = useMetricsFixture
+            ? RequireExecutable("SCRCPY_IPC_NATIVE_TEST_CHILD", "test_machine_child.exe")
+            : RequireExecutable("SCRCPY_IPC_PRODUCTION_NATIVE", "scrcpy.exe");
         string testRoot = Environment.GetEnvironmentVariable("SCRCPY_IPC_TEST_ROOT") ??
             throw new DirectoryNotFoundException("The isolated IPC test root is required.");
         string absentAdb = Path.Combine(testRoot, "absent-adb-" + Guid.NewGuid().ToString("N") + ".exe");
@@ -103,6 +156,11 @@ public sealed class ProductionNativeBootstrapTests
         startInfo.Environment["ADB"] = absentAdb;
         startInfo.Environment["SCRCPY_SERVER_PATH"] = Path.Combine(testRoot,
             "absent-server-" + Guid.NewGuid().ToString("N"));
+
+        if (useMetricsFixture)
+        {
+            startInfo.Environment["SCRCPY_IPC_TEST_GENERATION_METRICS"] = "1";
+        }
 
         foreach (string argument in arguments)
         {
@@ -159,13 +217,13 @@ public sealed class ProductionNativeBootstrapTests
     }
 
     /// <summary>Fails rather than silently skipping the real executable when CI omitted it.</summary>
-    private static string RequireProductionNative()
+    private static string RequireExecutable(string variable, string expectedName)
     {
-        string? path = Environment.GetEnvironmentVariable("SCRCPY_IPC_PRODUCTION_NATIVE");
+        string? path = Environment.GetEnvironmentVariable(variable);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path) ||
-            !string.Equals(Path.GetFileName(path), "scrcpy.exe", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(Path.GetFileName(path), expectedName, StringComparison.OrdinalIgnoreCase))
         {
-            throw new FileNotFoundException("Set SCRCPY_IPC_PRODUCTION_NATIVE to the built scrcpy.exe.", path);
+            throw new FileNotFoundException($"Set {variable} to the built {expectedName}.", path);
         }
 
         return Path.GetFullPath(path);

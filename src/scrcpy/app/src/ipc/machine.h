@@ -12,6 +12,8 @@ struct sc_machine_config {
     uint64_t parent_created;
 };
 
+struct sc_ipc_generation_metrics;
+
 /** Reserve stdout for frames before any banner, log or CLI parser runs. */
 bool sc_machine_prepare_stdio(void);
 
@@ -40,6 +42,10 @@ void sc_machine_set_window(SDL_Window *window);
 bool sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
                                const char *attempt_id, const char *reason,
                                const char *error);
+
+/** Best-effort counters, sent only to a peer that negotiated the capability. */
+void sc_machine_emit_generation_metrics(const char attempt_id[37],
+                                        struct sc_ipc_generation_metrics *metrics);
 
 /** Produce a canonical nonzero GUID for a concrete transport attempt. */
 bool sc_machine_new_attempt_id(char attempt_id[37]);

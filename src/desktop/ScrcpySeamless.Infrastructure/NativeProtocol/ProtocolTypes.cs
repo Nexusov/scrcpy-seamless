@@ -1,3 +1,5 @@
+using ScrcpySeamless.Core.Application.NativeHost;
+
 namespace ScrcpySeamless.Infrastructure.NativeProtocol;
 
 /// <summary>Stable protocol failure classes without raw input in diagnostics.</summary>
@@ -40,6 +42,7 @@ public sealed record ProtocolMessage
     public string? EventType { get; init; }
     public string? Reason { get; init; }
     public string? Error { get; init; }
+    public NativeGenerationMetrics? GenerationMetrics { get; init; }
 }
 
 /// <summary>Capability negotiation independent of native process execution.</summary>
@@ -48,11 +51,15 @@ public static class ProtocolCompatibility
     public const string Product = "scrcpy-seamless";
     public const int Major = 1;
     public const int Minor = 0;
+    public const string GenerationMetricsCapability = "generation-metrics-v1";
 
     public static IReadOnlyList<string> RequiredCapabilities { get; } =
         Array.AsReadOnly(new[] { "focus-window", "lifecycle-v1", "stop" });
 
-    private static readonly HashSet<string> Supported = new(RequiredCapabilities, StringComparer.Ordinal);
+    public static IReadOnlyList<string> SupportedCapabilities { get; } =
+        Array.AsReadOnly(RequiredCapabilities.Append(GenerationMetricsCapability).ToArray());
+
+    private static readonly HashSet<string> Supported = new(SupportedCapabilities, StringComparer.Ordinal);
 
     /// <summary>Evaluates a decoded client hello without starting a session.</summary>
     public static ProtocolMessage Evaluate(ProtocolMessage hello)

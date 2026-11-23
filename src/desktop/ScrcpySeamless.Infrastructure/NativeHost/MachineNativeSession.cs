@@ -63,6 +63,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
     private int queuedFrames;
     private int queuedBytes;
     private bool handshakeAccepted;
+    private bool generationMetricsNegotiated;
     private bool nativeReady;
     private bool terminalObserved;
     private bool disposed;
@@ -224,7 +225,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
             ProtocolMajor = ProtocolCompatibility.Major,
             ProtocolMinor = ProtocolCompatibility.Minor,
             RequiredCapabilities = ProtocolCompatibility.RequiredCapabilities,
-            SupportedCapabilities = ProtocolCompatibility.RequiredCapabilities,
+            SupportedCapabilities = ProtocolCompatibility.SupportedCapabilities,
         };
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(HandshakeTimeout);
@@ -691,6 +692,7 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
                     new[] { "focus-window", "lifecycle-v1", "stop" }.All(message.Capabilities.Contains))
                 {
                     handshakeAccepted = true;
+                    generationMetricsNegotiated = message.Capabilities.Contains(ProtocolCompatibility.GenerationMetricsCapability);
                 }
 
                 return;
@@ -698,6 +700,12 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
 
             if (message.MessageType == "lifecycle")
             {
+                if (message.EventType == "GenerationRetired" && !generationMetricsNegotiated)
+                {
+                    throw new ProtocolException(ProtocolFailure.InvalidMessage,
+                        "Native generation metrics were not negotiated.");
+                }
+
                 if (terminalObserved || message.SessionId != SessionId.Value ||
                     message.Sequence <= lastSequence)
                 {
@@ -750,16 +758,29 @@ public sealed class MachineNativeSession : INativeInteractiveSession, INativeHan
                     observedReason = NativeTerminationReason.NativeFailure;
                 }
 
+                bool optionalMetrics = message.EventType == "GenerationRetired";
+
+                if (optionalMetrics && (!lifecycle.Reader.CanCount || lifecycle.Reader.Count != 0))
+                {
+                    // Admit optional telemetry only on idle capacity; later bursts keep the same finite bound.
+                    return;
+                }
+
                 NativeLifecycleObservation observation = new(SessionId, message.Sequence!.Value,
                     message.Utc!.Value, message.MonotonicMicroseconds!.Value,
                     message.ConnectionAttemptId is { } attempt ? new ConnectionAttemptId(attempt) : null,
                     ParseToken<NativeLifecycleSubsystem>(message.Subsystem!),
                     ParseToken<NativeLifecycleEventType>(message.EventType!),
                     ParseToken<NativeLifecycleReason>(message.Reason!),
-                    ParseToken<NativeLifecycleError>(message.Error!));
+                    ParseToken<NativeLifecycleError>(message.Error!), message.GenerationMetrics);
 
                 if (!lifecycle.Writer.TryWrite(observation))
                 {
+                    if (optionalMetrics)
+                    {
+                        return;
+                    }
+
                     throw new IOException("The bounded native lifecycle queue is full.");
                 }
 

@@ -184,6 +184,7 @@ public sealed class ProtocolContractTests
         Assert.Equal(expected.EventType, actual.EventType);
         Assert.Equal(expected.Reason, actual.Reason);
         Assert.Equal(expected.Error, actual.Error);
+        Assert.Equal(expected.GenerationMetrics, actual.GenerationMetrics);
         Assert.Equal(expected.Status, actual.Status);
         Assert.Equal(expected.RequiredCapabilities?.Order(StringComparer.Ordinal).ToArray(),
             actual.RequiredCapabilities?.Order(StringComparer.Ordinal).ToArray());

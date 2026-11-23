@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
+#include <psapi.h>
 #include <rpc.h>
 #include <SDL3/SDL.h>
 
@@ -58,6 +59,7 @@ struct sc_machine_state {
     bool closing;
     bool commands_closing;
     bool initialized;
+    bool generation_metrics_negotiated;
     bool handshake_written;
     LONG handshake_complete;
     char session_id[37];
@@ -447,6 +449,13 @@ sc_machine_handshake(void) {
     if (strcmp(result.status, "accepted")) {
         return false;
     }
+    for (size_t index = 0; index < result.capabilities.count; ++index) {
+        if (!strcmp(result.capabilities.values[index],
+                    SC_IPC_GENERATION_METRICS_CAPABILITY)) {
+            machine.generation_metrics_negotiated = true;
+            break;
+        }
+    }
     InterlockedExchange(&machine.handshake_complete, 1);
     return true;
 }
@@ -641,10 +650,11 @@ sc_machine_timestamp(char utc[25], uint64_t *elapsed_us) {
 }
 
 /** Assign sequence and enqueue under one lock so publication order is stable. */
-bool
-sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
-                          const char *attempt_id, const char *reason,
-                          const char *error) {
+static bool
+sc_machine_emit_lifecycle_internal(const char *event_type, const char *subsystem,
+                                   const char *attempt_id, const char *reason,
+                                   const char *error,
+                                   const struct sc_ipc_generation_metrics *metrics) {
     if (!InterlockedCompareExchange(&machine.handshake_complete, 0, 0) ||
             !event_type || !subsystem ||
             !reason || !error) {
@@ -662,13 +672,22 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
     strcpy(message.subsystem, subsystem);
     strcpy(message.reason, reason);
     strcpy(message.error, error);
+    if (metrics) {
+        message.generation_metrics = *metrics;
+    }
     sc_machine_timestamp(message.utc, &message.monotonic_microseconds);
     bool session_stopped = !strcmp(event_type, "SessionStopped");
     if (session_stopped) {
         EnterCriticalSection(&machine.stop_publication_mutex);
     }
     EnterCriticalSection(&machine.mutex);
-    message.sequence = ++machine.sequence;
+    // Evidence never waits for a busy writer or competes for a queued slot.
+    if (metrics && (machine.closing || machine.terminal ||
+                    machine.queue_count || machine.in_flight_bytes)) {
+        LeaveCriticalSection(&machine.mutex);
+        return false;
+    }
+    message.sequence = machine.sequence + 1;
     // Sequencing and encoding are serialized with the queue owner.
     uint8_t *payload = NULL;
     size_t payload_length = 0;
@@ -685,6 +704,7 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
                                     machine.queue_bytes - machine.in_flight_bytes;
     bool accepted = !machine.closing && !machine.terminal && capacity;
     if (accepted) {
+        machine.sequence = message.sequence;
         size_t tail = (machine.queue_head + machine.queue_count) %
                       SC_MACHINE_QUEUE_ITEMS;
         machine.queue[tail] = (struct sc_machine_frame) {frame, frame_length};
@@ -698,9 +718,41 @@ sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
     }
     if (!accepted) {
         free(frame);
-        sc_machine_fail();
+        if (!metrics) {
+            sc_machine_fail();
+        }
     }
     return accepted;
+}
+
+bool
+sc_machine_emit_lifecycle(const char *event_type, const char *subsystem,
+                          const char *attempt_id, const char *reason,
+                          const char *error) {
+    return sc_machine_emit_lifecycle_internal(event_type, subsystem, attempt_id,
+                                              reason, error, NULL);
+}
+
+void
+sc_machine_emit_generation_metrics(const char attempt_id[37],
+                                    struct sc_ipc_generation_metrics *metrics) {
+    if (!attempt_id || !attempt_id[0] || !sc_machine_is_active() ||
+        !machine.generation_metrics_negotiated) {
+        return;
+    }
+
+    PROCESS_MEMORY_COUNTERS_EX counters = {.cb = sizeof(counters)};
+    if (GetProcessMemoryInfo(GetCurrentProcess(),
+                             (PROCESS_MEMORY_COUNTERS *) &counters,
+                             sizeof(counters))) {
+        sc_ipc_generation_metrics_set(metrics, SC_IPC_METRIC_WORKING_SET_BYTES,
+                                      counters.WorkingSetSize);
+        sc_ipc_generation_metrics_set(metrics, SC_IPC_METRIC_PRIVATE_BYTES,
+                                      counters.PrivateUsage);
+    }
+
+    sc_machine_emit_lifecycle_internal("GenerationRetired", "native", attempt_id,
+                                       "none", "none", metrics);
 }
 
 /** Use Windows' UUID generator for per-attempt identity. */

@@ -91,6 +91,8 @@ public static class DiagnosticExportFormatter
             {
                 SessionEvidenceSnapshot snapshot = snapshots[index];
                 Dictionary<Guid, int> attempts = [];
+                Dictionary<ulong, int> generations = GenerationMetricProjection.Ordinals(snapshot.Events);
+                NativeGenerationMetrics? latestMetrics = snapshot.Events.LastOrDefault(item => item.GenerationMetrics is not null)?.GenerationMetrics;
 
                 foreach (NativeLifecycleObservation observation in snapshot.Events)
                 {
@@ -168,7 +170,7 @@ public static class DiagnosticExportFormatter
                     {
                         NativeGeneration = (int?)null,
                         AudioPacketsDecoded = (ulong?)null,
-                        AudioSamplesSubmitted = (ulong?)null,
+                        AudioSamplesSubmitted = latestMetrics?.AudioSamplesSubmitted,
                         AudioUnderflows = (ulong?)null,
                         AudibleReadiness = (bool?)null,
                         VideoFramesPresented = (ulong?)null,
@@ -178,7 +180,16 @@ public static class DiagnosticExportFormatter
                         ProcessExitCode = (int?)null,
                         WireStopAcknowledged = (bool?)null,
                         ForegroundPermissionReturn = (bool?)null,
-                        Availability = "NotRecorded",
+                        Availability = latestMetrics is null ? "NotRecorded" : "PartialLatestRetainedRetiredGeneration",
+                        CounterScope = "LatestRetainedRetiredGenerationOnly",
+                        FieldAvailability = new
+                        {
+                            NativeGeneration = latestMetrics is null ? "NotRecorded" : "RawIdentityExcludedSeeLocalOrdinal",
+                            AudioSamplesSubmitted = latestMetrics?.AudioSamplesSubmitted is null ? "NotRecorded" : "Recorded",
+                            AudioPacketsDecoded = "NotRecordedPacketsReadAndFramesDecodedAreDifferentUnits",
+                            AudioUnderflows = "NotRecordedUnderflowSamplesAreDifferentUnits",
+                            ProcessMemoryBytes = "NotRecordedWorkingSetAndPrivateBytesAreSeparateSamples",
+                        },
                     },
                 });
                 ulong? first = snapshot.Events.FirstOrDefault()?.MonotonicMicroseconds;
@@ -201,6 +212,7 @@ public static class DiagnosticExportFormatter
                         Subsystem = observation.Subsystem.ToString(),
                         Event = observation.EventType.ToString(),
                         Reason = observation.Reason.ToString(),
+                        GenerationMetrics = GenerationMetricProjection.Create(observation.GenerationMetrics, generations),
                     });
                     previous = observation.MonotonicMicroseconds;
                 }
