@@ -571,7 +571,7 @@ sc_app_run(const struct scrcpy_options *options, struct sc_dispatcher *dispatche
             goto finish_screen;
         }
 #endif
-        struct sc_app_target target;
+        struct sc_app_target target = {0};
         struct sc_transport_result resolved;
 
         if (!sc_app_acquire_target(s, dispatcher, screen_initialized, plan,

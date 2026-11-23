@@ -272,6 +272,7 @@ THIRD_PARTY.md. Distribute the corresponding-source companion with public releas
         DesktopSdk = $sdk.version
         NativeFingerprint = $nativeFingerprint
         ServerFingerprint = $serverFingerprint
+        NativeBuildProfile = $nativeEvidence.BuildProfile
         BuildInputSha256 = $inputHashes
         ReviewedArchives = $imports
     })
