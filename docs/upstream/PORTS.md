@@ -250,3 +250,60 @@ inside one test. These counts are not additional tests, targets or hardware
 passes. Full server unit/build/style results are recorded separately from the
 controlled red experiments. No physical codec/camera/display compatibility or
 explanation of the historical P7.2 geometry observation follows from this port.
+
+## Stable v5.0.1 changes outside the selected ports
+
+The selective review pins stable
+[`a60891aea193d92e7e5c3942700eca63f9d19a5f`](https://github.com/Genymobile/scrcpy/tree/a60891aea193d92e7e5c3942700eca63f9d19a5f)
+(v5.0.1), compared with the v4.0 baseline over 113 upstream commits. This is
+not an assertion that every upstream commit is necessary for Windows software
+decode parity, nor an exhaustive vulnerability/dependency audit.
+
+The hardware-decoder/interop subsystem and its DRM/VAAPI/EGL/AV1 follow-up
+repairs are not transplanted into the accepted software-decoder route. Adopting
+that subsystem later requires its complete correctness set and backend/driver
+validation, rather than isolated patches to code that is currently absent.
+VP8/VP9 and the new SCAN_FILE control type 22 likewise remain optional feature
+sets: current supported codecs are H264/H265/AV1 and control types are 0..21.
+Adding either requires coherent options, codecs, wire/controller, recording
+and container coverage. No VPx or media-indexing support is claimed here.
+
+Terminal-title OSC output is not needed by the framed Desktop machine route.
+Upstream decoder-worker/video-regulator restructuring overlaps the local
+generation/FIFO/ingress model; it is not replayed wholesale. The local model
+still requires its own queue and retained-memory proofs. New upstream SDL,
+FFmpeg, libusb, dav1d and platform-tools versions require a separate actual-
+shipped dependency advisory/license/ABI audit; a source-port review cannot
+establish that those imported binaries are free of applicable advisories.
+
+Small residual source differences have narrower dispositions:
+
+- [Device-name static assertion](https://github.com/Genymobile/scrcpy/commit/a351ff666985dd84c026f452bf0872fb1f516dab):
+  current `server.c` reads a 64-byte `SC_DEVICE_NAME_FIELD_LENGTH` buffer, forces
+  its last byte to NUL, then copies into the same-sized declaration in
+  `server.h`. The existing copy is bounded and terminated. The missing upstream
+  assertion guards future declaration drift; it is optional compile-time
+  hardening, not evidence of a current out-of-bounds read or missing terminator.
+- [Locale-root Quest comparison](https://github.com/Genymobile/scrcpy/commit/f498e824b4d12bd02fa5eed3688f043bd5743dcf):
+  the current fallback uses default-locale lowercasing of the model name. The
+  upstream explicit locale is deterministic hardening. No concrete supported
+  Quest-prefix failure has been reproduced; the ASCII prefix contains no
+  locale-sensitive I. The existing lint warning is retained, not called fixed.
+- [Const-correct strchr pointers](https://github.com/Genymobile/scrcpy/commit/b64b5339eae8e94646a2759006dacf46d4950425):
+  these are source qualification differences without a demonstrated runtime
+  mutation defect; they are not required for the ownership ports above.
+- [Old-FFmpeg V4L2 filename copy](https://github.com/Genymobile/scrcpy/commit/c29743af4bca0e4a2aa2b30b258099445ed91b16)
+  and [follow-up](https://github.com/Genymobile/scrcpy/commit/6ce3d289145bf8acf4eeeaef0ce334f4d448acd7):
+  the obsolete `filename` compatibility branch still has potentially
+  unterminated `strncpy`. Current FFmpeg selects `url = strdup(...)`, and the
+  supported Windows build does not compile V4L2. This is not an established
+  active Windows flaw. Old-FFmpeg/Linux V4L2 compatibility remains unvalidated;
+  claiming it requires the bounded-copy port and conditional source/runtime
+  coverage. Windows usb=false or usb=true results do not exercise that branch.
+
+The Android control-channel specification and independent bidirectional codec
+fixtures live under [spec/device-protocol](../../spec/device-protocol/PROTOCOL.md).
+They inventory current wire behavior separately from upstream feature adoption,
+Desktop/native IPC and untested media/device effects. None of these source
+decisions establishes a historical hardware failure or explains the retained
+geometry and activation observations.
