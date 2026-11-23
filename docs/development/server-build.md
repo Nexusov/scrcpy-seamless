@@ -124,3 +124,21 @@ so a style violation alone does not fail the task. These checks do not establish
 behavior on physical hardware. Keep any changed server
 binary out of the portable package until runtime-hash provenance, compatibility,
 licensing and device tests receive their own review.
+
+## Provisioned Windows CI tools
+
+The Windows native CI job uses preinstalled SDK packages and JDK 17 from the
+[Windows Server 2025 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md).
+Pass -UseProvisionedToolchain to scripts/test-device-protocol.ps1 or
+scripts/build-server.ps1 when JAVA_HOME_17_X64 and ANDROID_HOME identify a
+trusted, complete installation. Both commands validate the JDK major and
+architecture and check the installed Android platform, Build Tools and
+Platform-Tools metadata against server-toolchain.json. Provisioned mode
+records the actual JDK runtime version and package revisions and leaves SDK
+installation and license review to the image provider. The local default
+continues to use the exact pinned bootstrap.
+
+Set -ArtifactDirectory to write scrcpy-server and server-build.json in a
+new directory when reusing a build tool cache. Pass that directory to
+stage-portable.ps1 with -ServerArtifactDirectory. The Gradle wrapper, Maven
+lockfiles and strict dependency verification apply in both toolchain modes.

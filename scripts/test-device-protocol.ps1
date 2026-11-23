@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)][string]$NativeBuildDirectory,
     [string]$ToolDirectory,
     [string]$GradleUserHome,
+    [switch]$UseProvisionedToolchain,
     [string]$NativeSourceRoot,
     [string]$OutputDirectory
 )
@@ -30,23 +31,16 @@ $pkgConfig = (Resolve-Path -LiteralPath $configuration.pkgConfig).ProviderPath
 if (-not $ToolDirectory) {
     $ToolDirectory = Join-Path $repository 'work\phase2\server'
 }
-$tools = (Resolve-Path -LiteralPath $ToolDirectory).ProviderPath
-$javaHome = Join-Path $tools ('jdk\' + $toolchain.Jdk.ExtractedDirectory)
-$androidHome = Join-Path $tools 'sdk'
+$tools = [IO.Path]::GetFullPath($ToolDirectory)
+. (Join-Path $PSScriptRoot 'server-toolchain.ps1')
+$serverEnvironment = Get-ServerToolchainEnvironment -Toolchain $toolchain -ToolDirectory $tools -UseProvisionedToolchain:$UseProvisionedToolchain
+$javaHome = $serverEnvironment.JavaDirectory
+$androidHome = $serverEnvironment.SdkDirectory
 
 if (-not $GradleUserHome) {
     $GradleUserHome = Join-Path $tools 'gradle-home'
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $javaHome 'bin\java.exe') -PathType Leaf) -or
-    -not (Test-Path -LiteralPath (Join-Path $androidHome 'platforms\android-36\android.jar') -PathType Leaf)) {
-    throw 'Run the canonical pinned server bootstrap before this check.'
-}
-$jdkRelease = Get-Content -LiteralPath (Join-Path $javaHome 'release') -Raw
-
-if ($jdkRelease -notmatch ('JAVA_RUNTIME_VERSION="' + [regex]::Escape($toolchain.Jdk.Version) + '"')) {
-    throw 'The server JDK runtime version differs from its pinned input.'
-}
 $sdl = Join-Path $runtime 'SDL3.dll'
 
 if ((Get-FileHash -LiteralPath $sdl -Algorithm SHA256).Hash.ToLowerInvariant() -ne $release.RuntimeFiles.'SDL3.dll') {
@@ -121,6 +115,7 @@ $inputPaths = $sources + @(
     (Join-Path $nativeSources 'compat.h'), (Join-Path $ownNativeSources 'util\utf8.h'),
     $nativeConfig, $compiler, $pkgConfig, $sdl, $ConfigPath,
     (Join-Path $PSScriptRoot 'test-device-protocol.ps1'), (Join-Path $PSScriptRoot 'server-toolchain.json'),
+    (Join-Path $PSScriptRoot 'server-toolchain.ps1'),
     (Join-Path $repository 'src\scrcpy\server\build.gradle'),
     (Join-Path $repository 'src\scrcpy\buildscript-gradle.lockfile'),
     (Join-Path $repository 'src\scrcpy\server\gradle.lockfile'),
@@ -150,6 +145,7 @@ $manifest = [ordered]@{
     NativeSourceRoot = $nativeRoot
     MixedSourceValidation = $mixed
     Boundary = 'Production control/device codecs and shared text validator only; no device, socket, clipboard or media effects.'
+    Toolchain = $serverEnvironment.Evidence
     Inputs = $inputs
     Stage = 'prepared'
     Result = 'running'

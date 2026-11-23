@@ -28,7 +28,7 @@ jobs:
         run: ./scripts/test.ps1
 
   native:
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,7 +46,7 @@ jobs:
           $configuration = './work/native/build.local.json'
           $runtime = './work/native/scrcpy-release/scrcpy-win64-v4.0'
           ./scripts/build.ps1 -ConfigPath $configuration -RuntimeDirectory $runtime -NativeTests
-          ./scripts/build.ps1 -ConfigPath $configuration -RuntimeDirectory $runtime
+          ./scripts/build.ps1 -ConfigPath $configuration -RuntimeDirectory $runtime -PortableRelease
       - name: Verify Desktop/native IPC contract in both languages
         shell: powershell
         run: |
@@ -55,19 +55,30 @@ jobs:
       - name: Verify native and Android device wire contracts in both languages
         shell: powershell
         run: |
-          ./scripts/bootstrap-server.ps1
           ./scripts/test-device-protocol.ps1 `
             -ConfigPath ./work/native/build.local.json `
             -RuntimeDirectory ./work/native/scrcpy-release/scrcpy-win64-v4.0 `
             -NativeBuildDirectory ./work/native-tests `
-            -ToolDirectory ./work/phase2/server
-      - name: Exercise owned IPC and parent-death cleanup without ADB
+            -UseProvisionedToolchain
+      - name: Build the Windows portable package from source
         shell: powershell
         run: |
+          ./scripts/build-server.ps1 -UseProvisionedToolchain
+          $source = (git rev-parse HEAD).Trim()
+          $stage = Join-Path $PWD 'dist/portable/scrcpy-seamless-win-x64'
+          $archive = "$stage.zip"
+          $sdk = Join-Path $PWD 'work/dotnet-sdk-10.0.401/dotnet.exe'
+          ./scripts/stage-portable.ps1 -SourceSha $source -PackageDirectory $stage -DotnetPath $sdk
+          ./scripts/package-portable.ps1 -SourceSha $source -PackageDirectory $stage -ArchivePath $archive
+          ./scripts/package-portable.ps1 -SourceSha $source -ArchivePath $archive -VerifyOnly
+      - name: Exercise the packaged IPC and parent-death cleanup without ADB
+        shell: powershell
+        run: |
+          $runtime = Join-Path $PWD 'dist/portable/scrcpy-seamless-win-x64/runtime'
           ./scripts/test-ipc-runtime.ps1 `
             -NativeFixturePath ./work/native-tests/app/test_machine_child.exe `
-            -ProductionNativePath ./dist/scrcpy.exe `
-            -RuntimeDirectory ./work/native/scrcpy-release/scrcpy-win64-v4.0 `
+            -ProductionNativePath (Join-Path $runtime 'scrcpy.exe') `
+            -RuntimeDirectory $runtime `
             -DotnetPath ./work/dotnet-sdk-10.0.401/dotnet.exe
       - name: Verify the native-backed package
         shell: powershell

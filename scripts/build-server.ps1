@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ToolDirectory,
+    [string]$ArtifactDirectory,
+    [switch]$UseProvisionedToolchain,
     [switch]$Offline
 )
 
@@ -58,15 +60,29 @@ function Assert-ServerBuildPins {
 
 . (Join-Path $PSScriptRoot 'server-provenance.ps1')
 
+. (Join-Path $PSScriptRoot 'server-toolchain.ps1')
 Assert-ServerBuildPins -Toolchain $toolchain -SourceDirectory $sourceDirectory
-& (Join-Path $PSScriptRoot 'bootstrap-server.ps1') -ToolDirectory $toolDirectoryPath -Offline:$Offline
-$sourceFingerprint = Get-ServerBuildFingerprint -RepositoryDirectory $repositoryDirectory
 
-$javaDirectory = Join-Path (Join-Path $toolDirectoryPath 'jdk') $toolchain.Jdk.ExtractedDirectory
-$sdkDirectory = Join-Path $toolDirectoryPath 'sdk'
+if (-not $UseProvisionedToolchain) {
+    & (Join-Path $PSScriptRoot 'bootstrap-server.ps1') -ToolDirectory $toolDirectoryPath -Offline:$Offline
+}
+
+$environment = Get-ServerToolchainEnvironment -Toolchain $toolchain -ToolDirectory $toolDirectoryPath -UseProvisionedToolchain:$UseProvisionedToolchain
+$sourceFingerprint = Get-ServerBuildFingerprint -RepositoryDirectory $repositoryDirectory
+$javaDirectory = $environment.JavaDirectory
+$sdkDirectory = $environment.SdkDirectory
 $gradleDirectory = Join-Path $toolDirectoryPath 'gradle-home'
 $serverApk = Join-Path $sourceDirectory 'server\build\outputs\apk\release\server-release-unsigned.apk'
-$artifactDirectory = Join-Path $toolDirectoryPath 'artifacts'
+$artifactPath = Join-Path $toolDirectoryPath 'artifacts'
+
+if ($ArtifactDirectory) {
+    $artifactPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ArtifactDirectory)
+
+    if (Test-Path -LiteralPath $artifactPath) {
+        throw 'Choose a new explicit Android server artifact directory.'
+    }
+}
+
 $originalJavaHome = $env:JAVA_HOME
 $originalAndroidHome = $env:ANDROID_HOME
 $originalAndroidSdkRoot = $env:ANDROID_SDK_ROOT
@@ -114,10 +130,7 @@ try {
         throw 'Android server source/build inputs changed during compilation; rebuild before using the artifact.'
     }
 
-    New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
-    $copiedServer = Join-Path $artifactDirectory 'scrcpy-server'
-    Copy-Item -LiteralPath $serverApk -Destination $copiedServer -Force
-    $serverHash = (Get-FileHash -LiteralPath $copiedServer -Algorithm SHA256).Hash.ToLowerInvariant()
+    $serverHash = (Get-FileHash -LiteralPath $serverApk -Algorithm SHA256).Hash.ToLowerInvariant()
     $headCommit = (& git -C $repositoryDirectory rev-parse HEAD).Trim()
 
     if ($LASTEXITCODE) {
@@ -130,13 +143,38 @@ try {
         SourceFingerprintSha256 = $sourceFingerprint
         ServerSourceDirectory = 'src/scrcpy/server'
         ToolchainManifest = 'scripts/server-toolchain.json'
+        Toolchain = $environment.Evidence
         BuildCommand = ('gradlew.bat ' + ($gradleArguments -join ' '))
         Artifact = 'scrcpy-server'
         ArtifactSha256 = $serverHash
         BundledByCurrentPublisher = $false
     }
-    $buildEvidence | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $artifactDirectory 'server-build.json') -Encoding UTF8
-    Write-Host "Built and checked Android server: $copiedServer"
+    $outputPath = $artifactPath
+
+    if ($ArtifactDirectory) {
+        $outputPath = Join-Path ([IO.Path]::GetDirectoryName($artifactPath)) ('.server-output-' + [guid]::NewGuid().ToString('N'))
+    }
+
+    [IO.Directory]::CreateDirectory($outputPath) | Out-Null
+
+    try {
+        [IO.File]::Copy($serverApk, (Join-Path $outputPath 'scrcpy-server'), -not $ArtifactDirectory)
+        $buildEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $outputPath 'server-build.json') -Encoding UTF8
+
+        if ($ArtifactDirectory) {
+            [IO.Directory]::Move($outputPath, $artifactPath)
+        }
+    }
+    finally {
+        if ($ArtifactDirectory -and [IO.Directory]::Exists($outputPath)) {
+            # The unique staging directory has a fixed two-file layout.
+            [IO.File]::Delete((Join-Path $outputPath 'scrcpy-server'))
+            [IO.File]::Delete((Join-Path $outputPath 'server-build.json'))
+            [IO.Directory]::Delete($outputPath)
+        }
+    }
+
+    Write-Host "Built and checked Android server: $(Join-Path $artifactPath 'scrcpy-server')"
     Write-Host "SHA-256: $serverHash"
     Write-Host 'This source-built server is not substituted for the reviewed imported runtime in the current 1.x package.'
 }

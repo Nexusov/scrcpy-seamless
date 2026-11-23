@@ -93,6 +93,10 @@ Android server lockfiles and Gradle verification metadata are checked-in build
 inputs. Normal build and CI paths verify them; regenerate them only during a
 reviewed dependency update described in `docs/development/server-build.md`.
 
+Windows CI validates its provisioned JDK and Android SDK before the wire
+contract and source-built server checks. The local default uses the pinned
+bootstrap. Keep SDK license review outside unattended builds.
+
 ## Tests
 
 Run the applicable build/package/publication tests. For a 1.x package:

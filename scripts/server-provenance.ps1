@@ -7,7 +7,8 @@ function Get-ServerBuildFingerprint {
         'src/scrcpy/gradle.properties', 'src/scrcpy/gradlew.bat', 'src/scrcpy/gradle/wrapper',
         'src/scrcpy/buildscript-gradle.lockfile', 'src/scrcpy/gradle/verification-metadata.xml',
         'src/scrcpy/config', 'scripts/server-toolchain.json',
-        'scripts/bootstrap-server.ps1', 'scripts/build-server.ps1', 'scripts/server-provenance.ps1'
+        'scripts/bootstrap-server.ps1', 'scripts/build-server.ps1',
+        'scripts/server-provenance.ps1', 'scripts/server-toolchain.ps1'
     )
     $sourcePaths = @(& git -C $RepositoryDirectory ls-files --cached --others --exclude-standard -- @inputPaths)
 

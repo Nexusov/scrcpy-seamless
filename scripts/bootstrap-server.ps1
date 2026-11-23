@@ -101,26 +101,7 @@ function Expand-VerifiedServerArchive {
     }
 }
 
-# Reject SDK packages whose installed revision differs from the reviewed pin.
-function Assert-AndroidPackageRevision {
-    param([string]$PropertiesPath, [string]$ExpectedRevision)
-
-    if (-not (Test-Path -LiteralPath $PropertiesPath -PathType Leaf)) {
-        throw "Android SDK package metadata is missing: $PropertiesPath"
-    }
-
-    $revisionLine = @(Get-Content -LiteralPath $PropertiesPath | Where-Object { $_ -match '^Pkg\.Revision\s*=' })
-
-    if ($revisionLine.Count -ne 1) {
-        throw "Android SDK package revision is missing or ambiguous: $PropertiesPath"
-    }
-
-    $actualRevision = ($revisionLine[0] -split '=', 2)[1].Trim()
-
-    if ($actualRevision -ne $ExpectedRevision) {
-        throw "Android SDK package revision $actualRevision differs from pinned $ExpectedRevision`: $PropertiesPath"
-    }
-}
+. (Join-Path $PSScriptRoot 'server-toolchain.ps1')
 
 New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
 $javaArchivePath = Get-VerifiedServerArchive -Archive $toolchain.Jdk -DownloadDirectory $downloadDirectory -UseOfflineCache $Offline.IsPresent
